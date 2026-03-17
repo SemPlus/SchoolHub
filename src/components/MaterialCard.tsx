@@ -3,7 +3,7 @@ import { FileText, File, Link as LinkIcon, ExternalLink, Download, Trash2, Prese
 import { formatDistanceToNow } from 'date-fns';
 import { Material } from '../types';
 import { auth, db } from '../firebase';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
 
 interface MaterialCardProps {
   key?: React.Key;
@@ -24,6 +24,18 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy: ', err);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!isExternalLink) {
+      try {
+        await updateDoc(doc(db, 'materials', material.id), {
+          downloadCount: increment(1)
+        });
+      } catch (error) {
+        console.error('Error incrementing download count: ', error);
+      }
     }
   };
 
@@ -118,15 +130,27 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
           >
             {material.authorName}
           </button>
-          <span className="text-[10px] uppercase tracking-widest text-white/20 mt-1">
-            {material.createdAt ? formatDistanceToNow(material.createdAt, { addSuffix: true }) : 'Just now'}
-          </span>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-[10px] uppercase tracking-widest text-white/20">
+              {material.createdAt ? formatDistanceToNow(material.createdAt, { addSuffix: true }) : 'Just now'}
+            </span>
+            {!isExternalLink && (
+              <>
+                <span className="text-white/10">•</span>
+                <span className="text-[10px] uppercase tracking-widest text-white/40 flex items-center gap-1">
+                  <Download className="w-2.5 h-2.5" />
+                  {material.downloadCount || 0}
+                </span>
+              </>
+            )}
+          </div>
         </div>
         
         <a
           href={material.url}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={handleDownload}
           className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-medium text-white/80 hover:text-luxury-gold transition-colors"
         >
           {isExternalLink ? (

@@ -2,6 +2,8 @@ import React from 'react';
 import { X, BookOpen, ExternalLink, Download, FileText, File, Link as LinkIcon } from 'lucide-react';
 import { Material } from '../types';
 import { formatDistanceToNow } from 'date-fns';
+import { doc, updateDoc, increment } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface AuthorProfileModalProps {
   isOpen: boolean;
@@ -21,6 +23,18 @@ export default function AuthorProfileModal({ isOpen, onClose, authorName, author
       case 'canva': return <BookOpen className="w-4 h-4 text-purple-400" />;
       case 'link': return <LinkIcon className="w-4 h-4 text-emerald-400" />;
       default: return <File className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const handleDownload = async (material: Material) => {
+    if (material.type !== 'link' && material.type !== 'canva') {
+      try {
+        await updateDoc(doc(db, 'materials', material.id), {
+          downloadCount: increment(1)
+        });
+      } catch (error) {
+        console.error('Error incrementing download count: ', error);
+      }
     }
   };
 
@@ -77,6 +91,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorName, author
                       href={material.url} 
                       target="_blank" 
                       rel="noopener noreferrer"
+                      onClick={() => handleDownload(material)}
                       className="text-white/20 hover:text-luxury-gold transition-colors"
                     >
                       {material.type === 'link' || material.type === 'canva' ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />}
@@ -86,9 +101,20 @@ export default function AuthorProfileModal({ isOpen, onClose, authorName, author
                     {material.title}
                   </h4>
                   <div className="flex items-center justify-between mt-4">
-                    <span className="text-[9px] uppercase tracking-widest text-white/20">
-                      {formatDistanceToNow(material.createdAt, { addSuffix: true })}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] uppercase tracking-widest text-white/20">
+                        {formatDistanceToNow(material.createdAt, { addSuffix: true })}
+                      </span>
+                      {material.type !== 'link' && material.type !== 'canva' && (
+                        <>
+                          <span className="text-white/10 text-[9px]">•</span>
+                          <span className="text-[9px] uppercase tracking-widest text-white/40 flex items-center gap-1">
+                            <Download className="w-2.5 h-2.5" />
+                            {material.downloadCount || 0}
+                          </span>
+                        </>
+                      )}
+                    </div>
                     <div className="flex gap-1">
                       {material.tags?.slice(0, 2).map((tag, i) => (
                         <span key={i} className="text-[7px] uppercase tracking-tighter px-1.5 py-0.5 bg-white/5 text-white/30 rounded-md border border-white/5">

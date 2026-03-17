@@ -10,5 +10,6 @@ export interface Material {
   authorName: string;
   authorPhotoUrl?: string;
   tags: string[];
+  downloadCount: number;
   createdAt: Date;
 }

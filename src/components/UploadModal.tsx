@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { X, Upload, Link as LinkIcon, FileText, File } from 'lucide-react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { db, storage, auth } from '../firebase';
+import { db, auth } from '../firebase';
 import { MaterialType } from '../types';
 
 interface UploadModalProps {
@@ -27,13 +26,31 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      
+      // Check file size (Firestore limit is 1MB, Base64 adds ~33% overhead)
+      // We'll limit to 700KB to be safe
+      if (file.size > 700 * 1024) {
+        setError('File is too large for free tier storage. Please keep it under 700KB or use an External Link.');
+        return;
+      }
+
       setSelectedFile(file);
+      setError('');
       
       // Auto-detect type
       if (file.type === 'application/pdf') setMaterialType('pdf');
       else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) setMaterialType('word');
       else setMaterialType('other');
     }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,23 +82,9 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
           throw new Error('Please select a file to upload.');
         }
 
-        const storageRef = ref(storage, `materials/${auth.currentUser.uid}/${Date.now()}_${selectedFile.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, selectedFile);
-
-        finalUrl = await new Promise<string>((resolve, reject) => {
-          uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-              const p = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              setProgress(p);
-            },
-            (err) => reject(err),
-            async () => {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve(downloadURL);
-            }
-          );
-        });
+        setProgress(50);
+        finalUrl = await fileToBase64(selectedFile);
+        setProgress(100);
       }
 
       await addDoc(collection(db, 'materials'), {
@@ -93,6 +96,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
         authorId: auth.currentUser.uid,
         authorName: auth.currentUser.displayName || 'Unknown User',
         authorPhotoUrl: auth.currentUser.photoURL || null,
+        downloadCount: 0,
         createdAt: serverTimestamp(),
       });
 

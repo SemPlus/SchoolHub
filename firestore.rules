@@ -50,7 +50,8 @@ service cloud.firestore {
     }
     
     function isValidOptionalString(field, minLen, maxLen) {
-      return !('field' in request.resource.data) ||
+      return !(field in request.resource.data) ||
+             request.resource.data[field] == null ||
              (request.resource.data[field] is string &&
               request.resource.data[field].size() >= minLen &&
               request.resource.data[field].size() <= maxLen);
@@ -70,18 +71,22 @@ service cloud.firestore {
     // ===============================================================
     
     function isValidMaterial() {
-      let allowedFields = ['title', 'description', 'type', 'url', 'authorId', 'authorName', 'createdAt'];
-      let requiredFields = ['title', 'type', 'url', 'authorId', 'authorName', 'createdAt'];
+      let allowedFields = ['title', 'description', 'type', 'url', 'authorId', 'authorName', 'authorPhotoUrl', 'tags', 'downloadCount', 'createdAt'];
+      let requiredFields = ['title', 'type', 'url', 'authorId', 'authorName', 'downloadCount', 'createdAt'];
       
       return hasOnlyAllowedFields(allowedFields) &&
              hasRequiredFields(requiredFields) &&
-             validStringLength('title', 1, 100) &&
-             isValidOptionalString('description', 0, 1000) &&
+             validStringLength('title', 1, 200) &&
+             isValidOptionalString('description', 0, 2000) &&
              request.resource.data.type in ['pdf', 'word', 'canva', 'link', 'other'] &&
-             validStringLength('url', 1, 500) &&
+             validStringLength('url', 1, 1000) &&
              isValidUrl(request.resource.data.url) &&
              request.resource.data.authorId == request.auth.uid &&
-             validStringLength('authorName', 1, 50) &&
+             validStringLength('authorName', 1, 100) &&
+             isValidOptionalString('authorPhotoUrl', 0, 1000) &&
+             request.resource.data.tags is list &&
+             request.resource.data.downloadCount is int &&
+             request.resource.data.downloadCount >= 0 &&
              request.resource.data.createdAt is timestamp;
     }
 
@@ -92,11 +97,17 @@ service cloud.firestore {
       // Only authenticated users can create materials, and they must be valid
       allow create: if isAuthenticated() && isValidMaterial();
       
-      // Only the owner can update their material, and it must remain valid
-      allow update: if isAuthenticated() && 
-                    isDocOwner() && 
-                    isValidMaterial() &&
-                    areImmutableFieldsUnchanged(['authorId', 'createdAt']);
+      // Allow anyone authenticated to increment downloadCount
+      // Only the owner can update other fields
+      allow update: if isAuthenticated() && (
+        // Case 1: Only incrementing downloadCount
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['downloadCount']) &&
+         request.resource.data.downloadCount == resource.data.downloadCount + 1) ||
+        // Case 2: Owner updating the document
+        (isDocOwner() && 
+         isValidMaterial() &&
+         areImmutableFieldsUnchanged(['authorId', 'createdAt']))
+      );
                     
       // Only the owner can delete their material
       allow delete: if isAuthenticated() && isDocOwner();

@@ -34,6 +34,19 @@
           "type": "string",
           "description": "Name of the user who uploaded the material."
         },
+        "authorPhotoUrl": {
+          "type": "string",
+          "description": "Profile picture URL of the author."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Keywords or tags for the material."
+        },
+        "downloadCount": {
+          "type": "integer",
+          "description": "Number of times the material has been downloaded."
+        },
         "createdAt": {
           "type": "timestamp",
           "description": "When the material was created."
