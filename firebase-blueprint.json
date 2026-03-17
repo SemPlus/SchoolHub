@@ -1,0 +1,53 @@
+{
+  "entities": {
+    "Material": {
+      "title": "Material",
+      "description": "A school material like a PDF, Word document, or Canva link.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the material."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the material."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description of the material."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["pdf", "word", "canva", "link", "other"],
+          "description": "Type of the material."
+        },
+        "url": {
+          "type": "string",
+          "description": "Download URL or external link."
+        },
+        "authorId": {
+          "type": "string",
+          "description": "ID of the user who uploaded the material."
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Name of the user who uploaded the material."
+        },
+        "createdAt": {
+          "type": "timestamp",
+          "description": "When the material was created."
+        }
+      },
+      "required": ["title", "type", "url", "authorId", "authorName", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/materials/{materialId}": {
+      "schema": {
+        "$ref": "#/entities/Material"
+      },
+      "description": "Stores all school materials."
+    }
+  }
+}

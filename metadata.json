@@ -1,0 +1,5 @@
+{
+  "name": "SchoolHub",
+  "description": "A handy website to upload, view, and download school materials like Canva presentations, PDFs, and Word documents.",
+  "requestFramePermissions": []
+}
