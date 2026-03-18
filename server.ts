@@ -51,10 +51,22 @@ async function startServer() {
   );
 
   const getOAuthClient = () => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const appUrl = process.env.APP_URL;
+
+    if (!clientId || !clientSecret || !appUrl) {
+      console.error("Missing OAuth configuration:", {
+        clientId: !!clientId,
+        clientSecret: !!clientSecret,
+        appUrl: !!appUrl
+      });
+    }
+
     return new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      `${process.env.APP_URL}/auth/google/callback`
+      clientId,
+      clientSecret,
+      `${appUrl}/auth/google/callback`
     );
   };
 

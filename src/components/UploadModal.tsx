@@ -114,6 +114,17 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
     tagInputRef.current?.focus();
   };
 
+  const handleUploadTypeChange = (type: 'file' | 'link' | 'drive') => {
+    setUploadType(type);
+    setLinkUrl('');
+    setSelectedFile(null);
+    setError('');
+    
+    if (type === 'link') setMaterialType('canva');
+    else if (type === 'drive') setMaterialType('drive');
+    else setMaterialType('pdf');
+  };
+
   if (!isOpen) return null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -158,6 +169,11 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
 
     if (!title.trim()) {
       setError('Title is required.');
+      return;
+    }
+
+    if (uploadType === 'drive' && !linkUrl) {
+      setError('Please select a file from your Google Drive archive first. Click "Authorize Access" if you haven\'t yet.');
       return;
     }
 
@@ -244,7 +260,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
             <div className="p-8 overflow-y-auto custom-scrollbar relative z-10">
               <div className="flex gap-4 mb-10 p-1.5 bg-white/5 rounded-full border border-white/5">
                 <button
-                  onClick={() => setUploadType('file')}
+                  onClick={() => handleUploadTypeChange('file')}
                   className={`flex-1 py-2.5 text-[10px] uppercase tracking-[0.2em] font-medium rounded-full transition-all ${
                     uploadType === 'file' ? 'bg-white text-luxury-black shadow-lg' : 'text-white/40 hover:text-white'
                   }`}
@@ -252,10 +268,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                   Manuscript
                 </button>
                 <button
-                  onClick={() => {
-                    setUploadType('link');
-                    setMaterialType('canva');
-                  }}
+                  onClick={() => handleUploadTypeChange('link')}
                   className={`flex-1 py-2.5 text-[10px] uppercase tracking-[0.2em] font-medium rounded-full transition-all ${
                     uploadType === 'link' ? 'bg-white text-luxury-black shadow-lg' : 'text-white/40 hover:text-white'
                   }`}
@@ -263,10 +276,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                   External Link
                 </button>
                 <button
-                  onClick={() => {
-                    setUploadType('drive');
-                    setMaterialType('drive');
-                  }}
+                  onClick={() => handleUploadTypeChange('drive')}
                   className={`flex-1 py-2.5 text-[10px] uppercase tracking-[0.2em] font-medium rounded-full transition-all ${
                     uploadType === 'drive' ? 'bg-white text-luxury-black shadow-lg' : 'text-white/40 hover:text-white'
                   }`}

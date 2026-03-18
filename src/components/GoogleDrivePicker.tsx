@@ -45,25 +45,43 @@ export default function GoogleDrivePicker({ onSelect }: GoogleDrivePickerProps) 
           setIsAuthenticated(false);
           return;
         }
-        throw new Error('Failed to fetch files');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
       }
       const data = await response.json();
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid response from server');
+      }
       setFiles(data);
     } catch (err: any) {
-      setError(err.message);
+      console.error('Error fetching Drive files:', err);
+      setError(err.message || 'Failed to fetch files from Google Drive');
     } finally {
       setLoading(false);
     }
   };
 
   const handleConnect = async () => {
+    setError('');
     try {
       const response = await fetch('/api/auth/google/url');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to get authorization URL');
+      }
       const { url } = await response.json();
+      
+      if (!url) throw new Error('Authorization URL is missing');
       
       const authWindow = window.open(url, 'google_oauth', 'width=600,height=700');
       
+      if (!authWindow) {
+        setError('Popup blocked. Please allow popups for this site to authorize Google Drive.');
+        return;
+      }
+      
       const handleMessage = (event: MessageEvent) => {
+        // Validate origin if possible, but '*' is often used in these flows
         if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
           setIsAuthenticated(true);
           fetchFiles();
@@ -71,9 +89,9 @@ export default function GoogleDrivePicker({ onSelect }: GoogleDrivePickerProps) 
         }
       };
       window.addEventListener('message', handleMessage);
-    } catch (err) {
-      console.error('Error connecting to Google Drive', err);
-      setError('Failed to connect to Google Drive');
+    } catch (err: any) {
+      console.error('Error connecting to Google Drive:', err);
+      setError(err.message || 'Failed to connect to Google Drive. Check server logs.');
     }
   };
 
