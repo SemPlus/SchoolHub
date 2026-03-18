@@ -12,10 +12,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
+  console.log("Starting server...");
   const app = express();
   const PORT = 3000;
 
   app.set("trust proxy", 1);
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    res.setHeader("X-App-Server", "Luxury-Archive");
+    next();
+  });
   app.use(express.json());
   app.use(
     session({
@@ -37,6 +43,19 @@ async function startServer() {
       `${process.env.APP_URL}/auth/google/callback`
     );
   };
+
+  // Health Check
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      env: {
+        hasClientId: !!process.env.GOOGLE_CLIENT_ID,
+        hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+        hasAppUrl: !!process.env.APP_URL,
+        nodeEnv: process.env.NODE_ENV
+      }
+    });
+  });
 
   // Auth URL
   app.get("/api/auth/google/url", (req, res) => {
@@ -121,6 +140,16 @@ async function startServer() {
   app.post("/api/auth/google/logout", (req, res) => {
     req.session.destroy(() => {
       res.json({ success: true });
+    });
+  });
+
+  // API 404 handler - Catch any /api requests that didn't match above
+  app.all("/api/*", (req, res) => {
+    console.warn(`404 API Route: ${req.method} ${req.url}`);
+    res.status(404).json({ 
+      error: "API route not found",
+      method: req.method,
+      path: req.url 
     });
   });
 
