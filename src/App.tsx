@@ -121,27 +121,42 @@ export default function App() {
           transition={{ delay: 0.2 }}
           className="mb-16 text-center"
         >
-          <motion.h1 
-            initial={{ opacity: 0, letterSpacing: "0.2em" }}
-            animate={{ opacity: 1, letterSpacing: "0em" }}
-            transition={{ duration: 1, ease: "easeOut" }}
-            className="text-6xl md:text-7xl font-serif font-light text-white mb-4 tracking-tight"
-          >
-            The Archive
-          </motion.h1>
+          <div className="overflow-hidden mb-4">
+            <motion.h1 
+              className="text-6xl md:text-8xl font-serif font-light text-white tracking-tight flex justify-center flex-wrap"
+            >
+              {"The Archive".split("").map((char, index) => (
+                <motion.span
+                  key={index}
+                  initial={{ y: 100, opacity: 0, filter: "blur(10px)" }}
+                  animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
+                  transition={{
+                    duration: 1.2,
+                    delay: 0.3 + index * 0.05,
+                    ease: [0.22, 1, 0.36, 1]
+                  }}
+                  className={char === " " ? "mr-4" : ""}
+                >
+                  {char}
+                </motion.span>
+              ))}
+            </motion.h1>
+          </div>
+          
           <motion.div 
             initial={{ width: 0 }}
-            animate={{ width: 96 }}
-            transition={{ delay: 0.5, duration: 0.8 }}
+            animate={{ width: 120 }}
+            transition={{ delay: 1.2, duration: 1.5, ease: "easeInOut" }}
             className="h-px bg-luxury-gold/50 mx-auto mb-6"
           ></motion.div>
+          
           <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="text-white/50 font-light tracking-wide max-w-lg mx-auto uppercase text-[10px] tracking-[0.3em]"
+            initial={{ opacity: 0, letterSpacing: "0.5em" }}
+            animate={{ opacity: 1, letterSpacing: "0.3em" }}
+            transition={{ delay: 1.8, duration: 1.5 }}
+            className="text-luxury-gold font-light max-w-lg mx-auto uppercase text-[10px]"
           >
-            A curated collection of academic excellence and shared knowledge.
+            By Samuel K.
           </motion.p>
         </motion.div>
 

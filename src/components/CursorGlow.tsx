@@ -5,11 +5,6 @@ export default function CursorGlow() {
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
 
-  // Smooth out the movement
-  const springConfig = { damping: 25, stiffness: 150 };
-  const smoothX = useSpring(mouseX, springConfig);
-  const smoothY = useSpring(mouseY, springConfig);
-
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -39,8 +34,8 @@ export default function CursorGlow() {
         position: 'fixed',
         left: 0,
         top: 0,
-        x: smoothX,
-        y: smoothY,
+        x: mouseX,
+        y: mouseY,
         translateX: '-50%',
         translateY: '-50%',
         mixBlendMode: 'screen',
@@ -67,9 +62,6 @@ export default function CursorGlow() {
         }}
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120px] h-[120px] bg-luxury-gold/15 rounded-full blur-[40px]"
       />
-      
-      {/* Precision Point - Refined and subtle */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full blur-[0.5px] shadow-[0_0_10px_#D4AF37,0_0_20px_#D4AF37]" />
       
       {/* Outer Halo - Subtle atmosphere */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-luxury-gold/5 rounded-full blur-[100px]" />
