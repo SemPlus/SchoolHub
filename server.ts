@@ -40,6 +40,11 @@ async function startServer() {
 
   // Auth URL
   app.get("/api/auth/google/url", (req, res) => {
+    console.log("GET /api/auth/google/url hit");
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.error("Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET");
+      return res.status(500).json({ error: "Google OAuth credentials missing" });
+    }
     const client = getOAuthClient();
     const url = client.generateAuthUrl({
       access_type: "offline",
@@ -54,6 +59,7 @@ async function startServer() {
 
   // Callback
   app.get("/auth/google/callback", async (req, res) => {
+    console.log("GET /auth/google/callback hit");
     const { code } = req.query;
     const client = getOAuthClient();
     try {
@@ -82,11 +88,13 @@ async function startServer() {
 
   // Check Auth
   app.get("/api/auth/google/status", (req, res) => {
+    console.log("GET /api/auth/google/status hit");
     res.json({ isAuthenticated: !!(req.session as any).tokens });
   });
 
   // List Drive Files
   app.get("/api/drive/files", async (req, res) => {
+    console.log("GET /api/drive/files hit");
     const tokens = (req.session as any).tokens;
     if (!tokens) {
       return res.status(401).json({ error: "Not authenticated" });
