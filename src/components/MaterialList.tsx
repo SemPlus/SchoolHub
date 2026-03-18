@@ -23,6 +23,7 @@ export default function MaterialList() {
     { value: 'word', label: 'Documents (Word)' },
     { value: 'canva', label: 'Presentations' },
     { value: 'link', label: 'External Links' },
+    { value: 'drive', label: 'Google Drive' },
     { value: 'other', label: 'Miscellaneous' },
   ];
 

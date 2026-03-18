@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Upload, Link as LinkIcon, FileText, File, ChevronDown } from 'lucide-react';
+import { X, Upload, Link as LinkIcon, FileText, File, ChevronDown, HardDrive } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, getDocs, query, limit } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { MaterialType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import Dropdown from './Dropdown';
+import GoogleDrivePicker from './GoogleDrivePicker';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -12,7 +13,7 @@ interface UploadModalProps {
 }
 
 export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
-  const [uploadType, setUploadType] = useState<'file' | 'link'>('file');
+  const [uploadType, setUploadType] = useState<'file' | 'link' | 'drive'>('file');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
@@ -34,6 +35,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
     { value: 'word', label: 'Document (Word)' },
     { value: 'canva', label: 'Presentation' },
     { value: 'link', label: 'External Link' },
+    { value: 'drive', label: 'Google Drive Asset' },
     { value: 'other', label: 'Miscellaneous' },
   ];
 
@@ -95,7 +97,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
       // Check file size (Firestore limit is 1MB, Base64 adds ~33% overhead)
       // We'll limit to 700KB to be safe
       if (file.size > 700 * 1024) {
-        setError('File is too large for free tier storage. Please keep it under 700KB or use an External Link.');
+        setError('File is too large for free tier storage (>700KB). Please use the Google Drive integration for seamless linking.');
         return;
       }
 
@@ -225,6 +227,17 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                 >
                   External Link
                 </button>
+                <button
+                  onClick={() => {
+                    setUploadType('drive');
+                    setMaterialType('drive');
+                  }}
+                  className={`flex-1 py-2.5 text-[10px] uppercase tracking-[0.2em] font-medium rounded-full transition-all ${
+                    uploadType === 'drive' ? 'bg-white text-luxury-black shadow-lg' : 'text-white/40 hover:text-white'
+                  }`}
+                >
+                  Google Drive
+                </button>
               </div>
 
               {error && (
@@ -329,6 +342,28 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                         required={uploadType === 'link'}
                       />
                     </div>
+                  </div>
+                ) : uploadType === 'drive' ? (
+                  <div className="space-y-2">
+                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Drive Archive</label>
+                    <GoogleDrivePicker 
+                      onSelect={(file) => {
+                        setTitle(file.name);
+                        setLinkUrl(file.webViewLink);
+                        setMaterialType('drive');
+                        // Show success feedback
+                        setError('');
+                      }}
+                    />
+                    {linkUrl && uploadType === 'drive' && (
+                      <div className="mt-4 p-3 bg-white/5 border border-luxury-gold/20 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <HardDrive className="w-4 h-4 text-luxury-gold" />
+                          <span className="text-xs text-white/60 truncate max-w-[200px]">{title}</span>
+                        </div>
+                        <span className="text-[8px] uppercase tracking-widest text-luxury-gold">Linked</span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">

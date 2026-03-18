@@ -1,4 +1,4 @@
-export type MaterialType = 'pdf' | 'word' | 'canva' | 'link' | 'other';
+export type MaterialType = 'pdf' | 'word' | 'canva' | 'link' | 'drive' | 'other';
 
 export interface Material {
   id: string;
