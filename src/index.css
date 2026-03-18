@@ -14,6 +14,7 @@
 @layer base {
   body {
     @apply bg-luxury-black text-white font-sans antialiased;
+    background-image: radial-gradient(circle at 50% 50%, #0a0a0a 0%, #050505 100%);
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -22,7 +23,7 @@
 }
 
 .glass-panel {
-  @apply bg-white/5 backdrop-blur-xl border border-white/10;
+  @apply bg-white/5 backdrop-blur-2xl border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)];
 }
 
 .luxury-button {

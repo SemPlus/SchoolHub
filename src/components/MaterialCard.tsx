@@ -28,7 +28,7 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
     mouseY.set(clientY - top);
   }
 
-  const background = useMotionTemplate`radial-gradient(600px circle at ${mouseX}px ${mouseY}px, rgba(212, 175, 55, 0.08), transparent 80%)`;
+  const background = useMotionTemplate`radial-gradient(400px circle at ${mouseX}px ${mouseY}px, rgba(212, 175, 55, 0.15), transparent 70%)`;
 
   const handleShare = async () => {
     try {
@@ -86,12 +86,12 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
   return (
     <motion.div 
       onMouseMove={handleMouseMove}
-      whileHover={{ y: -8, scale: 1.02 }}
-      className="glass-panel rounded-3xl p-8 hover:bg-white/10 transition-all group flex flex-col h-full relative overflow-hidden hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:border-white/20"
+      whileHover={{ y: -12, scale: 1.03 }}
+      className="glass-panel rounded-[2rem] p-8 hover:bg-white/[0.08] transition-all group flex flex-col h-full relative overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] hover:border-white/30"
     >
       {/* Spotlight effect */}
       <motion.div
-        className="pointer-events-none absolute -inset-px rounded-3xl opacity-0 transition duration-300 group-hover:opacity-100"
+        className="pointer-events-none absolute -inset-px rounded-[2rem] opacity-0 transition duration-500 group-hover:opacity-100"
         style={{ background }}
       />
 

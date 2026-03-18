@@ -185,22 +185,26 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-luxury-black/90 backdrop-blur-md p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-luxury-black/90 backdrop-blur-xl p-4">
           <motion.div 
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="glass-panel rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] border-white/5"
+            className="glass-panel rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] border-white/20 relative"
           >
-            <div className="flex items-center justify-between p-8 border-b border-white/5">
+            {/* Decorative background element */}
+            <div className="absolute -top-24 -right-24 w-48 h-48 bg-luxury-gold/10 rounded-full blur-[80px] pointer-events-none"></div>
+            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-white/5 rounded-full blur-[80px] pointer-events-none"></div>
+
+            <div className="flex items-center justify-between p-8 border-b border-white/10 relative z-10">
               <h2 className="text-3xl font-serif text-white tracking-tight">New Entry</h2>
               <button onClick={onClose} className="text-white/20 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-8 overflow-y-auto custom-scrollbar">
+            <div className="p-8 overflow-y-auto custom-scrollbar relative z-10">
               <div className="flex gap-4 mb-10 p-1.5 bg-white/5 rounded-full border border-white/5">
                 <button
                   onClick={() => setUploadType('file')}

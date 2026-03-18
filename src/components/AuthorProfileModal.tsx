@@ -40,16 +40,20 @@ export default function AuthorProfileModal({ isOpen, onClose, authorName, author
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-luxury-black/95 backdrop-blur-xl p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-luxury-black/95 backdrop-blur-2xl p-4">
           <motion.div 
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="glass-panel rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh] border-white/5"
+            className="glass-panel rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh] border-white/20 relative"
           >
+            {/* Decorative background element */}
+            <div className="absolute -top-48 -right-48 w-96 h-96 bg-luxury-gold/10 rounded-full blur-[120px] pointer-events-none"></div>
+            <div className="absolute -bottom-48 -left-48 w-96 h-96 bg-white/5 rounded-full blur-[120px] pointer-events-none"></div>
+
             {/* Header */}
-            <div className="relative p-10 border-b border-white/5 bg-white/[0.02]">
+            <div className="relative p-10 border-b border-white/10 bg-white/[0.02] z-10">
               <button 
                 onClick={onClose} 
                 className="absolute top-8 right-8 text-white/20 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full z-20"

@@ -43,7 +43,7 @@ export default function App() {
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ type: "spring", damping: 20, stiffness: 100 }}
-        className="border-b border-white/5 sticky top-0 z-40 bg-luxury-black/80 backdrop-blur-md"
+        className="sticky top-0 z-40 bg-luxury-black/60 backdrop-blur-2xl border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.1)]"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20">
