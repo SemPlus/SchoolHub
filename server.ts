@@ -15,6 +15,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.set("trust proxy", 1);
   app.use(express.json());
   app.use(
     session({
@@ -29,17 +30,23 @@ async function startServer() {
     })
   );
 
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    `${process.env.APP_URL}/auth/google/callback`
-  );
+  const getOAuthClient = () => {
+    return new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      `${process.env.APP_URL}/auth/google/callback`
+    );
+  };
 
   // Auth URL
   app.get("/api/auth/google/url", (req, res) => {
-    const url = oauth2Client.generateAuthUrl({
+    const client = getOAuthClient();
+    const url = client.generateAuthUrl({
       access_type: "offline",
-      scope: ["https://www.googleapis.com/auth/drive.metadata.readonly"],
+      scope: [
+        "https://www.googleapis.com/auth/drive.metadata.readonly",
+        "https://www.googleapis.com/auth/drive.readonly"
+      ],
       prompt: "consent",
     });
     res.json({ url });
@@ -48,8 +55,9 @@ async function startServer() {
   // Callback
   app.get("/auth/google/callback", async (req, res) => {
     const { code } = req.query;
+    const client = getOAuthClient();
     try {
-      const { tokens } = await oauth2Client.getToken(code as string);
+      const { tokens } = await client.getToken(code as string);
       (req.session as any).tokens = tokens;
       res.send(`
         <html>
@@ -84,8 +92,9 @@ async function startServer() {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    oauth2Client.setCredentials(tokens);
-    const drive = google.drive({ version: "v3", auth: oauth2Client });
+    const client = getOAuthClient();
+    client.setCredentials(tokens);
+    const drive = google.drive({ version: "v3", auth: client });
 
     try {
       const response = await drive.files.list({

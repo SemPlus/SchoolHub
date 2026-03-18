@@ -107,6 +107,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
       // Auto-detect type
       if (file.type === 'application/pdf') setMaterialType('pdf');
       else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) setMaterialType('word');
+      else if (file.type.includes('presentation') || file.name.endsWith('.ppt') || file.name.endsWith('.pptx')) setMaterialType('canva');
       else setMaterialType('other');
     }
   };
@@ -141,17 +142,21 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
 
       if (uploadType === 'link' || uploadType === 'drive') {
         if (!linkUrl.trim() || !linkUrl.startsWith('http')) {
-          throw new Error(uploadType === 'link' ? 'Please enter a valid URL starting with http:// or https://' : 'Please select a file from your Google Drive first.');
+          const driveError = 'Please select a file from your Google Drive archive first. Click "Authorize Access" if you haven\'t yet.';
+          const linkError = 'Please enter a valid URL starting with http:// or https://';
+          throw new Error(uploadType === 'link' ? linkError : driveError);
         }
         finalUrl = linkUrl;
-      } else {
+      } else if (uploadType === 'file') {
         if (!selectedFile) {
-          throw new Error('Please select a file to upload.');
+          throw new Error('Please select a local manuscript (PDF, DOCX, PPTX) to upload.');
         }
 
         setProgress(50);
         finalUrl = await fileToBase64(selectedFile);
         setProgress(100);
+      } else {
+        throw new Error('Invalid upload type selected.');
       }
 
       await addDoc(collection(db, 'materials'), {
@@ -354,9 +359,24 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                     <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Drive Archive</label>
                     <GoogleDrivePicker 
                       onSelect={(file) => {
+                        if (!file.webViewLink) {
+                          setError('Selected file does not have a public web link. Please check your Drive permissions.');
+                          return;
+                        }
                         setTitle(file.name);
                         setLinkUrl(file.webViewLink);
-                        setMaterialType('drive');
+                        
+                        // Auto-detect type from Drive file
+                        if (file.mimeType === 'application/pdf') {
+                          setMaterialType('pdf');
+                        } else if (file.mimeType.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
+                          setMaterialType('word');
+                        } else if (file.mimeType.includes('presentation') || file.name.endsWith('.ppt') || file.name.endsWith('.pptx')) {
+                          setMaterialType('canva');
+                        } else {
+                          setMaterialType('drive');
+                        }
+                        
                         // Show success feedback
                         setError('');
                       }}
@@ -384,7 +404,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                           </label>
                         </div>
                         <p className="text-[10px] uppercase tracking-widest text-white/20 font-light">
-                          {selectedFile ? selectedFile.name : 'PDF, DOCX, PPTX up to 10MB'}
+                          {selectedFile ? selectedFile.name : 'PDF, DOCX, PPTX up to 700KB'}
                         </p>
                       </div>
                     </div>
