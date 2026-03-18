@@ -139,9 +139,9 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
     try {
       let finalUrl = '';
 
-      if (uploadType === 'link') {
+      if (uploadType === 'link' || uploadType === 'drive') {
         if (!linkUrl.trim() || !linkUrl.startsWith('http')) {
-          throw new Error('Please enter a valid URL starting with http:// or https://');
+          throw new Error(uploadType === 'link' ? 'Please enter a valid URL starting with http:// or https://' : 'Please select a file from your Google Drive first.');
         }
         finalUrl = linkUrl;
       } else {
@@ -344,7 +344,13 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                     </div>
                   </div>
                 ) : uploadType === 'drive' ? (
-                  <div className="space-y-2">
+                  <div className="space-y-4">
+                    <div className="p-4 bg-luxury-gold/5 border border-luxury-gold/10 rounded-2xl">
+                      <p className="text-[10px] uppercase tracking-widest text-luxury-gold font-medium mb-1">Archive Integration</p>
+                      <p className="text-[10px] text-white/30 font-light leading-relaxed">
+                        Authorize access to link files directly from your Drive. This is required for assets exceeding 700KB.
+                      </p>
+                    </div>
                     <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Drive Archive</label>
                     <GoogleDrivePicker 
                       onSelect={(file) => {
@@ -398,10 +404,10 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                 <div className="pt-10">
                   <button
                     type="submit"
-                    disabled={isUploading}
+                    disabled={isUploading || (uploadType === 'drive' && !linkUrl)}
                     className="w-full luxury-button bg-white text-luxury-black font-semibold py-4 rounded-full shadow-2xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-20 transition-all"
                   >
-                    {isUploading ? 'Archiving...' : 'Add to Collection'}
+                    {isUploading ? 'Archiving...' : (uploadType === 'drive' && !linkUrl) ? 'Select a Drive File' : 'Add to Collection'}
                   </button>
                 </div>
               </form>
