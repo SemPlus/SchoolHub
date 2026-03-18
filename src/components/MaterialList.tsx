@@ -1,12 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { Material } from '../types';
+import { Material, OperationType } from '../types';
 import MaterialCard from './MaterialCard';
 import AuthorProfileModal from './AuthorProfileModal';
 import Dropdown from './Dropdown';
 import { Search, Filter, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
+  const errInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+};
 
 export default function MaterialList() {
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -60,8 +82,11 @@ export default function MaterialList() {
       setMaterials(materialsData);
       setLoading(false);
     }, (error) => {
-      console.error("Error fetching materials: ", error);
-      setLoading(false);
+      try {
+        handleFirestoreError(error, OperationType.LIST, 'materials');
+      } catch (e) {
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();

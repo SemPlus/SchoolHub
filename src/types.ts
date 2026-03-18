@@ -1,5 +1,14 @@
 export type MaterialType = 'pdf' | 'word' | 'canva' | 'link' | 'drive' | 'other';
 
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
 export interface Material {
   id: string;
   title: string;

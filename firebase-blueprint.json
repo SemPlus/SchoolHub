@@ -19,7 +19,7 @@
         },
         "type": {
           "type": "string",
-          "enum": ["pdf", "word", "canva", "link", "other"],
+          "enum": ["pdf", "word", "canva", "link", "drive", "other"],
           "description": "Type of the material."
         },
         "url": {

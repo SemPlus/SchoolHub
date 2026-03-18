@@ -5,6 +5,29 @@ import { Material } from '../types';
 import { auth, db } from '../firebase';
 import { doc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
 import { motion, useMotionValue, useSpring, useMotionTemplate } from 'motion/react';
+import { OperationType } from '../types';
+
+const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
+  const errInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+};
 
 interface MaterialCardProps {
   key?: React.Key;
@@ -47,7 +70,9 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
           downloadCount: increment(1)
         });
       } catch (error) {
-        console.error('Error incrementing download count: ', error);
+        try {
+          handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
+        } catch (e) {}
       }
     }
   };
@@ -57,8 +82,11 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
       try {
         await deleteDoc(doc(db, 'materials', material.id));
       } catch (error) {
-        console.error('Error deleting document: ', error);
-        alert('Failed to delete material.');
+        try {
+          handleFirestoreError(error, OperationType.DELETE, `materials/${material.id}`);
+        } catch (e) {
+          alert('Failed to delete material.');
+        }
       }
     } else {
       setIsDeleting(true);

@@ -2,10 +2,32 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Link as LinkIcon, FileText, File, ChevronDown, HardDrive } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, getDocs, query, limit } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { MaterialType } from '../types';
+import { MaterialType, OperationType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import Dropdown from './Dropdown';
 import GoogleDrivePicker from './GoogleDrivePicker';
+
+const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
+  const errInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+};
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -58,7 +80,11 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
       });
       setExistingTags(Array.from(allTags));
     } catch (err) {
-      console.error('Error fetching tags:', err);
+      try {
+        handleFirestoreError(err, OperationType.LIST, 'materials');
+      } catch (e) {
+        console.error('Error fetching tags:', err);
+      }
     }
   };
 
@@ -159,18 +185,22 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
         throw new Error('Invalid upload type selected.');
       }
 
-      await addDoc(collection(db, 'materials'), {
-        title: title.trim(),
-        description: description.trim() || null,
-        tags: tags.split(',').map(t => t.trim()).filter(t => t !== ''),
-        type: materialType,
-        url: finalUrl,
-        authorId: auth.currentUser.uid,
-        authorName: auth.currentUser.displayName || 'Unknown User',
-        authorPhotoUrl: auth.currentUser.photoURL || null,
-        downloadCount: 0,
-        createdAt: serverTimestamp(),
-      });
+      try {
+        await addDoc(collection(db, 'materials'), {
+          title: title.trim(),
+          description: description.trim() || null,
+          tags: tags.split(',').map(t => t.trim()).filter(t => t !== ''),
+          type: materialType,
+          url: finalUrl,
+          authorId: auth.currentUser.uid,
+          authorName: auth.currentUser.displayName || 'Unknown User',
+          authorPhotoUrl: auth.currentUser.photoURL || null,
+          downloadCount: 0,
+          createdAt: serverTimestamp(),
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, 'materials');
+      }
 
       onClose();
       // Reset form
