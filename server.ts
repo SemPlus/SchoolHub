@@ -5,8 +5,12 @@ import { fileURLToPath } from "url";
 import session from "express-session";
 import { google } from "googleapis";
 import dotenv from "dotenv";
+import fs from "fs";
 
 dotenv.config();
+
+fs.writeFileSync("server_executed.txt", `Executed at ${new Date().toISOString()}`);
+console.log("SERVER.TS IS BEING EXECUTED");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +27,16 @@ async function startServer() {
     next();
   });
   app.use(express.json());
+
+  // TEST ROUTE - Very top
+  app.get("/api/test-routing", (req, res) => {
+    res.send("Routing is working!");
+  });
+
+  app.get("/test-direct", (req, res) => {
+    res.send("Direct routing is working!");
+  });
+
   app.use(
     session({
       secret: "luxury-archive-secret",
