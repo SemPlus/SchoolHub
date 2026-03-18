@@ -4,7 +4,9 @@ import { db, auth } from '../firebase';
 import { Material } from '../types';
 import MaterialCard from './MaterialCard';
 import AuthorProfileModal from './AuthorProfileModal';
+import Dropdown from './Dropdown';
 import { Search, Filter, Lock } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function MaterialList() {
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -14,6 +16,15 @@ export default function MaterialList() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<{id: string, name: string, photoUrl?: string} | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(!!auth.currentUser);
+
+  const filterOptions = [
+    { value: 'all', label: 'All Collections' },
+    { value: 'pdf', label: 'Manuscripts (PDF)' },
+    { value: 'word', label: 'Documents (Word)' },
+    { value: 'canva', label: 'Presentations' },
+    { value: 'link', label: 'External Links' },
+    { value: 'other', label: 'Miscellaneous' },
+  ];
 
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
@@ -57,7 +68,11 @@ export default function MaterialList() {
 
   if (!isAuthenticated) {
     return (
-      <div className="text-center py-24 glass-panel rounded-3xl">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center py-24 glass-panel rounded-3xl"
+      >
         <div className="mx-auto h-16 w-16 text-luxury-gold mb-6 border border-luxury-gold/20 rounded-full flex items-center justify-center">
           <Lock className="w-8 h-8" />
         </div>
@@ -65,7 +80,7 @@ export default function MaterialList() {
         <p className="text-white/40 font-light tracking-wide max-w-sm mx-auto uppercase text-[10px]">
           Authentication required to access the academic archives.
         </p>
-      </div>
+      </motion.div>
     );
   }
 
@@ -111,44 +126,57 @@ export default function MaterialList() {
         
         <div className="flex items-center gap-4 w-full sm:w-auto">
           <span className="text-[10px] uppercase tracking-widest text-white/30 font-medium">Filter by</span>
-          <select
+          <Dropdown
+            options={filterOptions}
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none py-2 px-2 text-sm font-light tracking-wide cursor-pointer transition-all appearance-none min-w-[120px]"
-          >
-            <option value="all" className="bg-luxury-black">All Collections</option>
-            <option value="pdf" className="bg-luxury-black">Manuscripts (PDF)</option>
-            <option value="word" className="bg-luxury-black">Documents (Word)</option>
-            <option value="canva" className="bg-luxury-black">Presentations</option>
-            <option value="link" className="bg-luxury-black">External Links</option>
-            <option value="other" className="bg-luxury-black">Miscellaneous</option>
-          </select>
+            onChange={setFilterType}
+          />
         </div>
       </div>
 
-      {filteredMaterials.length === 0 ? (
-        <div className="text-center py-32 border border-white/5 rounded-3xl">
-          <div className="mx-auto h-12 w-12 text-white/10 mb-6">
-            <Search className="w-full h-full" />
-          </div>
-          <h3 className="text-xl font-serif text-white/60">No entries found in this section</h3>
-          <p className="mt-2 text-[10px] uppercase tracking-widest text-white/20">
-            {searchTerm || filterType !== 'all' 
-              ? "Adjust your parameters to broaden the search." 
-              : "The archive is currently empty."}
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
-          {filteredMaterials.map((material) => (
-            <MaterialCard 
-              key={material.id} 
-              material={material} 
-              onAuthorClick={handleAuthorClick}
-            />
-          ))}
-        </div>
-      )}
+      <AnimatePresence mode="popLayout">
+        {filteredMaterials.length === 0 ? (
+          <motion.div 
+            key="empty"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="text-center py-32 border border-white/5 rounded-3xl"
+          >
+            <div className="mx-auto h-12 w-12 text-white/10 mb-6">
+              <Search className="w-full h-full" />
+            </div>
+            <h3 className="text-xl font-serif text-white/60">No entries found in this section</h3>
+            <p className="mt-2 text-[10px] uppercase tracking-widest text-white/20">
+              {searchTerm || filterType !== 'all' 
+                ? "Adjust your parameters to broaden the search." 
+                : "The archive is currently empty."}
+            </p>
+          </motion.div>
+        ) : (
+          <motion.div 
+            key="grid"
+            layout
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10"
+          >
+            {filteredMaterials.map((material) => (
+              <motion.div
+                key={material.id}
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+              >
+                <MaterialCard 
+                  material={material} 
+                  onAuthorClick={handleAuthorClick}
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {selectedProfile && (
         <AuthorProfileModal

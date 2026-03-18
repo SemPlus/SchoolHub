@@ -4,6 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Material } from '../types';
 import { auth, db } from '../firebase';
 import { doc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
+import { motion, useMotionValue, useSpring, useMotionTemplate } from 'motion/react';
 
 interface MaterialCardProps {
   key?: React.Key;
@@ -16,6 +17,18 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
 
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+
+  // Mouse tracking for spotlight effect
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+
+  function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
+    const { left, top } = currentTarget.getBoundingClientRect();
+    mouseX.set(clientX - left);
+    mouseY.set(clientY - top);
+  }
+
+  const background = useMotionTemplate`radial-gradient(600px circle at ${mouseX}px ${mouseY}px, rgba(212, 175, 55, 0.08), transparent 80%)`;
 
   const handleShare = async () => {
     try {
@@ -71,18 +84,32 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
   const isExternalLink = material.type === 'link' || material.type === 'canva';
 
   return (
-    <div className="glass-panel rounded-3xl p-8 hover:bg-white/10 transition-all group flex flex-col h-full relative overflow-hidden">
+    <motion.div 
+      onMouseMove={handleMouseMove}
+      whileHover={{ y: -8, scale: 1.02 }}
+      className="glass-panel rounded-3xl p-8 hover:bg-white/10 transition-all group flex flex-col h-full relative overflow-hidden hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:border-white/20"
+    >
+      {/* Spotlight effect */}
+      <motion.div
+        className="pointer-events-none absolute -inset-px rounded-3xl opacity-0 transition duration-300 group-hover:opacity-100"
+        style={{ background }}
+      />
+
       {/* Decorative background element */}
-      <div className="absolute -top-12 -right-12 w-24 h-24 bg-luxury-gold/5 rounded-full blur-2xl group-hover:bg-luxury-gold/10 transition-colors"></div>
+      <div className="absolute -top-12 -right-12 w-24 h-24 bg-luxury-gold/5 rounded-full blur-2xl group-hover:bg-luxury-gold/20 transition-all duration-500 group-hover:scale-150"></div>
+      <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-all duration-500 group-hover:scale-150"></div>
       
-      <div className="flex items-start justify-between mb-8">
-        <div className="w-12 h-12 border border-white/10 rounded-2xl flex items-center justify-center bg-white/5 group-hover:border-luxury-gold/30 transition-colors">
+      <div className="flex items-start justify-between mb-8 relative z-10">
+        <motion.div 
+          whileHover={{ rotate: 5, scale: 1.1 }}
+          className="w-12 h-12 border border-white/10 rounded-2xl flex items-center justify-center bg-white/5 group-hover:border-luxury-gold/30 transition-colors backdrop-blur-sm"
+        >
           {getIcon()}
-        </div>
+        </motion.div>
         <div className="flex gap-2">
           <button
             onClick={handleShare}
-            className={`transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] ${copied ? 'bg-luxury-gold/20 text-luxury-gold' : 'text-white/20 hover:text-white hover:bg-white/5 opacity-0 group-hover:opacity-100'}`}
+            className={`transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md ${copied ? 'bg-luxury-gold/20 text-luxury-gold' : 'text-white/20 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100'}`}
             title="Copy Link"
           >
             {copied ? <span className="text-[10px] font-bold tracking-tighter uppercase">Copied</span> : <Share2 className="w-4 h-4" />}
@@ -90,7 +117,7 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
           {isOwner && (
             <button
               onClick={handleDelete}
-              className={`transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] ${isDeleting ? 'text-red-400 font-bold text-[10px] bg-red-400/10 uppercase tracking-tighter' : 'text-white/20 hover:text-red-400 hover:bg-red-400/5 opacity-0 group-hover:opacity-100'}`}
+              className={`transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md ${isDeleting ? 'text-red-400 font-bold text-[10px] bg-red-400/10 uppercase tracking-tighter' : 'text-white/20 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100'}`}
               title="Delete Material"
             >
               {isDeleting ? 'Confirm' : <Trash2 className="w-4 h-4" />}
@@ -99,30 +126,31 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
         </div>
       </div>
       
-      <h3 className="font-serif text-2xl text-white mb-3 line-clamp-2 leading-tight group-hover:text-luxury-gold transition-colors">
+      <h3 className="font-serif text-2xl text-white mb-3 line-clamp-2 leading-tight group-hover:text-luxury-gold transition-colors relative z-10">
         {material.title}
       </h3>
 
       {material.tags && material.tags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4 relative z-10">
           {material.tags.map((tag, index) => (
-            <span 
+            <motion.span 
               key={index} 
-              className="text-[8px] uppercase tracking-widest px-2 py-0.5 border border-white/5 bg-white/5 text-white/40 rounded-full"
+              whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.1)' }}
+              className="text-[8px] uppercase tracking-widest px-2 py-0.5 border border-white/5 bg-white/5 text-white/40 rounded-full backdrop-blur-sm"
             >
               {tag}
-            </span>
+            </motion.span>
           ))}
         </div>
       )}
       
       {material.description && (
-        <p className="text-white/40 text-sm font-light leading-relaxed line-clamp-3 mb-8 flex-grow italic">
+        <p className="text-white/40 text-sm font-light leading-relaxed line-clamp-3 mb-8 flex-grow italic relative z-10">
           "{material.description}"
         </p>
       )}
       
-      <div className="mt-auto pt-6 border-t border-white/5 flex items-center justify-between">
+      <div className="mt-auto pt-6 border-t border-white/5 flex items-center justify-between relative z-10">
         <div className="flex flex-col">
           <button 
             onClick={() => onAuthorClick?.(material.authorId, material.authorName, material.authorPhotoUrl)}
@@ -146,11 +174,12 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
           </div>
         </div>
         
-        <a
+        <motion.a
           href={material.url}
           target="_blank"
           rel="noopener noreferrer"
           onClick={handleDownload}
+          whileHover={{ x: 5 }}
           className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-medium text-white/80 hover:text-luxury-gold transition-colors"
         >
           {isExternalLink ? (
@@ -164,8 +193,8 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
               <Download className="w-3 h-3" />
             </>
           )}
-        </a>
+        </motion.a>
       </div>
-    </div>
+    </motion.div>
   );
 }
