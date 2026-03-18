@@ -49,30 +49,30 @@ export default function CursorGlow() {
       animate={{ opacity: isVisible ? 1 : 0 }}
       className="pointer-events-none z-[100] hidden lg:block"
     >
-      {/* Point Light Core - Larger and more visible */}
-      <div className="w-[500px] h-[500px] bg-luxury-gold/40 rounded-full blur-[100px]" />
+      {/* Point Light Core - Balanced size and intensity */}
+      <div className="w-[300px] h-[300px] bg-luxury-gold/20 rounded-full blur-[80px]" />
       
-      {/* Intense Center Beam - Larger and more visible */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150px] h-[150px] bg-white/30 rounded-full blur-[40px]" />
+      {/* Intense Center Beam - Balanced size and intensity */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80px] h-[80px] bg-white/10 rounded-full blur-[30px]" />
       
       <motion.div
         animate={{
-          scale: [1, 1.2, 1],
-          opacity: [0.7, 1, 0.7],
+          scale: [1, 1.1, 1],
+          opacity: [0.5, 0.8, 0.5],
         }}
         transition={{
-          duration: 3,
+          duration: 4,
           repeat: Infinity,
           ease: "easeInOut",
         }}
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] bg-luxury-gold/30 rounded-full blur-[60px]"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120px] h-[120px] bg-luxury-gold/15 rounded-full blur-[40px]"
       />
       
-      {/* Precision Point - Sharper and brighter */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full blur-[0.5px] shadow-[0_0_20px_#D4AF37,0_0_40px_#D4AF37,0_0_60px_#D4AF37]" />
+      {/* Precision Point - Refined and subtle */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full blur-[0.5px] shadow-[0_0_10px_#D4AF37,0_0_20px_#D4AF37]" />
       
-      {/* Outer Halo - Massive visibility */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-luxury-gold/10 rounded-full blur-[150px]" />
+      {/* Outer Halo - Subtle atmosphere */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-luxury-gold/5 rounded-full blur-[100px]" />
     </motion.div>
   );
 }
