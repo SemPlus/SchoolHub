@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, File, Link as LinkIcon, ExternalLink, Download, Trash2, Presentation, Share2, HardDrive } from 'lucide-react';
+import { FileText, File, Link as LinkIcon, ExternalLink, Download, Trash2, Presentation, Share2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Material } from '../types';
 import { auth, db } from '../firebase';
@@ -107,14 +107,12 @@ export default function MaterialCard({ material, onAuthorClick, userRole }: Mate
         return <Presentation className="w-8 h-8 text-purple-500" />;
       case 'link':
         return <LinkIcon className="w-8 h-8 text-green-500" />;
-      case 'drive':
-        return <HardDrive className="w-8 h-8 text-luxury-gold" />;
       default:
         return <File className="w-8 h-8 text-gray-500" />;
     }
   };
 
-  const isExternalLink = material.type === 'link' || material.type === 'canva' || material.type === 'drive';
+  const isExternalLink = material.type === 'link' || material.type === 'canva';
 
   return (
     <motion.div 

@@ -100,7 +100,7 @@ service cloud.firestore {
     // ===============================================================
 
     match /materials/{materialId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       
       allow create: if isAuthenticated() && 
                       isValidMaterialData(request.resource.data) && 
@@ -108,15 +108,16 @@ service cloud.firestore {
                       request.resource.data.downloadCount == 0 &&
                       request.resource.data.createdAt == request.time;
       
-      allow update: if isAuthenticated() && (
-        // Case 1: Only incrementing downloadCount
+      allow update: if (
+        // Case 1: Only incrementing downloadCount (allowed for everyone)
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['downloadCount']) &&
-         request.resource.data.downloadCount == resource.data.downloadCount + 1) ||
-        // Case 2: Owner updating the document
-        (isDocOwner() && 
-         isValidMaterialData(request.resource.data) &&
-         request.resource.data.authorId == resource.data.authorId &&
-         request.resource.data.createdAt == resource.data.createdAt)
+         request.resource.data.downloadCount == resource.data.downloadCount + 1)
+      ) || (
+        // Case 2: Owner updating the document (requires authentication)
+        isAuthenticated() && isDocOwner() && 
+        isValidMaterialData(request.resource.data) &&
+        request.resource.data.authorId == resource.data.authorId &&
+        request.resource.data.createdAt == resource.data.createdAt
       );
                     
       allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());

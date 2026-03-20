@@ -44,13 +44,12 @@ export default function AuthorProfileModal({ isOpen, onClose, authorName, author
       case 'word': return <File className="w-4 h-4 text-blue-400" />;
       case 'canva': return <BookOpen className="w-4 h-4 text-purple-400" />;
       case 'link': return <LinkIcon className="w-4 h-4 text-emerald-400" />;
-      case 'drive': return <BookOpen className="w-4 h-4 text-luxury-gold" />;
       default: return <File className="w-4 h-4 text-gray-400" />;
     }
   };
 
   const handleDownload = async (material: Material) => {
-    if (material.type !== 'link' && material.type !== 'canva' && material.type !== 'drive') {
+    if (material.type !== 'link' && material.type !== 'canva') {
       try {
         await updateDoc(doc(db, 'materials', material.id), {
           downloadCount: increment(1)
@@ -168,7 +167,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorName, author
                           href={material.url} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          download={material.type !== 'link' && material.type !== 'canva' && material.type !== 'drive' ? `${material.title}.${material.type === 'pdf' ? 'pdf' : material.type === 'word' ? 'docx' : 'file'}` : undefined}
+                          download={material.type !== 'link' && material.type !== 'canva' ? `${material.title}.${material.type === 'pdf' ? 'pdf' : material.type === 'word' ? 'docx' : 'file'}` : undefined}
                           onClick={() => handleDownload(material)}
                           className="text-white/20 hover:text-luxury-gold transition-colors p-2 hover:bg-white/5 rounded-lg"
                         >

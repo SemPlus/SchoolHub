@@ -3,7 +3,6 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import session from "express-session";
-import { google } from "googleapis";
 import dotenv from "dotenv";
 import fs from "fs";
 
@@ -50,128 +49,13 @@ async function startServer() {
     })
   );
 
-  const getOAuthClient = (req?: express.Request) => {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    
-    // Use APP_URL from env, or fallback to current host
-    let appUrl = process.env.APP_URL;
-    if (!appUrl && req) {
-      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-      appUrl = `${protocol}://${req.get('host')}`;
-    }
-
-    if (!clientId || !clientSecret || !appUrl) {
-      console.error("Missing OAuth configuration:", {
-        clientId: !!clientId,
-        clientSecret: !!clientSecret,
-        appUrl: !!appUrl
-      });
-    }
-
-    return new google.auth.OAuth2(
-      clientId,
-      clientSecret,
-      `${appUrl}/auth/google/callback`
-    );
-  };
-
   // Health Check
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
       env: {
-        hasClientId: !!process.env.GOOGLE_CLIENT_ID,
-        hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
-        hasAppUrl: !!process.env.APP_URL,
         nodeEnv: process.env.NODE_ENV
       }
-    });
-  });
-
-  // Auth URL
-  app.get("/api/auth/google/url", (req, res) => {
-    console.log("GET /api/auth/google/url hit");
-    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-      console.error("Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET");
-      return res.status(500).json({ error: "Google OAuth credentials missing" });
-    }
-    const client = getOAuthClient(req);
-    const url = client.generateAuthUrl({
-      access_type: "offline",
-      scope: [
-        "https://www.googleapis.com/auth/drive.metadata.readonly",
-        "https://www.googleapis.com/auth/drive.readonly"
-      ],
-      prompt: "consent",
-    });
-    res.json({ url });
-  });
-
-  // Callback
-  app.get("/auth/google/callback", async (req, res) => {
-    console.log("GET /auth/google/callback hit");
-    const { code } = req.query;
-    const client = getOAuthClient(req);
-    try {
-      const { tokens } = await client.getToken(code as string);
-      (req.session as any).tokens = tokens;
-      res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS' }, '*');
-                window.close();
-              } else {
-                window.location.href = '/';
-              }
-            </script>
-            <p>Authentication successful. This window should close automatically.</p>
-          </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error("Error getting tokens", error);
-      res.status(500).send("Authentication failed");
-    }
-  });
-
-  // Check Auth
-  app.get("/api/auth/google/status", (req, res) => {
-    console.log("GET /api/auth/google/status hit");
-    res.json({ isAuthenticated: !!(req.session as any).tokens });
-  });
-
-  // List Drive Files
-  app.get("/api/drive/files", async (req, res) => {
-    console.log("GET /api/drive/files hit");
-    const tokens = (req.session as any).tokens;
-    if (!tokens) {
-      return res.status(401).json({ error: "Not authenticated" });
-    }
-
-    const client = getOAuthClient(req);
-    client.setCredentials(tokens);
-    const drive = google.drive({ version: "v3", auth: client });
-
-    try {
-      const response = await drive.files.list({
-        pageSize: 20,
-        fields: "nextPageToken, files(id, name, size, mimeType, webViewLink, iconLink)",
-        q: "trashed = false",
-      });
-      res.json(response.data.files);
-    } catch (error) {
-      console.error("Error listing files", error);
-      res.status(500).json({ error: "Failed to list files" });
-    }
-  });
-
-  // Logout
-  app.post("/api/auth/google/logout", (req, res) => {
-    req.session.destroy(() => {
-      res.json({ success: true });
     });
   });
 

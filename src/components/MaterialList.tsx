@@ -56,20 +56,12 @@ export default function MaterialList({ userRole }: MaterialListProps) {
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
       setIsAuthenticated(!!user);
-      if (!user) {
-        setMaterials([]);
-        setLoading(false);
-      }
     });
 
     return () => unsubscribeAuth();
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
     setLoading(true);
     const q = query(collection(db, 'materials'), orderBy('createdAt', 'desc'));
     
@@ -94,25 +86,7 @@ export default function MaterialList({ userRole }: MaterialListProps) {
     });
 
     return () => unsubscribe();
-  }, [isAuthenticated]);
-
-  if (!isAuthenticated) {
-    return (
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center py-24 glass-panel rounded-3xl"
-      >
-        <div className="mx-auto h-16 w-16 text-luxury-gold mb-6 border border-luxury-gold/20 rounded-full flex items-center justify-center">
-          <Lock className="w-8 h-8" />
-        </div>
-        <h3 className="text-2xl font-serif text-white mb-2">Private Collection</h3>
-        <p className="text-white/40 font-light tracking-wide max-w-sm mx-auto uppercase text-[10px]">
-          Authentication required to access the academic archives.
-        </p>
-      </motion.div>
-    );
-  }
+  }, []);
 
   const filteredMaterials = materials.filter(material => {
     const matchesSearch = material.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
