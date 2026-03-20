@@ -30,7 +30,11 @@ const handleFirestoreError = (error: any, operationType: OperationType, path: st
   throw new Error(JSON.stringify(errInfo));
 };
 
-export default function MaterialList() {
+interface MaterialListProps {
+  userRole: string | null;
+}
+
+export default function MaterialList({ userRole }: MaterialListProps) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -197,6 +201,7 @@ export default function MaterialList() {
                 <MaterialCard 
                   material={material} 
                   onAuthorClick={handleAuthorClick}
+                  userRole={userRole}
                 />
               </motion.div>
             ))}

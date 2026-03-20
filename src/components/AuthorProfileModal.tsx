@@ -3,8 +3,31 @@ import { X, BookOpen, ExternalLink, Download, FileText, File, Link as LinkIcon }
 import { Material } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { doc, updateDoc, increment } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
+import { OperationType } from '../types';
+
+const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
+  const errInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+};
 
 interface AuthorProfileModalProps {
   isOpen: boolean;
@@ -21,18 +44,23 @@ export default function AuthorProfileModal({ isOpen, onClose, authorName, author
       case 'word': return <File className="w-4 h-4 text-blue-400" />;
       case 'canva': return <BookOpen className="w-4 h-4 text-purple-400" />;
       case 'link': return <LinkIcon className="w-4 h-4 text-emerald-400" />;
+      case 'drive': return <BookOpen className="w-4 h-4 text-luxury-gold" />;
       default: return <File className="w-4 h-4 text-gray-400" />;
     }
   };
 
   const handleDownload = async (material: Material) => {
-    if (material.type !== 'link' && material.type !== 'canva') {
+    if (material.type !== 'link' && material.type !== 'canva' && material.type !== 'drive') {
       try {
         await updateDoc(doc(db, 'materials', material.id), {
           downloadCount: increment(1)
         });
       } catch (error) {
-        console.error('Error incrementing download count: ', error);
+        try {
+          handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
+        } catch (e) {
+          console.error('Error incrementing download count: ', error);
+        }
       }
     }
   };
@@ -140,6 +168,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorName, author
                           href={material.url} 
                           target="_blank" 
                           rel="noopener noreferrer"
+                          download={material.type !== 'link' && material.type !== 'canva' && material.type !== 'drive' ? `${material.title}.${material.type === 'pdf' ? 'pdf' : material.type === 'word' ? 'docx' : 'file'}` : undefined}
                           onClick={() => handleDownload(material)}
                           className="text-white/20 hover:text-luxury-gold transition-colors p-2 hover:bg-white/5 rounded-lg"
                         >

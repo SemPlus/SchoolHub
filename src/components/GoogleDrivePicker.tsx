@@ -61,8 +61,34 @@ export default function GoogleDrivePicker({ onSelect }: GoogleDrivePickerProps) 
     }
   };
 
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Validate origin is from AI Studio preview, Vercel, or localhost
+      const origin = event.origin;
+      if (!origin.endsWith('.run.app') && !origin.endsWith('.vercel.app') && !origin.includes('localhost')) {
+        return;
+      }
+      
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        setIsAuthenticated(true);
+        fetchFiles();
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   const handleConnect = async () => {
     setError('');
+    // Open window immediately to avoid popup blockers
+    const authWindow = window.open('about:blank', 'google_oauth', 'width=600,height=700');
+    
+    if (!authWindow) {
+      setError('Popup blocked. Please allow popups for this site to authorize Google Drive.');
+      return;
+    }
+
     try {
       const response = await fetch('/api/auth/google/url');
       if (!response.ok) {
@@ -73,25 +99,11 @@ export default function GoogleDrivePicker({ onSelect }: GoogleDrivePickerProps) 
       
       if (!url) throw new Error('Authorization URL is missing');
       
-      const authWindow = window.open(url, 'google_oauth', 'width=600,height=700');
-      
-      if (!authWindow) {
-        setError('Popup blocked. Please allow popups for this site to authorize Google Drive.');
-        return;
-      }
-      
-      const handleMessage = (event: MessageEvent) => {
-        // Validate origin if possible, but '*' is often used in these flows
-        if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-          setIsAuthenticated(true);
-          fetchFiles();
-          window.removeEventListener('message', handleMessage);
-        }
-      };
-      window.addEventListener('message', handleMessage);
+      authWindow.location.href = url;
     } catch (err: any) {
       console.error('Error connecting to Google Drive:', err);
       setError(err.message || 'Failed to connect to Google Drive. Check server logs.');
+      authWindow.close();
     }
   };
 

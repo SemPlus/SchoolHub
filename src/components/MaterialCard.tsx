@@ -33,10 +33,13 @@ interface MaterialCardProps {
   key?: React.Key;
   material: Material;
   onAuthorClick?: (id: string, name: string, photoUrl?: string) => void;
+  userRole?: string | null;
 }
 
-export default function MaterialCard({ material, onAuthorClick }: MaterialCardProps) {
+export default function MaterialCard({ material, onAuthorClick, userRole }: MaterialCardProps) {
   const isOwner = auth.currentUser?.uid === material.authorId;
+  const isAdmin = userRole === 'admin';
+  const canDelete = isOwner || isAdmin;
 
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -85,7 +88,7 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
         try {
           handleFirestoreError(error, OperationType.DELETE, `materials/${material.id}`);
         } catch (e) {
-          alert('Failed to delete material.');
+          console.error('Failed to delete material:', e);
         }
       }
     } else {
@@ -144,7 +147,7 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
           >
             {copied ? <span className="text-[10px] font-bold tracking-tighter uppercase">Copied</span> : <Share2 className="w-4 h-4" />}
           </button>
-          {isOwner && (
+          {canDelete && (
             <button
               onClick={handleDelete}
               className={`transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md ${isDeleting ? 'text-red-400 font-bold text-[10px] bg-red-400/10 uppercase tracking-tighter' : 'text-white/20 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100'}`}
@@ -208,6 +211,7 @@ export default function MaterialCard({ material, onAuthorClick }: MaterialCardPr
           href={material.url}
           target="_blank"
           rel="noopener noreferrer"
+          download={!isExternalLink ? `${material.title}.${material.type === 'pdf' ? 'pdf' : material.type === 'word' ? 'docx' : 'file'}` : undefined}
           onClick={handleDownload}
           whileHover={{ x: 5 }}
           className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-medium text-white/80 hover:text-luxury-gold transition-colors"

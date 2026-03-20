@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, signInWithGoogle, logOut } from './firebase';
+import { auth, signInWithGoogle, logOut, db } from './firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { BookOpen, LogOut, Plus, LogIn } from 'lucide-react';
 import MaterialList from './components/MaterialList';
 import UploadModal from './components/UploadModal';
@@ -9,13 +10,41 @@ import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setIsAuthReady(true);
+
+      if (currentUser) {
+        // Create user profile in Firestore if it doesn't exist
+        const userRef = doc(db, 'users', currentUser.uid);
+        try {
+          const userSnap = await getDoc(userRef);
+          if (!userSnap.exists()) {
+            const newUser = {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              photoURL: currentUser.photoURL,
+              role: 'user', // Default role
+              createdAt: serverTimestamp()
+            };
+            await setDoc(userRef, newUser);
+            setUserRole('user');
+          } else {
+            setUserRole(userSnap.data()?.role || 'user');
+          }
+        } catch (error) {
+          console.error('Error checking/creating user profile:', error);
+          setUserRole('user'); // Fallback
+        }
+      } else {
+        setUserRole(null);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -160,7 +189,7 @@ export default function App() {
           </motion.p>
         </motion.div>
 
-        <MaterialList />
+        <MaterialList userRole={userRole} />
       </main>
 
       {/* Modals */}

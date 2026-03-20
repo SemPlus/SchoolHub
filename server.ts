@@ -50,10 +50,16 @@ async function startServer() {
     })
   );
 
-  const getOAuthClient = () => {
+  const getOAuthClient = (req?: express.Request) => {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const appUrl = process.env.APP_URL;
+    
+    // Use APP_URL from env, or fallback to current host
+    let appUrl = process.env.APP_URL;
+    if (!appUrl && req) {
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      appUrl = `${protocol}://${req.get('host')}`;
+    }
 
     if (!clientId || !clientSecret || !appUrl) {
       console.error("Missing OAuth configuration:", {
@@ -90,7 +96,7 @@ async function startServer() {
       console.error("Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET");
       return res.status(500).json({ error: "Google OAuth credentials missing" });
     }
-    const client = getOAuthClient();
+    const client = getOAuthClient(req);
     const url = client.generateAuthUrl({
       access_type: "offline",
       scope: [
@@ -106,7 +112,7 @@ async function startServer() {
   app.get("/auth/google/callback", async (req, res) => {
     console.log("GET /auth/google/callback hit");
     const { code } = req.query;
-    const client = getOAuthClient();
+    const client = getOAuthClient(req);
     try {
       const { tokens } = await client.getToken(code as string);
       (req.session as any).tokens = tokens;
@@ -145,7 +151,7 @@ async function startServer() {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    const client = getOAuthClient();
+    const client = getOAuthClient(req);
     client.setCredentials(tokens);
     const drive = google.drive({ version: "v3", auth: client });
 

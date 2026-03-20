@@ -9,12 +9,25 @@ service cloud.firestore {
     // Collection: materials
     // Document ID: auto-generated
     // Fields:
-    //   - title: string (required, < 100 chars)
-    //   - description: string (optional, < 1000 chars)
-    //   - type: string (required, enum: 'pdf', 'word', 'canva', 'link', 'other')
-    //   - url: string (required, < 500 chars)
+    //   - title: string (required, < 200 chars)
+    //   - description: string (optional, < 2000 chars)
+    //   - type: string (required, enum: 'pdf', 'word', 'canva', 'link', 'drive', 'other')
+    //   - url: string (required, < 1MB)
     //   - authorId: string (required, immutable)
-    //   - authorName: string (required, < 50 chars)
+    //   - authorName: string (required, < 100 chars)
+    //   - authorPhotoUrl: string (optional, < 1000 chars)
+    //   - tags: list (optional, < 20 items)
+    //   - downloadCount: int (required, >= 0)
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // Collection: users
+    // Document ID: user UID
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - role: string (required, enum: 'admin', 'user')
     //   - createdAt: timestamp (required, immutable)
     //
     // ===============================================================
@@ -34,36 +47,16 @@ service cloud.firestore {
     function isDocOwner() {
       return isAuthenticated() && request.auth.uid == resource.data.authorId;
     }
-    
-    function hasRequiredFields(fields) {
-      return request.resource.data.keys().hasAll(fields);
-    }
-    
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-    
-    function validStringLength(field, minLen, maxLen) {
-      return request.resource.data[field] is string &&
-        request.resource.data[field].size() >= minLen &&
-        request.resource.data[field].size() <= maxLen;
-    }
-    
-    function isValidOptionalString(field, minLen, maxLen) {
-      return !(field in request.resource.data) ||
-             request.resource.data[field] == null ||
-             (request.resource.data[field] is string &&
-              request.resource.data[field].size() >= minLen &&
-              request.resource.data[field].size() <= maxLen);
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "sem.gk01@gmail.com" && request.auth.token.email_verified == true));
     }
     
     function isValidUrl(url) {
       return url is string &&
         (url.matches("^https://.*") || url.matches("^http://.*") || url.matches("^data:.*"));
-    }
-    
-    function areImmutableFieldsUnchanged(fields) {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
     }
 
     // ===============================================================
@@ -71,7 +64,7 @@ service cloud.firestore {
     // ===============================================================
     
     function isValidMaterialData(data) {
-      let allowedFields = ['title', 'description', 'type', 'url', 'authorId', 'authorName', 'authorPhotoUrl', 'tags', 'downloadCount', 'createdAt'];
+      let allowedFields = ['id', 'title', 'description', 'type', 'url', 'authorId', 'authorName', 'authorPhotoUrl', 'tags', 'downloadCount', 'createdAt'];
       let requiredFields = ['title', 'type', 'url', 'authorId', 'authorName', 'downloadCount', 'createdAt'];
       
       return data.keys().hasOnly(allowedFields) &&
@@ -79,8 +72,7 @@ service cloud.firestore {
              data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
              (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 2000)) &&
              data.type in ['pdf', 'word', 'canva', 'link', 'drive', 'other'] &&
-             data.url is string && data.url.size() >= 1 && data.url.size() <= 1000000 &&
-             (data.url.matches("^https://.*") || data.url.matches("^http://.*") || data.url.matches("^data:.*")) &&
+             isValidUrl(data.url) && data.url.size() <= 1000000 &&
              data.authorId is string && data.authorId.size() > 0 &&
              data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
              (!('authorPhotoUrl' in data) || data.authorPhotoUrl == null || (data.authorPhotoUrl is string && data.authorPhotoUrl.size() <= 1000)) &&
@@ -89,19 +81,33 @@ service cloud.firestore {
              data.createdAt is timestamp;
     }
 
+    function isValidUserData(data) {
+      let allowedFields = ['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt'];
+      let requiredFields = ['uid', 'email', 'role', 'createdAt'];
+      
+      return data.keys().hasOnly(allowedFields) &&
+             data.keys().hasAll(requiredFields) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.email is string &&
+             (!('displayName' in data) || data.displayName == null || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('photoURL' in data) || data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 1000)) &&
+             data.role in ['admin', 'user'] &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
     match /materials/{materialId} {
-      // Anyone authenticated can read materials
       allow read: if isAuthenticated();
       
-      // Only authenticated users can create materials, and they must be valid
       allow create: if isAuthenticated() && 
                       isValidMaterialData(request.resource.data) && 
                       request.resource.data.authorId == request.auth.uid &&
                       request.resource.data.downloadCount == 0 &&
                       request.resource.data.createdAt == request.time;
       
-      // Allow anyone authenticated to increment downloadCount
-      // Only the owner can update other fields
       allow update: if isAuthenticated() && (
         // Case 1: Only incrementing downloadCount
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['downloadCount']) &&
@@ -113,8 +119,23 @@ service cloud.firestore {
          request.resource.data.createdAt == resource.data.createdAt)
       );
                     
-      // Only the owner can delete their material
-      allow delete: if isAuthenticated() && isDocOwner();
+      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      
+      allow create: if isAuthenticated() && 
+                      userId == request.auth.uid &&
+                      isValidUserData(request.resource.data) &&
+                      (request.resource.data.role == 'user' || isAdmin());
+                      
+      allow update: if isAuthenticated() && 
+                      userId == request.auth.uid &&
+                      isValidUserData(request.resource.data) &&
+                      (request.resource.data.role == resource.data.role || isAdmin());
+                      
+      allow delete: if isAdmin();
     }
   }
 }

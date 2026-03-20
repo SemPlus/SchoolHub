@@ -53,6 +53,20 @@
         }
       },
       "required": ["title", "type", "url", "authorId", "authorName", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user of the SchoolHub application.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
     }
   },
   "firestore": {
@@ -61,6 +75,12 @@
         "$ref": "#/entities/Material"
       },
       "description": "Stores all school materials."
+    },
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "Stores user profiles and roles."
     }
   }
 }
