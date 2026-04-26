@@ -44,27 +44,17 @@ export default function CursorGlow() {
       animate={{ opacity: isVisible ? 1 : 0 }}
       className="pointer-events-none z-[100] hidden lg:block"
     >
-      {/* Point Light Core - Balanced size and intensity */}
-      <div className="w-[300px] h-[300px] bg-luxury-gold/20 rounded-full blur-[80px]" />
+      {/* Point Light Core - Smaller size */}
+      <div className="w-[150px] h-[150px] bg-luxury-gold/20 rounded-full blur-[40px]" />
       
-      {/* Intense Center Beam - Balanced size and intensity */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80px] h-[80px] bg-white/10 rounded-full blur-[30px]" />
+      {/* Intense Center Beam - Smaller size */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40px] h-[40px] bg-white/10 rounded-full blur-[15px]" />
       
-      <motion.div
-        animate={{
-          scale: [1, 1.1, 1],
-          opacity: [0.5, 0.8, 0.5],
-        }}
-        transition={{
-          duration: 4,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120px] h-[120px] bg-luxury-gold/15 rounded-full blur-[40px]"
-      />
+      {/* Static Center Glow (Replaced pulse) */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60px] h-[60px] bg-luxury-gold/15 rounded-full blur-[20px]" />
       
-      {/* Outer Halo - Subtle atmosphere */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-luxury-gold/5 rounded-full blur-[100px]" />
+      {/* Outer Halo - More subtle */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] bg-luxury-gold/5 rounded-full blur-[50px]" />
     </motion.div>
   );
 }

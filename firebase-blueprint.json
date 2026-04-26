@@ -54,6 +54,23 @@
       },
       "required": ["title", "type", "url", "authorId", "authorName", "createdAt"]
     },
+    "Folder": {
+      "title": "Folder",
+      "description": "A directory to organize materials. Can be nested.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "parentId": { "type": "string", "description": "Parent folder ID or null." },
+        "isPublic": { "type": "boolean", "description": "Whether the folder is visible to everyone." },
+        "createdAt": { "type": "timestamp" },
+        "isDeleted": { "type": "boolean" },
+        "deletedAt": { "type": "timestamp" }
+      },
+      "required": ["name", "authorId", "authorName", "isPublic", "createdAt"]
+    },
     "User": {
       "title": "User",
       "description": "A user of the SchoolHub application.",
@@ -64,9 +81,27 @@
         "displayName": { "type": "string" },
         "photoURL": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "user"] },
+        "customColor": { "type": "string", "description": "Custom aura color hex." },
+        "customBadge": { "type": "string", "description": "Custom badge text." },
+        "unlockedBadges": { 
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "IDs of unlocked achievement badges."
+        },
         "createdAt": { "type": "timestamp" }
       },
       "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Save": {
+      "title": "Save",
+      "description": "Represents a material saved by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "materialId": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["userId", "materialId", "createdAt"]
     }
   },
   "firestore": {
@@ -75,6 +110,18 @@
         "$ref": "#/entities/Material"
       },
       "description": "Stores all school materials."
+    },
+    "/saves/{saveId}": {
+      "schema": {
+        "$ref": "#/entities/Save"
+      },
+      "description": "Tracks materials saved by users."
+    },
+    "/folders/{folderId}": {
+      "schema": {
+        "$ref": "#/entities/Folder"
+      },
+      "description": "Stores directories for organizing materials."
     },
     "/users/{userId}": {
       "schema": {

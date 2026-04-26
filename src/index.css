@@ -9,6 +9,8 @@
   --color-luxury-black: #050505;
   --color-luxury-charcoal: #121212;
   --color-luxury-paper: #F5F2ED;
+
+  --animate-spin-slow: spin 8s linear infinite;
 }
 
 @layer base {

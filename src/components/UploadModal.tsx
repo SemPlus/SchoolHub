@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Link as LinkIcon, ChevronDown } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, getDocs, query, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, limit, where, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { MaterialType, OperationType } from '../types';
+import { MaterialType, OperationType, User } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import Dropdown from './Dropdown';
+import { getUnlockedBadges } from '../lib/badges';
 
 const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
   const errInfo = {
@@ -31,9 +32,10 @@ const handleFirestoreError = (error: any, operationType: OperationType, path: st
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
+  currentFolderId?: string | null;
 }
 
-export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
+export default function UploadModal({ isOpen, onClose, currentFolderId }: UploadModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
@@ -144,7 +146,27 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
           authorName: auth.currentUser.displayName || 'Unknown User',
           authorPhotoUrl: auth.currentUser.photoURL || null,
           downloadCount: 0,
+          folderId: currentFolderId || null,
           createdAt: serverTimestamp(),
+          isDeleted: false,
+        });
+
+        // Update user badges
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        const currentBadges = userSnap.exists() ? (userSnap.data()?.unlockedBadges || []) : [];
+        
+        const q = query(
+          collection(db, 'materials'),
+          where('authorId', '==', auth.currentUser.uid)
+        );
+        const snapshot = await getDocs(q);
+        const newCount = snapshot.size;
+        const potentialBadges = getUnlockedBadges(newCount);
+        const updatedBadges = Array.from(new Set([...currentBadges, ...potentialBadges]));
+        
+        await updateDoc(userRef, {
+          unlockedBadges: updatedBadges
         });
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, 'materials');

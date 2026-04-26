@@ -1,11 +1,13 @@
 import React from 'react';
-import { FileText, File, Link as LinkIcon, ExternalLink, Download, Trash2, Presentation, Share2 } from 'lucide-react';
+import { FileText, File, Link as LinkIcon, ExternalLink, Download, Trash2, Presentation, Share2, Edit2, Move, Bookmark, BookmarkCheck, ArrowLeft } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Material } from '../types';
 import { auth, db } from '../firebase';
-import { doc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, increment, setDoc, serverTimestamp, collection, getDocs, query, where } from 'firebase/firestore';
 import { motion, useMotionValue, useSpring, useMotionTemplate } from 'motion/react';
 import { OperationType } from '../types';
+import { getRank } from '../lib/ranks';
+import { cn } from '../lib/utils';
 
 const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
   const errInfo = {
@@ -29,34 +31,78 @@ const handleFirestoreError = (error: any, operationType: OperationType, path: st
   throw new Error(JSON.stringify(errInfo));
 };
 
+import UserAvatar from './UserAvatar';
+
 interface MaterialCardProps {
   key?: React.Key;
   material: Material;
   onAuthorClick?: (id: string, name: string, photoUrl?: string) => void;
+  onCardClick?: (material: Material) => void;
+  onEditClick?: (material: Material) => void;
+  onMoveClick?: (material: Material) => void;
   userRole?: string | null;
+  authorContributionCount?: number;
+  isSaved?: boolean;
+  isInTrash?: boolean;
+  onRestore?: (material: Material) => void;
+  isSelected?: boolean;
+  onSelect?: (e: React.MouseEvent) => void;
+  onDragStart?: () => void;
 }
 
-export default function MaterialCard({ material, onAuthorClick, userRole }: MaterialCardProps) {
+export default function MaterialCard({ 
+  material, 
+  onAuthorClick, 
+  onCardClick, 
+  onEditClick, 
+  onMoveClick, 
+  userRole, 
+  authorContributionCount = 0, 
+  isSaved = false, 
+  isInTrash = false, 
+  onRestore,
+  isSelected = false,
+  onSelect,
+  onDragStart
+}: MaterialCardProps) {
   const isOwner = auth.currentUser?.uid === material.authorId;
   const isAdmin = userRole === 'admin';
+  const canEdit = isOwner || isAdmin;
   const canDelete = isOwner || isAdmin;
+  const isAuthenticated = !!auth.currentUser;
+
+  const rank = getRank(authorContributionCount);
 
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
 
-  // Mouse tracking for spotlight effect
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
+  const handleContainerClick = (e: React.MouseEvent) => {
+    if (onSelect && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+      e.stopPropagation();
+      onSelect(e);
+      return;
+    }
+    onCardClick?.(material);
+  };
+
+  // Mouse tracking for spotlight effect with spring for smoothness
+  const mouseXRaw = useMotionValue(0);
+  const mouseYRaw = useMotionValue(0);
+  
+  const mouseX = useSpring(mouseXRaw, { stiffness: 500, damping: 50 });
+  const mouseY = useSpring(mouseYRaw, { stiffness: 500, damping: 50 });
 
   function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
     const { left, top } = currentTarget.getBoundingClientRect();
-    mouseX.set(clientX - left);
-    mouseY.set(clientY - top);
+    mouseXRaw.set(clientX - left);
+    mouseYRaw.set(clientY - top);
   }
 
-  const background = useMotionTemplate`radial-gradient(400px circle at ${mouseX}px ${mouseY}px, rgba(212, 175, 55, 0.15), transparent 70%)`;
+  const background = useMotionTemplate`radial-gradient(350px circle at ${mouseX}px ${mouseY}px, rgba(212, 175, 55, 0.1), transparent 80%)`;
 
-  const handleShare = async () => {
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await navigator.clipboard.writeText(material.url);
       setCopied(true);
@@ -66,7 +112,8 @@ export default function MaterialCard({ material, onAuthorClick, userRole }: Mate
     }
   };
 
-  const handleDownload = async () => {
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!isExternalLink) {
       try {
         await updateDoc(doc(db, 'materials', material.id), {
@@ -80,21 +127,87 @@ export default function MaterialCard({ material, onAuthorClick, userRole }: Mate
     }
   };
 
-  const handleDelete = async () => {
-    if (isDeleting) {
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isInTrash) {
+      setIsDeleting(true);
       try {
         await deleteDoc(doc(db, 'materials', material.id));
       } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.DELETE, `materials/${material.id}`);
-        } catch (e) {
-          console.error('Failed to delete material:', e);
-        }
+        handleFirestoreError(error, OperationType.DELETE, `materials/${material.id}`);
+      } finally {
+        setIsDeleting(false);
       }
-    } else {
-      setIsDeleting(true);
-      setTimeout(() => setIsDeleting(false), 3000);
+      return;
     }
+
+    setIsDeleting(true);
+    try {
+      await updateDoc(doc(db, 'materials', material.id), {
+        isDeleted: true,
+        deletedAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleRestore = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRestore?.(material);
+  };
+
+  const getDaysRemaining = () => {
+    if (!material.deletedAt) return 30;
+    const deletedTime = material.deletedAt.getTime();
+    const expiryTime = deletedTime + (30 * 24 * 60 * 60 * 1000);
+    const remaining = Math.ceil((expiryTime - Date.now()) / (24 * 60 * 60 * 1000));
+    return Math.max(0, remaining);
+  };
+
+  const handleSave = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!auth.currentUser) return;
+    
+    setIsSaving(true);
+    try {
+      if (isSaved) {
+        // Unsave: Delete the save document
+        const q = query(
+          collection(db, 'saves'),
+          where('userId', '==', auth.currentUser.uid),
+          where('materialId', '==', material.id)
+        );
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          await deleteDoc(doc(db, 'saves', snapshot.docs[0].id));
+        }
+      } else {
+        // Save: Create a save document
+        const saveId = `${auth.currentUser.uid}_${material.id}`;
+        await setDoc(doc(db, 'saves', saveId), {
+          userId: auth.currentUser.uid,
+          materialId: material.id,
+          createdAt: serverTimestamp()
+        });
+      }
+    } catch (error) {
+       console.error('Failed to toggle save:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEditClick?.(material);
+  };
+
+  const handleAuthorClickInternal = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onAuthorClick?.(material.authorId, material.authorName, material.authorPhotoUrl);
   };
 
   const getIcon = () => {
@@ -117,10 +230,16 @@ export default function MaterialCard({ material, onAuthorClick, userRole }: Mate
   return (
     <motion.div 
       onMouseMove={handleMouseMove}
-      whileHover={{ y: -12, scale: 1.03 }}
-      className="glass-panel rounded-[2rem] p-8 hover:bg-white/[0.08] transition-all group flex flex-col h-full relative overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] hover:border-white/30"
+      onClick={handleContainerClick}
+      draggable={canEdit && !isInTrash}
+      onDragStart={onDragStart}
+      whileHover={{ y: -8, scale: 1.02 }}
+      className={cn(
+        "glass-panel rounded-[2rem] p-8 hover:bg-white/[0.08] group flex flex-col h-full relative overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] hover:border-white/30 transition-all duration-500 cursor-pointer select-none",
+        isSelected && "ring-2 ring-luxury-gold bg-luxury-gold/5 border-luxury-gold/20"
+      )}
     >
-      {/* Spotlight effect */}
+      <div className="absolute inset-x-0 top-0 h-1 bg-luxury-gold opacity-0 transition-opacity" style={{ opacity: isSelected ? 1 : 0 }} />
       <motion.div
         className="pointer-events-none absolute -inset-px rounded-[2rem] opacity-0 transition duration-500 group-hover:opacity-100"
         style={{ background }}
@@ -138,20 +257,83 @@ export default function MaterialCard({ material, onAuthorClick, userRole }: Mate
           {getIcon()}
         </motion.div>
         <div className="flex gap-2">
-          <button
-            onClick={handleShare}
-            className={`transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md ${copied ? 'bg-luxury-gold/20 text-luxury-gold' : 'text-white/20 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100'}`}
-            title="Copy Link"
-          >
-            {copied ? <span className="text-[10px] font-bold tracking-tighter uppercase">Copied</span> : <Share2 className="w-4 h-4" />}
-          </button>
+          {isInTrash && (
+            <div className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-md">
+              <span className="text-[9px] font-bold text-red-400 uppercase tracking-tighter">
+                Permanently deleted in {getDaysRemaining()} days
+              </span>
+            </div>
+          )}
+          {isInTrash ? (
+            <button
+              onClick={handleRestore}
+              className="transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] bg-luxury-gold/20 text-luxury-gold hover:bg-luxury-gold hover:text-luxury-black opacity-100"
+              title="Restore Manuscript"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          ) : (
+            <>
+              {isAuthenticated && (
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className={cn(
+                    "transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md opacity-0 group-hover:opacity-100",
+                    isSaved ? "text-luxury-gold bg-luxury-gold/10" : "text-white/20 hover:text-luxury-gold hover:bg-white/10"
+                  )}
+                  title={isSaved ? "Unsave Manuscript" : "Save Manuscript"}
+                >
+                  {isSaving ? (
+                    <div className="w-4 h-4 border-2 border-luxury-gold/30 border-t-luxury-gold rounded-full animate-spin" />
+                  ) : isSaved ? (
+                    <BookmarkCheck className="w-4 h-4" />
+                  ) : (
+                    <Bookmark className="w-4 h-4" />
+                  )}
+                </button>
+              )}
+              <button
+                onClick={handleShare}
+                className={`transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md ${copied ? 'bg-luxury-gold/20 text-luxury-gold' : 'text-white/20 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100'}`}
+                title="Copy Link"
+              >
+                {copied ? <span className="text-[10px] font-bold tracking-tighter uppercase">Copied</span> : <Share2 className="w-4 h-4" />}
+              </button>
+              {canEdit && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMoveClick?.(material);
+                    }}
+                    className="transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md text-white/20 hover:text-luxury-gold hover:bg-white/10 opacity-0 group-hover:opacity-100"
+                    title="Move Material"
+                  >
+                    <Move className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleEdit}
+                    className="transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md text-white/20 hover:text-luxury-gold hover:bg-white/10 opacity-0 group-hover:opacity-100"
+                    title="Edit Material"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </>
+          )}
           {canDelete && (
             <button
               onClick={handleDelete}
-              className={`transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md ${isDeleting ? 'text-red-400 font-bold text-[10px] bg-red-400/10 uppercase tracking-tighter' : 'text-white/20 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100'}`}
-              title="Delete Material"
+              disabled={isDeleting}
+              className={cn(
+                "transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md opacity-0 group-hover:opacity-100 disabled:opacity-50",
+                isInTrash ? "text-red-500 hover:bg-red-500/10 opacity-100" : "text-white/20 hover:text-red-400 hover:bg-red-400/10"
+              )}
+              title={isInTrash ? "Delete Permanently" : "Delete Material"}
             >
-              {isDeleting ? 'Confirm' : <Trash2 className="w-4 h-4" />}
+              {isDeleting ? <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" /> : <Trash2 className="w-4 h-4" />}
             </button>
           )}
         </div>
@@ -182,26 +364,40 @@ export default function MaterialCard({ material, onAuthorClick, userRole }: Mate
       )}
       
       <div className="mt-auto pt-6 border-t border-white/5 flex items-center justify-between relative z-10">
-        <div className="flex flex-col">
-          <button 
-            onClick={() => onAuthorClick?.(material.authorId, material.authorName, material.authorPhotoUrl)}
-            className="text-[10px] uppercase tracking-widest text-white/60 font-medium hover:text-luxury-gold transition-colors text-left"
-          >
-            {material.authorName}
-          </button>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-[10px] uppercase tracking-widest text-white/20">
-              {material.createdAt ? formatDistanceToNow(material.createdAt, { addSuffix: true }) : 'Just now'}
-            </span>
-            {!isExternalLink && (
-              <>
-                <span className="text-white/10">•</span>
-                <span className="text-[10px] uppercase tracking-widest text-white/40 flex items-center gap-1">
-                  <Download className="w-2.5 h-2.5" />
-                  {material.downloadCount || 0}
-                </span>
-              </>
-            )}
+        <div className="flex items-center gap-3">
+          <UserAvatar
+            name={material.authorName}
+            photoUrl={material.authorPhotoUrl}
+            contributionCount={authorContributionCount}
+            size="md"
+            isClickable
+            onClick={handleAuthorClickInternal}
+          />
+          <div className="flex flex-col">
+            <button 
+              onClick={handleAuthorClickInternal}
+              className="text-[10px] uppercase tracking-widest text-white/60 font-medium hover:text-luxury-gold transition-colors text-left flex items-center gap-2"
+            >
+              {material.authorName}
+            </button>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className={`text-[8px] font-bold ${rank.color} uppercase tracking-tighter`}>
+                {rank.label}
+              </span>
+              <span className="text-white/10">•</span>
+              <span className="text-[10px] uppercase tracking-widest text-white/20">
+                {material.createdAt ? formatDistanceToNow(material.createdAt, { addSuffix: true }) : 'Just now'}
+              </span>
+              {!isExternalLink && (
+                <>
+                  <span className="text-white/10">•</span>
+                  <span className="text-[10px] uppercase tracking-widest text-white/40 flex items-center gap-1">
+                    <Download className="w-2.5 h-2.5" />
+                    {material.downloadCount || 0}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
         

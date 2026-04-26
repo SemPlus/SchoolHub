@@ -2,17 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, signInWithGoogle, logOut, db } from './firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { BookOpen, LogOut, Plus, LogIn } from 'lucide-react';
+import { BookOpen, LogOut, Plus, LogIn, Library, User as UserIcon, Trash2 } from 'lucide-react';
 import MaterialList from './components/MaterialList';
-import UploadModal from './components/UploadModal';
 import CursorGlow from './components/CursorGlow';
+import UserAvatar from './components/UserAvatar';
 import { motion, AnimatePresence } from 'motion/react';
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userContributions, setUserContributions] = useState(0);
+  const [userCustomColor, setUserCustomColor] = useState<string | undefined>();
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'archive' | 'personal' | 'trash'>('archive');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -20,30 +23,49 @@ export default function App() {
       setIsAuthReady(true);
 
       if (currentUser) {
-        // Create user profile in Firestore if it doesn't exist
+        // Create/Update user profile and subscribe to changes
         const userRef = doc(db, 'users', currentUser.uid);
-        try {
-          const userSnap = await getDoc(userRef);
-          if (!userSnap.exists()) {
+        
+        // Real-time user profile for customization
+        const unsubProfile = onSnapshot(userRef, (doc) => {
+          if (doc.exists()) {
+            const data = doc.data();
+            setUserRole(data.role || 'user');
+            setUserCustomColor(data.customColor);
+          } else {
+            // Create user profile if it doesn't exist
+            const role = currentUser.email === 'sem.gk01@gmail.com' ? 'admin' : 'user';
             const newUser = {
               uid: currentUser.uid,
               email: currentUser.email,
               displayName: currentUser.displayName,
               photoURL: currentUser.photoURL,
-              role: 'user', // Default role
+              role: role,
               createdAt: serverTimestamp()
             };
-            await setDoc(userRef, newUser);
-            setUserRole('user');
-          } else {
-            setUserRole(userSnap.data()?.role || 'user');
+            setDoc(userRef, newUser).catch(err => console.error("Error setting user profile:", err));
+            setUserRole(role);
           }
-        } catch (error) {
-          console.error('Error checking/creating user profile:', error);
-          setUserRole('user'); // Fallback
-        }
+        }, (error) => {
+          console.error("Profile snapshot error:", error);
+        });
+
+        // Real-time material count for rank
+        const q = query(collection(db, 'materials'), where('authorId', '==', currentUser.uid));
+        const unsubMaterials = onSnapshot(q, (snapshot) => {
+          setUserContributions(snapshot.size);
+        }, (error) => {
+          console.error("Material count snapshot error:", error);
+        });
+
+        return () => {
+          unsubProfile();
+          unsubMaterials();
+        };
       } else {
         setUserRole(null);
+        setUserContributions(0);
+        setUserCustomColor(undefined);
       }
     });
     return () => unsubscribe();
@@ -89,29 +111,46 @@ export default function App() {
             </motion.div>
             
             <div className="flex items-center gap-6">
-              {user ? (
-                <>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setIsUploadModalOpen(true)}
-                    className="luxury-button bg-white/5 text-white border border-white/10 hover:border-luxury-gold/50 transition-all"
+              {user && (
+                <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/10 hidden md:flex">
+                  <button
+                    onClick={() => setActiveTab('archive')}
+                    className={`flex items-center gap-2 px-6 py-2 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'archive' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
                   >
-                    <div className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      <span className="hidden sm:inline">Add Material</span>
-                    </div>
-                  </motion.button>
-                  <div className="flex items-center gap-4 border-l border-white/10 pl-6">
+                    <Library className="w-3.5 h-3.5" />
+                    Archive
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('personal')}
+                    className={`flex items-center gap-2 px-6 py-2 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'personal' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
+                  >
+                    <UserIcon className="w-3.5 h-3.5" />
+                    Personal
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('trash')}
+                    className={`flex items-center gap-2 px-6 py-2 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'trash' ? 'bg-red-400 text-luxury-black shadow-lg shadow-red-400/20' : 'text-white/40 hover:text-white'}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Trash
+                  </button>
+                </div>
+              )}
+              
+              <div className="flex items-center gap-6">
+                {user ? (
+                <>
+                  <div className="flex items-center gap-4">
                     <motion.div 
                       whileHover={{ scale: 1.1 }}
                       className="relative group cursor-pointer"
                     >
-                      <img
-                        className="h-9 w-9 rounded-full border border-white/20 p-0.5 transition-transform group-hover:border-luxury-gold/50"
-                        src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`}
-                        alt={user.displayName || 'User'}
-                        referrerPolicy="no-referrer"
+                      <UserAvatar
+                        name={user.displayName || 'User'}
+                        photoUrl={user.photoURL || undefined}
+                        contributionCount={userContributions}
+                        customColor={userCustomColor}
+                        size="md"
                       />
                     </motion.div>
                     <motion.button
@@ -140,7 +179,8 @@ export default function App() {
             </div>
           </div>
         </div>
-      </motion.nav>
+      </div>
+    </motion.nav>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -154,9 +194,9 @@ export default function App() {
             <motion.h1 
               className="text-6xl md:text-8xl font-serif font-light text-white tracking-tight flex justify-center flex-wrap"
             >
-              {"The Archive".split("").map((char, index) => (
+              {(activeTab === 'archive' ? "The Archive" : activeTab === 'personal' ? "Personal Space" : "The Depths").split("").map((char, index) => (
                 <motion.span
-                  key={index}
+                  key={`${activeTab}-${index}`}
                   initial={{ y: 100, opacity: 0, filter: "blur(10px)" }}
                   animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
                   transition={{
@@ -189,14 +229,8 @@ export default function App() {
           </motion.p>
         </motion.div>
 
-        <MaterialList userRole={userRole} />
+        <MaterialList userRole={userRole} view={activeTab} onViewChange={setActiveTab} />
       </main>
-
-      {/* Modals */}
-      <UploadModal
-        isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-      />
     </div>
   );
 }

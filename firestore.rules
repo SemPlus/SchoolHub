@@ -49,9 +49,10 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "sem.gk01@gmail.com" && request.auth.token.email_verified == true));
+      return isAuthenticated() && 
+        request.auth.token.email_verified == true &&
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          request.auth.token.email == "sem.gk01@gmail.com");
     }
     
     function isValidUrl(url) {
@@ -64,7 +65,7 @@ service cloud.firestore {
     // ===============================================================
     
     function isValidMaterialData(data) {
-      let allowedFields = ['id', 'title', 'description', 'type', 'url', 'authorId', 'authorName', 'authorPhotoUrl', 'tags', 'downloadCount', 'createdAt'];
+      let allowedFields = ['id', 'title', 'description', 'type', 'url', 'authorId', 'authorName', 'authorPhotoUrl', 'tags', 'downloadCount', 'folderId', 'createdAt', 'isDeleted', 'deletedAt'];
       let requiredFields = ['title', 'type', 'url', 'authorId', 'authorName', 'downloadCount', 'createdAt'];
       
       return data.keys().hasOnly(allowedFields) &&
@@ -78,11 +79,30 @@ service cloud.firestore {
              (!('authorPhotoUrl' in data) || data.authorPhotoUrl == null || (data.authorPhotoUrl is string && data.authorPhotoUrl.size() <= 1000)) &&
              data.tags is list && data.tags.size() <= 20 &&
              data.downloadCount is int && data.downloadCount >= 0 &&
-             data.createdAt is timestamp;
+             (!('folderId' in data) || data.folderId == null || (data.folderId is string && data.folderId.size() <= 128)) &&
+             data.createdAt is timestamp &&
+             (!('isDeleted' in data) || data.isDeleted is bool) &&
+             (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp);
+    }
+
+    function isValidFolderData(data) {
+      let allowedFields = ['id', 'name', 'authorId', 'authorName', 'parentId', 'isPublic', 'createdAt', 'isDeleted', 'deletedAt'];
+      let requiredFields = ['name', 'authorId', 'authorName', 'isPublic', 'createdAt'];
+      
+      return data.keys().hasOnly(allowedFields) &&
+             data.keys().hasAll(requiredFields) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.authorId is string && data.authorId.size() > 0 &&
+             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
+             (!('parentId' in data) || data.parentId == null || (data.parentId is string && data.parentId.size() <= 128)) &&
+             data.isPublic is bool &&
+             data.createdAt is timestamp &&
+             (!('isDeleted' in data) || data.isDeleted is bool) &&
+             (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp);
     }
 
     function isValidUserData(data) {
-      let allowedFields = ['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt'];
+      let allowedFields = ['uid', 'email', 'displayName', 'photoURL', 'role', 'customColor', 'customBadge', 'unlockedBadges', 'createdAt'];
       let requiredFields = ['uid', 'email', 'role', 'createdAt'];
       
       return data.keys().hasOnly(allowedFields) &&
@@ -91,6 +111,9 @@ service cloud.firestore {
              data.email is string &&
              (!('displayName' in data) || data.displayName == null || (data.displayName is string && data.displayName.size() <= 100)) &&
              (!('photoURL' in data) || data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 1000)) &&
+             (!('customColor' in data) || data.customColor == null || (data.customColor is string && data.customColor.size() <= 20)) &&
+             (!('customBadge' in data) || data.customBadge == null || (data.customBadge is string && data.customBadge.size() <= 20)) &&
+             (!('unlockedBadges' in data) || data.unlockedBadges is list) &&
              data.role in ['admin', 'user'] &&
              data.createdAt is timestamp;
     }
@@ -113,18 +136,45 @@ service cloud.firestore {
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['downloadCount']) &&
          request.resource.data.downloadCount == resource.data.downloadCount + 1)
       ) || (
-        // Case 2: Owner updating the document (requires authentication)
-        isAuthenticated() && isDocOwner() && 
-        isValidMaterialData(request.resource.data) &&
-        request.resource.data.authorId == resource.data.authorId &&
-        request.resource.data.createdAt == resource.data.createdAt
+        // Case 2: Owner or Admin updating the document (requires authentication)
+        isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin()) && (
+          (isValidMaterialData(request.resource.data) &&
+           request.resource.data.authorId == resource.data.authorId &&
+           request.resource.data.createdAt == resource.data.createdAt) ||
+          // Action: Trash/Restore
+          (request.resource.data.diff(resource.data).affectedKeys().hasAny(['isDeleted', 'deletedAt']) &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt']) &&
+           request.resource.data.isDeleted is bool)
+        )
       );
                     
-      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
+    }
+
+    match /folders/{folderId} {
+      allow read: if resource.data.isPublic == true || (isAuthenticated() && request.auth.uid == resource.data.authorId) || isAdmin();
+      
+      allow create: if isAuthenticated() && 
+                      isValidFolderData(request.resource.data) && 
+                      request.resource.data.authorId == request.auth.uid &&
+                      request.resource.data.createdAt == request.time;
+      
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin()) && (
+        // Action: Generic Update (requires full validation)
+        (isValidFolderData(request.resource.data) &&
+         request.resource.data.authorId == resource.data.authorId &&
+         request.resource.data.createdAt == resource.data.createdAt) ||
+        // Action: Trash/Restore (be more lenient on structure if only toggling deletion)
+        (request.resource.data.diff(resource.data).affectedKeys().hasAny(['isDeleted', 'deletedAt']) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt']) &&
+         request.resource.data.isDeleted is bool)
+      );
+      
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
     }
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       
       allow create: if isAuthenticated() && 
                       userId == request.auth.uid &&
@@ -137,6 +187,15 @@ service cloud.firestore {
                       (request.resource.data.role == resource.data.role || isAdmin());
                       
       allow delete: if isAdmin();
+    }
+
+    match /saves/{saveId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && 
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.materialId is string &&
+                      request.resource.data.createdAt == request.time;
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
     }
   }
 }
