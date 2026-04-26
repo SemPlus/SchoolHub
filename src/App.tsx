@@ -6,7 +6,7 @@ import { BookOpen, LogOut, Plus, LogIn, Library, User as UserIcon, Trash2 } from
 import MaterialList from './components/MaterialList';
 import CursorGlow from './components/CursorGlow';
 import UserAvatar from './components/UserAvatar';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
 import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 
 export default function App() {
@@ -16,6 +16,17 @@ export default function App() {
   const [userCustomColor, setUserCustomColor] = useState<string | undefined>();
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [activeTab, setActiveTab] = useState<'archive' | 'personal' | 'trash'>('archive');
+
+  const { scrollY } = useScroll();
+  const titleOpacity = useTransform(scrollY, [0, 200], [1, 0]);
+  const titleScale = useTransform(scrollY, [0, 250], [1, 0.8]);
+  const titleFilter = useTransform(scrollY, [0, 200], ["blur(0px)", "blur(10px)"]);
+  const titleY = useTransform(scrollY, [0, 250], [0, -40]);
+
+  useEffect(() => {
+    // Reset scroll when switching tabs so title appears
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [activeTab]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -183,53 +194,62 @@ export default function App() {
     </motion.nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-16 text-center"
-        >
-          <div className="overflow-hidden mb-4">
-            <motion.h1 
-              className="text-6xl md:text-8xl font-serif font-light text-white tracking-tight flex justify-center flex-wrap"
-            >
-              {(activeTab === 'archive' ? "The Archive" : activeTab === 'personal' ? "Personal Space" : "The Depths").split("").map((char, index) => (
-                <motion.span
-                  key={`${activeTab}-${index}`}
-                  initial={{ y: 100, opacity: 0, filter: "blur(10px)" }}
-                  animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
-                  transition={{
-                    duration: 1.2,
-                    delay: 0.3 + index * 0.05,
-                    ease: [0.22, 1, 0.36, 1]
-                  }}
-                  className={char === " " ? "mr-4" : ""}
-                >
-                  {char}
-                </motion.span>
-              ))}
-            </motion.h1>
-          </div>
-          
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+        <div className="relative h-[25vh] flex items-center justify-center pointer-events-none mb-0">
           <motion.div 
-            initial={{ width: 0 }}
-            animate={{ width: 120 }}
-            transition={{ delay: 1.2, duration: 1.5, ease: "easeInOut" }}
-            className="h-px bg-luxury-gold/50 mx-auto mb-6"
-          ></motion.div>
-          
-          <motion.p 
-            initial={{ opacity: 0, letterSpacing: "0.5em" }}
-            animate={{ opacity: 1, letterSpacing: "0.3em" }}
-            transition={{ delay: 1.8, duration: 1.5 }}
-            className="text-luxury-gold font-light max-w-lg mx-auto uppercase text-[10px]"
+            style={{ 
+              opacity: titleOpacity,
+              scale: titleScale,
+              y: titleY,
+              filter: titleFilter
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed top-[12vh] left-0 right-0 z-0 text-center px-4"
           >
-            By Samuel K.
-          </motion.p>
-        </motion.div>
+            <div className="overflow-hidden mb-4">
+              <motion.h1 
+                className="text-6xl md:text-8xl font-serif font-light text-white tracking-tight flex justify-center flex-wrap"
+              >
+                {(activeTab === 'archive' ? "The Archive" : activeTab === 'personal' ? "Personal Space" : "The Depths").split("").map((char, index) => (
+                  <motion.span
+                    key={`${activeTab}-${index}`}
+                    initial={{ y: 100, opacity: 0, filter: "blur(10px)" }}
+                    animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
+                    transition={{
+                      duration: 1.2,
+                      delay: 0.3 + index * 0.05,
+                      ease: [0.22, 1, 0.36, 1]
+                    }}
+                    className={char === " " ? "mr-4" : ""}
+                  >
+                    {char}
+                  </motion.span>
+                ))}
+              </motion.h1>
+            </div>
+            
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: 120 }}
+              transition={{ delay: 1.2, duration: 1.5, ease: "easeInOut" }}
+              className="h-px bg-luxury-gold/50 mx-auto mb-6"
+            ></motion.div>
+            
+            <motion.p 
+              initial={{ opacity: 0, letterSpacing: "0.5em" }}
+              animate={{ opacity: 1, letterSpacing: "0.3em" }}
+              transition={{ delay: 1.8, duration: 1.5 }}
+              className="text-luxury-gold font-light max-w-lg mx-auto uppercase text-[10px]"
+            >
+              By Samuel K.
+            </motion.p>
+          </motion.div>
+        </div>
 
-        <MaterialList userRole={userRole} view={activeTab} onViewChange={setActiveTab} />
+        <div className="relative z-10 bg-luxury-black pt-0 shadow-[0_-50px_100px_rgba(0,0,0,0.9)]">
+          <MaterialList userRole={userRole} view={activeTab} onViewChange={setActiveTab} />
+        </div>
       </main>
     </div>
   );
