@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { collection, query, onSnapshot, orderBy, where, doc, deleteDoc, or, and, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, where, doc, deleteDoc, or, and, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Material, Folder, OperationType } from '../types';
 import MaterialCard from './MaterialCard';
@@ -131,6 +131,40 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
     return items;
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const materialId = params.get('material');
+    if (materialId) {
+      const fetchMaterialAndOpen = async () => {
+        try {
+          const docRef = doc(db, 'materials', materialId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            const material = {
+              id: docSnap.id,
+              ...data,
+              createdAt: data.createdAt?.toDate?.() || (data.createdAt?.seconds ? new Date(data.createdAt.seconds * 1000) : new Date()),
+              deletedAt: data.deletedAt?.toDate?.() || (data.deletedAt?.seconds ? new Date(data.deletedAt.seconds * 1000) : null),
+            } as Material;
+            
+            // If in trash, we might want to inform the user or just not open it
+            if (!material.isDeleted) {
+              handleCardClick(material);
+            }
+          }
+          
+          // Clear query param after checking to avoid re-opening on refreshes if not desired
+          // Or keep it if we want the URL to stay "deep"
+          // window.history.replaceState({}, '', window.location.pathname);
+        } catch (error) {
+          console.error("Error fetching deep-linked material:", error);
+        }
+      };
+      fetchMaterialAndOpen();
+    }
+  }, []);
 
   const handleViewChange = (newView: 'archive' | 'personal' | 'trash') => {
     setCurrentView(newView);

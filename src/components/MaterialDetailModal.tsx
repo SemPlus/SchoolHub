@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ExternalLink, Download, FileText, File, Presentation, Link as LinkIcon, Calendar, User, Tag, Trash2, Bookmark, BookmarkCheck } from 'lucide-react';
+import { X, ExternalLink, Download, FileText, File, Presentation, Link as LinkIcon, Calendar, User, Tag, Trash2, Bookmark, BookmarkCheck, Share2 } from 'lucide-react';
 import { Material } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
@@ -47,6 +47,19 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+
+  const handleShare = async () => {
+    if (!material) return;
+    try {
+      const shareUrl = `https://school-hub-iota.vercel.app/?material=${material.id}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+    }
+  };
   
   const isOwner = auth.currentUser?.uid === material?.authorId;
   const isAdmin = userRole === 'admin';
@@ -178,6 +191,16 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
 
             {/* Close Button */}
             <div className="absolute top-6 right-6 flex items-center gap-2 z-20">
+              <button
+                onClick={handleShare}
+                className={cn(
+                  "transition-all p-2 rounded-full flex items-center justify-center min-w-[40px] backdrop-blur-md",
+                  copied ? "bg-luxury-gold/20 text-luxury-gold" : "text-white/20 hover:text-white hover:bg-white/5"
+                )}
+                title="Copy Link"
+              >
+                {copied ? <span className="text-[10px] font-bold tracking-tighter uppercase">Copied</span> : <Share2 className="w-5 h-5" />}
+              </button>
               {auth.currentUser && (
                 <button
                   onClick={handleSave}

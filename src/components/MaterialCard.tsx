@@ -104,7 +104,8 @@ export default function MaterialCard({
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(material.url);
+      const shareUrl = `https://school-hub-iota.vercel.app/?material=${material.id}`;
+      await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
