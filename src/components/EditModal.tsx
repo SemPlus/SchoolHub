@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Link as LinkIcon, ChevronDown } from 'lucide-react';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../firebase';
 import { Material, MaterialType, OperationType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import Dropdown from './Dropdown';
@@ -14,11 +14,21 @@ interface EditModalProps {
 
 const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
   const errInfo = {
-    error: error.message,
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
     operationType,
-    path,
+    path
   };
-  console.error("Firestore Error:", JSON.stringify(errInfo, null, 2));
+  console.error("Firestore Error:", JSON.stringify(errInfo));
   return error.message || "An unexpected database error occurred.";
 };
 
@@ -33,11 +43,11 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
 
   useEffect(() => {
     if (material) {
-      setTitle(material.title);
-      setDescription(material.description);
-      setTags(material.tags.join(', '));
-      setLinkUrl(material.url);
-      setMaterialType(material.type);
+      setTitle(material.title || '');
+      setDescription(material.description || '');
+      setTags(material.tags?.join(', ') || '');
+      setLinkUrl(material.url || '');
+      setMaterialType(material.type || 'link');
     }
   }, [material, isOpen]);
 
@@ -70,7 +80,7 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
         tags: tags.split(',').map(t => t.trim()).filter(t => t !== ''),
         type: materialType,
         url: linkUrl.trim(),
-        updatedAt: new Date().toISOString(), // Optional: if you want to track edits separately
+        updatedAt: serverTimestamp(),
       });
 
       onClose();

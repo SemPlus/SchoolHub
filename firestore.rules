@@ -65,11 +65,10 @@ service cloud.firestore {
     // ===============================================================
     
     function isValidMaterialData(data) {
-      let allowedFields = ['id', 'title', 'description', 'type', 'url', 'authorId', 'authorName', 'authorPhotoUrl', 'tags', 'downloadCount', 'folderId', 'createdAt', 'isDeleted', 'deletedAt'];
+      let allowedFields = ['id', 'title', 'description', 'type', 'url', 'authorId', 'authorName', 'authorPhotoUrl', 'tags', 'downloadCount', 'folderId', 'createdAt', 'updatedAt', 'isDeleted', 'deletedAt'];
       let requiredFields = ['title', 'type', 'url', 'authorId', 'authorName', 'downloadCount', 'createdAt'];
       
-      return data.keys().hasOnly(allowedFields) &&
-             data.keys().hasAll(requiredFields) &&
+      return data.keys().hasAll(requiredFields) &&
              data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
              (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 2000)) &&
              data.type in ['pdf', 'word', 'canva', 'link', 'drive', 'other'] &&
@@ -81,22 +80,23 @@ service cloud.firestore {
              data.downloadCount is int && data.downloadCount >= 0 &&
              (!('folderId' in data) || data.folderId == null || (data.folderId is string && data.folderId.size() <= 128)) &&
              data.createdAt is timestamp &&
+             (!('updatedAt' in data) || data.updatedAt == null || data.updatedAt is timestamp) &&
              (!('isDeleted' in data) || data.isDeleted is bool) &&
              (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp);
     }
 
     function isValidFolderData(data) {
-      let allowedFields = ['id', 'name', 'authorId', 'authorName', 'parentId', 'isPublic', 'createdAt', 'isDeleted', 'deletedAt'];
+      let allowedFields = ['id', 'name', 'authorId', 'authorName', 'parentId', 'isPublic', 'createdAt', 'updatedAt', 'isDeleted', 'deletedAt'];
       let requiredFields = ['name', 'authorId', 'authorName', 'isPublic', 'createdAt'];
       
-      return data.keys().hasOnly(allowedFields) &&
-             data.keys().hasAll(requiredFields) &&
+      return data.keys().hasAll(requiredFields) &&
              data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
              data.authorId is string && data.authorId.size() > 0 &&
              data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
              (!('parentId' in data) || data.parentId == null || (data.parentId is string && data.parentId.size() <= 128)) &&
              data.isPublic is bool &&
              data.createdAt is timestamp &&
+             (!('updatedAt' in data) || data.updatedAt == null || data.updatedAt is timestamp) &&
              (!('isDeleted' in data) || data.isDeleted is bool) &&
              (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp);
     }
@@ -105,8 +105,7 @@ service cloud.firestore {
       let allowedFields = ['uid', 'email', 'displayName', 'photoURL', 'role', 'customColor', 'customBadge', 'unlockedBadges', 'createdAt'];
       let requiredFields = ['uid', 'email', 'role', 'createdAt'];
       
-      return data.keys().hasOnly(allowedFields) &&
-             data.keys().hasAll(requiredFields) &&
+      return data.keys().hasAll(requiredFields) &&
              data.uid is string && data.uid == request.auth.uid &&
              data.email is string &&
              (!('displayName' in data) || data.displayName == null || (data.displayName is string && data.displayName.size() <= 100)) &&
