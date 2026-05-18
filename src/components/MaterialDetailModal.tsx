@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ExternalLink, Download, FileText, File, Presentation, Link as LinkIcon, Calendar, User, Tag, Trash2, Bookmark, BookmarkCheck, Share2 } from 'lucide-react';
+import { X, ExternalLink, Download, FileText, File, Presentation, Link as LinkIcon, Calendar, User, Tag, Trash2, Bookmark, BookmarkCheck, Share2, Home } from 'lucide-react';
 import { Material } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
@@ -40,9 +40,10 @@ interface MaterialDetailModalProps {
   onAuthorClick?: (id: string, name: string, photoUrl?: string) => void;
   authorContributionCount?: number;
   userRole?: string | null;
+  isDeepLink?: boolean;
 }
 
-export default function MaterialDetailModal({ material, isOpen, onClose, onAuthorClick, authorContributionCount = 0, userRole }: MaterialDetailModalProps) {
+export default function MaterialDetailModal({ material, isOpen, onClose, onAuthorClick, authorContributionCount = 0, userRole, isDeepLink }: MaterialDetailModalProps) {
   const [authorProfile, setAuthorProfile] = React.useState<UserType | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [isSaved, setIsSaved] = React.useState(false);
@@ -59,6 +60,16 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  const handleClose = () => {
+    // Clear URL query param if present
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('material')) {
+      url.searchParams.delete('material');
+      window.history.replaceState({}, '', url.toString());
+    }
+    onClose();
+  };
 
   const handleShare = async () => {
     if (!material) return;
@@ -184,7 +195,7 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={handleClose}
             className="absolute inset-0 bg-luxury-black/90 backdrop-blur-xl"
           />
 
@@ -202,6 +213,14 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
 
             {/* Close Button */}
             <div className="absolute top-6 right-6 flex items-center gap-2 z-20">
+              <button
+                onClick={handleClose}
+                className="flex items-center gap-2 px-2 sm:px-4 py-2 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white rounded-full transition-all border border-white/5 backdrop-blur-md"
+                title="Return to Library"
+              >
+                <Home className="w-5 h-5 sm:w-3 sm:h-3 text-luxury-gold" />
+                <span className="hidden sm:inline text-[10px] uppercase tracking-widest font-bold">Return to Library</span>
+              </button>
               <button
                 onClick={handleShare}
                 className={cn(
@@ -232,7 +251,7 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
                 </button>
               )}
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="text-white/20 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full"
               >
                 <X className="w-6 h-6" />

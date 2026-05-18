@@ -58,6 +58,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   const [selectedProfile, setSelectedProfile] = useState<{id: string, name: string, photoUrl?: string} | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isDeepLinkOpen, setIsDeepLinkOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [materialToEdit, setMaterialToEdit] = useState<Material | null>(null);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
@@ -151,6 +152,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             
             // If in trash, we might want to inform the user or just not open it
             if (!material.isDeleted) {
+              setIsDeepLinkOpen(true);
               handleCardClick(material);
             }
           }
@@ -1107,14 +1109,19 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
       <MaterialDetailModal
         isOpen={isDetailModalOpen}
-        onClose={() => setIsDetailModalOpen(false)}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setIsDeepLinkOpen(false);
+        }}
         material={selectedMaterial}
         authorContributionCount={selectedMaterial ? (authorCounts[selectedMaterial.authorId] || 0) : 0}
         onAuthorClick={(id, name, photoUrl) => {
           setIsDetailModalOpen(false);
+          setIsDeepLinkOpen(false);
           handleAuthorClick(id, name, photoUrl);
         }}
         userRole={userRole}
+        isDeepLink={isDeepLinkOpen}
       />
 
       <EditModal
