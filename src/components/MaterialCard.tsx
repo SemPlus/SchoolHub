@@ -236,7 +236,7 @@ export default function MaterialCard({
       onDragStart={onDragStart}
       whileHover={{ y: -8, scale: 1.02 }}
       className={cn(
-        "glass-panel rounded-[2rem] p-8 hover:bg-white/[0.08] group flex flex-col h-full relative overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] hover:border-white/30 transition-all duration-500 cursor-pointer select-none",
+        "glass-panel rounded-[2rem] p-6 sm:p-8 hover:bg-white/[0.08] group flex flex-col h-full relative overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] hover:border-white/30 transition-all duration-500 cursor-pointer select-none",
         isSelected && "ring-2 ring-luxury-gold bg-luxury-gold/5 border-luxury-gold/20"
       )}
     >
@@ -280,7 +280,7 @@ export default function MaterialCard({
                   onClick={handleSave}
                   disabled={isSaving}
                   className={cn(
-                    "transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md opacity-0 group-hover:opacity-100",
+                    "transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md opacity-100 sm:opacity-0 sm:group-hover:opacity-100",
                     isSaved ? "text-luxury-gold bg-luxury-gold/10" : "text-white/20 hover:text-luxury-gold hover:bg-white/10"
                   )}
                   title={isSaved ? "Unsave Manuscript" : "Save Manuscript"}
@@ -296,7 +296,7 @@ export default function MaterialCard({
               )}
               <button
                 onClick={handleShare}
-                className={`transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md ${copied ? 'bg-luxury-gold/20 text-luxury-gold' : 'text-white/20 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100'}`}
+                className={`transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md ${copied ? 'bg-luxury-gold/20 text-luxury-gold' : 'text-white/20 hover:text-white hover:bg-white/10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100'}`}
                 title="Copy Link"
               >
                 {copied ? <span className="text-[10px] font-bold tracking-tighter uppercase">Copied</span> : <Share2 className="w-4 h-4" />}
@@ -308,14 +308,14 @@ export default function MaterialCard({
                       e.stopPropagation();
                       onMoveClick?.(material);
                     }}
-                    className="transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md text-white/20 hover:text-luxury-gold hover:bg-white/10 opacity-0 group-hover:opacity-100"
+                    className="transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md text-white/20 hover:text-luxury-gold hover:bg-white/10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                     title="Move Material"
                   >
                     <Move className="w-4 h-4" />
                   </button>
                   <button
                     onClick={handleEdit}
-                    className="transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md text-white/20 hover:text-luxury-gold hover:bg-white/10 opacity-0 group-hover:opacity-100"
+                    className="transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md text-white/20 hover:text-luxury-gold hover:bg-white/10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                     title="Edit Material"
                   >
                     <Edit2 className="w-4 h-4" />
@@ -329,7 +329,7 @@ export default function MaterialCard({
               onClick={handleDelete}
               disabled={isDeleting}
               className={cn(
-                "transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md opacity-0 group-hover:opacity-100 disabled:opacity-50",
+                "transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md opacity-100 sm:opacity-0 sm:group-hover:opacity-100 disabled:opacity-50",
                 isInTrash ? "text-red-500 hover:bg-red-500/10 opacity-100" : "text-white/20 hover:text-red-400 hover:bg-red-400/10"
               )}
               title={isInTrash ? "Delete Permanently" : "Delete Material"}

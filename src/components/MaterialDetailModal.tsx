@@ -49,6 +49,17 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
   const [isSaving, setIsSaving] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   const handleShare = async () => {
     if (!material) return;
     try {
