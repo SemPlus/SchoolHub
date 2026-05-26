@@ -247,6 +247,34 @@ export default function App() {
           </motion.div>
         </div>
 
+        {user && (
+          <div className="md:hidden flex justify-center mb-8 px-4 relative z-20">
+            <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/10 w-full max-w-sm">
+              <button
+                onClick={() => setActiveTab('archive')}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'archive' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
+              >
+                <Library className="w-4 h-4" />
+                Archive
+              </button>
+              <button
+                onClick={() => setActiveTab('personal')}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'personal' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
+              >
+                <UserIcon className="w-4 h-4" />
+                Personal
+              </button>
+              <button
+                onClick={() => setActiveTab('trash')}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'trash' ? 'bg-red-400 text-luxury-black shadow-lg shadow-red-400/20' : 'text-white/40 hover:text-white'}`}
+              >
+                <Trash2 className="w-4 h-4" />
+                Trash
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="relative z-10 bg-luxury-black pt-0 shadow-[0_-50px_100px_rgba(0,0,0,0.9)]">
           <MaterialList userRole={userRole} view={activeTab} onViewChange={setActiveTab} />
         </div>

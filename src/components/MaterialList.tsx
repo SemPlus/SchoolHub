@@ -804,7 +804,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   return (
     <div className="space-y-12">
       {/* Refined Modular Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 bg-white/[0.02] p-8 rounded-[2.5rem] border border-white/5 backdrop-blur-xl relative z-50">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 sm:gap-8 bg-white/[0.02] p-4 sm:p-6 md:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border border-white/5 backdrop-blur-xl relative z-50">
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => handleBreadcrumbClick(-1)}
@@ -847,8 +847,8 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="relative group min-w-[280px]">
+        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+          <div className="relative group w-full md:w-auto md:min-w-[280px] flex-grow">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-luxury-gold transition-colors" />
             <input
               type="text"
@@ -859,9 +859,9 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             />
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
             {isAuthenticated && currentView === 'personal' && (
-              <>
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => setIsUploadModalOpen(true)}
                   className="p-3 bg-luxury-gold text-luxury-black rounded-2xl hover:scale-105 transition-all shadow-lg shadow-luxury-gold/20"
@@ -874,10 +874,10 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                 >
                   <FolderPlus className="w-5 h-5" />
                 </button>
-              </>
+              </div>
             )}
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 ml-auto md:ml-0">
               <Dropdown
                 options={sortOptions}
                 value={sortBy}

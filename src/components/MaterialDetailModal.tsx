@@ -53,11 +53,14 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
   React.useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
+      document.documentElement.style.overflow = 'unset';
     }
     return () => {
       document.body.style.overflow = 'unset';
+      document.documentElement.style.overflow = 'unset';
     };
   }, [isOpen]);
 
@@ -190,87 +193,50 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          {/* Backdrop */}
+          {/* Backdrop with touch block */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleClose}
-            className="absolute inset-0 bg-luxury-black/90 backdrop-blur-xl"
+            className="absolute inset-0 bg-luxury-black/95 backdrop-blur-xl touch-none"
           />
 
           {/* Modal Container */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            initial={{ opacity: 0, scale: 0.9, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            exit={{ opacity: 0, scale: 0.9, y: 30 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="glass-panel w-full max-w-4xl relative overflow-hidden flex flex-col md:flex-row rounded-[2.5rem] border-white/10 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] z-10 max-h-[90vh]"
+            className="glass-panel w-full max-w-4xl relative overflow-hidden flex flex-col md:flex-row rounded-[2rem] sm:rounded-[2.5rem] border-white/10 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] z-10 max-h-[85vh] h-full md:h-auto md:max-h-[90vh]"
           >
             {/* Background Decorative Glow */}
             <div className="absolute -top-48 -right-48 w-96 h-96 bg-luxury-gold/5 rounded-full blur-[120px] pointer-events-none" />
             <div className="absolute -bottom-48 -left-48 w-96 h-96 bg-white/5 rounded-full blur-[120px] pointer-events-none" />
 
             {/* Close Button */}
-            <div className="absolute top-6 right-6 flex items-center gap-2 z-20">
+            <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20">
               <button
                 onClick={handleClose}
-                className="flex items-center gap-2 px-2 sm:px-4 py-2 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white rounded-full transition-all border border-white/5 backdrop-blur-md"
-                title="Return to Library"
+                className="text-white/40 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full backdrop-blur-md border border-white/5"
               >
-                <Home className="w-5 h-5 sm:w-3 sm:h-3 text-luxury-gold" />
-                <span className="hidden sm:inline text-[10px] uppercase tracking-widest font-bold">Return to Library</span>
-              </button>
-              <button
-                onClick={handleShare}
-                className={cn(
-                  "transition-all p-2 rounded-full flex items-center justify-center min-w-[40px] backdrop-blur-md",
-                  copied ? "bg-luxury-gold/20 text-luxury-gold" : "text-white/20 hover:text-white hover:bg-white/5"
-                )}
-                title="Copy Link"
-              >
-                {copied ? <span className="text-[10px] font-bold tracking-tighter uppercase">Copied</span> : <Share2 className="w-5 h-5" />}
-              </button>
-              {auth.currentUser && (
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className={cn(
-                    "text-white/20 hover:text-luxury-gold transition-colors p-2 hover:bg-white/5 rounded-full",
-                    isSaved && "text-luxury-gold"
-                  )}
-                  title={isSaved ? "Unsave" : "Save"}
-                >
-                  {isSaving ? (
-                    <div className="w-5 h-5 border-2 border-luxury-gold/30 border-t-luxury-gold rounded-full animate-spin" />
-                  ) : isSaved ? (
-                    <BookmarkCheck className="w-6 h-6" />
-                  ) : (
-                    <Bookmark className="w-6 h-6" />
-                  )}
-                </button>
-              )}
-              <button
-                onClick={handleClose}
-                className="text-white/20 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full"
-              >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
             {/* Left Section: Visual & Quick Info */}
-            <div className="w-full md:w-1/3 p-10 flex flex-col items-center bg-white/[0.02] border-b md:border-b-0 md:border-r border-white/5">
+            <div className="w-full md:w-1/3 p-4 sm:p-10 shrink-0 flex flex-col items-center bg-white/[0.02] border-b md:border-b-0 md:border-r border-white/5 z-10">
               <motion.div
                 initial={{ rotate: -10, scale: 0.8, opacity: 0 }}
                 animate={{ rotate: 0, scale: 1, opacity: 1 }}
                 transition={{ delay: 0.2, duration: 0.5 }}
-                className="w-32 h-32 border border-white/10 rounded-[2rem] flex items-center justify-center bg-white/5 mb-8 shadow-2xl"
+                className="hidden md:flex w-24 h-24 sm:w-32 sm:h-32 border border-white/10 rounded-[2rem] items-center justify-center bg-white/5 mb-6 sm:mb-8 shadow-2xl"
               >
                 {getIcon()}
               </motion.div>
 
-              <div className="space-y-6 w-full">
-                <div className="flex items-center gap-4 group cursor-pointer" onClick={() => onAuthorClick?.(material.authorId, material.authorName, material.authorPhotoUrl)}>
+              <div className="flex flex-row md:flex-col items-center md:items-start justify-center gap-6 w-full overflow-x-auto pb-1 md:pb-0 scrollbar-none py-1 md:py-0">
+                <div className="flex items-center gap-3 sm:gap-4 group cursor-pointer shrink-0" onClick={() => onAuthorClick?.(material.authorId, material.authorName, material.authorPhotoUrl)}>
                   <UserAvatar
                     name={material.authorName}
                     photoUrl={material.authorPhotoUrl}
@@ -281,120 +247,181 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
                   />
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-[10px] uppercase tracking-widest text-white/40">Contributor</p>
-                      <span className={`text-[8px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 font-bold tracking-widest ${rank.color}`}>
+                      <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/40 font-semibold">Contributor</p>
+                      <span className={`text-[7px] sm:text-[8px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 font-bold tracking-widest ${rank.color}`}>
                         {authorProfile?.customBadge || rank.label}
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-white group-hover:text-luxury-gold transition-colors">{material.authorName}</p>
+                    <p className="text-xs sm:text-sm font-medium text-white group-hover:text-luxury-gold transition-colors truncate max-w-[100px] sm:max-w-none">{material.authorName}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
-                    <Calendar className="w-4 h-4 text-luxury-gold" />
+                <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
+                    <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-luxury-gold" />
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-white/40 mb-0.5">Recorded on</p>
-                    <p className="text-sm font-medium text-white">
-                      {material.createdAt ? new Date(material.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Unknown Date'}
+                    <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/40 mb-0.5 font-semibold">Recorded</p>
+                    <p className="text-xs sm:text-sm font-medium text-white">
+                      {material.createdAt ? new Date(material.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : '---'}
                     </p>
                   </div>
                 </div>
 
                 {!isExternalLink && (
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
-                      <Download className="w-4 h-4 text-luxury-gold" />
+                  <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
+                      <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-luxury-gold" />
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-widest text-white/40 mb-0.5">Retrieved</p>
-                      <p className="text-sm font-medium text-white">{material.downloadCount || 0} times</p>
+                      <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/40 mb-0.5 font-semibold">Retrieved</p>
+                      <p className="text-xs sm:text-sm font-medium text-white">{material.downloadCount || 0}x</p>
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Right Section: Details & Action */}
-            <div className="flex-grow p-10 flex flex-col h-full bg-transparent overflow-y-auto">
-              <div>
-                <motion.div
-                  initial={{ x: 20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <span className="text-[10px] uppercase tracking-[0.4em] text-luxury-gold font-semibold mb-4 block">Archive Entry</span>
-                  <h2 className="text-4xl md:text-5xl font-serif text-white mb-6 leading-tight">{material.title}</h2>
-                </motion.div>
-
-                {material.tags && material.tags.length > 0 && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.4 }}
-                    className="flex flex-wrap gap-2 mb-8"
+            {/* Right Section: Split into Scrollable Content and Sticky Action Footer */}
+            <div className="flex-grow flex flex-col min-h-0 bg-transparent overflow-hidden">
+              {/* Scrollable details */}
+              <div className="flex-grow p-5 sm:p-10 overflow-y-auto min-h-0 scrollbar-none">
+                <div className="mb-2">
+                  <motion.div
+                    initial={{ x: 20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.3 }}
                   >
-                    {material.tags.map((tag, i) => (
-                      <span key={i} className="flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[9px] uppercase tracking-widest text-white/60">
-                        <Tag className="w-2 h-2 text-luxury-gold/50" />
-                        {tag}
-                      </span>
-                    ))}
+                    <span className="text-[8px] sm:text-[10px] uppercase tracking-[0.4em] text-luxury-gold font-semibold mb-2 sm:mb-4 block">Archive Entry</span>
+                    <h2 className="text-2xl sm:text-3xl md:text-5xl font-serif text-white mb-4 sm:mb-6 leading-tight break-words">{material.title}</h2>
                   </motion.div>
-                )}
 
-                <motion.div 
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="mb-10"
-                >
-                  <h4 className="text-[10px] uppercase tracking-[0.2em] text-white/20 mb-4 font-bold">Manuscript Description</h4>
-                  <div className="p-6 bg-white/[0.03] border border-white/5 rounded-2xl italic font-light leading-loose text-white/70">
-                    <p className="text-lg">"{material.description || 'No description provided for this entry.'}"</p>
-                  </div>
-                </motion.div>
+                  {material.tags && material.tags.length > 0 && (
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.4 }}
+                      className="flex flex-wrap gap-1.5 sm:gap-2 mb-6 sm:mb-8"
+                    >
+                      {material.tags.map((tag, i) => (
+                        <span key={i} className="flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[8.5px] uppercase tracking-widest text-white/60">
+                          <Tag className="w-2.5 h-2.5 text-luxury-gold/50" />
+                          {tag}
+                        </span>
+                      ))}
+                    </motion.div>
+                  )}
+
+                  <motion.div 
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="mb-4"
+                  >
+                    <h4 className="text-[8px] sm:text-[10px] uppercase tracking-[0.2em] text-white/20 mb-3 sm:mb-4 font-bold">Manuscript Description</h4>
+                    <div className="p-4 sm:p-6 bg-white/[0.03] border border-white/5 rounded-2xl italic font-light leading-relaxed sm:leading-loose text-white/70">
+                      <p className="text-sm sm:text-lg">"{material.description || 'No description provided for this entry.'}"</p>
+                    </div>
+                  </motion.div>
+                </div>
               </div>
 
+              {/* Sticky footer actions - always visible without scroll */}
               <motion.div 
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-                className="mt-auto pt-6 border-t border-white/5 flex gap-4"
+                transition={{ delay: 0.55 }}
+                className="mt-auto p-4 sm:p-6 border-t border-white/5 bg-luxury-black/95 backdrop-blur-md flex flex-col sm:flex-row gap-4 shrink-0 z-10"
               >
-                {canDelete && (
+                <div className="flex gap-2 justify-between sm:justify-start w-full sm:w-auto">
                   <button
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="flex items-center justify-center gap-3 px-6 py-4 bg-red-400/10 text-red-400 font-medium hover:bg-red-400/20 transition-all rounded-full disabled:opacity-50"
+                    onClick={handleClose}
+                    className="flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white rounded-full transition-all border border-white/10 backdrop-blur-md group"
+                    title="Return to Library"
                   >
-                    {isDeleting ? (
-                      <div className="w-5 h-5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                    ) : (
-                      <Trash2 className="w-5 h-5" />
-                    )}
-                    <span>Expunge</span>
+                    <Home className="w-4 h-4 text-luxury-gold group-hover:scale-110 transition-transform" />
+                    <span className="text-[9px] uppercase tracking-widest font-bold">Home</span>
                   </button>
-                )}
-                <a
-                  href={material.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-grow flex items-center justify-center gap-3 py-4 bg-white text-luxury-black font-medium hover:bg-luxury-gold transition-all rounded-full group"
-                >
-                  {isExternalLink ? (
-                    <>
-                      <span>Access Entry</span>
-                      <ExternalLink className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    </>
-                  ) : (
-                    <>
-                      <span>Retrieve Manuscript</span>
-                      <Download className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    </>
+
+                  <button
+                    onClick={handleShare}
+                    className={cn(
+                      "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-full transition-all border backdrop-blur-md group",
+                      copied ? "bg-luxury-gold/20 border-luxury-gold text-luxury-gold" : "bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10"
+                    )}
+                    title="Copy Link"
+                  >
+                    {copied ? (
+                      <span className="text-[9px] font-bold tracking-widest uppercase">Copied</span>
+                    ) : (
+                      <>
+                        <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                        <span className="text-[9px] uppercase tracking-widest font-bold">Share</span>
+                      </>
+                    )}
+                  </button>
+
+                  {auth.currentUser && (
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className={cn(
+                        "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-full transition-all border backdrop-blur-md group",
+                        isSaved ? "bg-luxury-gold/10 border-luxury-gold/50 text-luxury-gold" : "bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10"
+                      )}
+                      title={isSaved ? "Unsave" : "Save"}
+                    >
+                      {isSaving ? (
+                        <div className="w-4 h-4 border-2 border-luxury-gold/30 border-t-luxury-gold rounded-full animate-spin" />
+                      ) : isSaved ? (
+                        <>
+                          <BookmarkCheck className="w-4 h-4 text-luxury-gold group-hover:scale-110 transition-transform" />
+                          <span className="text-[9px] uppercase tracking-widest font-bold hidden sm:inline">Saved</span>
+                        </>
+                      ) : (
+                        <>
+                          <Bookmark className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                          <span className="text-[9px] uppercase tracking-widest font-bold hidden sm:inline">Save</span>
+                        </>
+                      )}
+                    </button>
                   )}
-                </a>
+                </div>
+
+                <div className="flex gap-4 flex-grow w-full">
+                  {canDelete && (
+                    <button
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className="flex items-center justify-center gap-2 px-4 py-3 bg-red-400/10 text-red-400 font-medium hover:bg-red-400/20 transition-all rounded-full border border-red-400/20 disabled:opacity-50"
+                    >
+                      {isDeleting ? (
+                        <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      <span className="hidden sm:inline text-[9px] uppercase tracking-widest font-bold font-sans">Expunge</span>
+                    </button>
+                  )}
+                  <a
+                    href={material.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-grow flex items-center justify-center gap-2 py-3 bg-white text-luxury-black hover:bg-luxury-gold transition-all rounded-full group shadow-lg shadow-white/5"
+                  >
+                    {isExternalLink ? (
+                      <>
+                        <span className="uppercase tracking-[0.2em] text-xs font-bold font-sans">Open Link</span>
+                        <ExternalLink className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-luxury-black" />
+                      </>
+                    ) : (
+                      <>
+                        <span className="uppercase tracking-[0.2em] text-xs font-bold font-sans">Open Manuscript</span>
+                        <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform text-luxury-black" />
+                      </>
+                    )}
+                  </a>
+                </div>
               </motion.div>
             </div>
           </motion.div>
