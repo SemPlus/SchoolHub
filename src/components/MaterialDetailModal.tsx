@@ -236,6 +236,19 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
               </motion.div>
 
               <div className="flex flex-row md:flex-col items-center md:items-start justify-center gap-6 w-full overflow-x-auto pb-1 md:pb-0 scrollbar-none py-1 md:py-0">
+                {(material.schoolName || material.className) && (
+                  <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-luxury-gold/5 flex items-center justify-center border border-luxury-gold/10">
+                      <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-luxury-gold" />
+                    </div>
+                    <div>
+                      <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/40 mb-0.5 font-semibold">Affiliation</p>
+                      <p className="text-xs sm:text-sm font-medium text-white truncate max-w-[150px]">
+                        {[material.schoolName, material.className].filter(Boolean).join(' • ')}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-3 sm:gap-4 group cursor-pointer shrink-0" onClick={() => onAuthorClick?.(material.authorId, material.authorName, material.authorPhotoUrl)}>
                   <UserAvatar
                     name={material.authorName}
@@ -416,7 +429,7 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
                       </>
                     ) : (
                       <>
-                        <span className="uppercase tracking-[0.2em] text-xs font-bold font-sans">Open Manuscript</span>
+                        <span className="uppercase tracking-[0.2em] text-xs font-bold font-sans">Open Entry</span>
                         <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform text-luxury-black" />
                       </>
                     )}

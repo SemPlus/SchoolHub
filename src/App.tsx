@@ -252,24 +252,24 @@ export default function App() {
             <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/10 w-full max-w-sm">
               <button
                 onClick={() => setActiveTab('archive')}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'archive' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
+                className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 rounded-full transition-all text-[9px] sm:text-[10px] uppercase tracking-[0.1em] sm:tracking-[0.2em] font-medium ${activeTab === 'archive' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
               >
-                <Library className="w-4 h-4" />
-                Archive
+                <Library className="w-3.5 h-3.5 sm:w-4 h-4" />
+                <span>Archive</span>
               </button>
               <button
                 onClick={() => setActiveTab('personal')}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'personal' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
+                className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 rounded-full transition-all text-[9px] sm:text-[10px] uppercase tracking-[0.1em] sm:tracking-[0.2em] font-medium ${activeTab === 'personal' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
               >
-                <UserIcon className="w-4 h-4" />
-                Personal
+                <UserIcon className="w-3.5 h-3.5 sm:w-4 h-4" />
+                <span>Personal</span>
               </button>
               <button
                 onClick={() => setActiveTab('trash')}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'trash' ? 'bg-red-400 text-luxury-black shadow-lg shadow-red-400/20' : 'text-white/40 hover:text-white'}`}
+                className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 rounded-full transition-all text-[9px] sm:text-[10px] uppercase tracking-[0.1em] sm:tracking-[0.2em] font-medium ${activeTab === 'trash' ? 'bg-red-400 text-luxury-black shadow-lg shadow-red-400/20' : 'text-white/40 hover:text-white'}`}
               >
-                <Trash2 className="w-4 h-4" />
-                Trash
+                <Trash2 className="w-3.5 h-3.5 sm:w-4 h-4" />
+                <span>Trash</span>
               </button>
             </div>
           </div>

@@ -24,6 +24,11 @@ export interface Material {
   folderId?: string | null;
   isDeleted?: boolean;
   deletedAt?: Date;
+  schoolId?: string;
+  schoolName?: string;
+  classId?: string;
+  className?: string; // e.g. "Year 1", "Grade 5"
+  visibleInArchiveUntil?: Date | null;
 }
 
 export interface Folder {
@@ -36,6 +41,10 @@ export interface Folder {
   createdAt: any;
   isDeleted?: boolean;
   deletedAt?: any;
+  schoolId?: string;
+  schoolName?: string;
+  classId?: string;
+  className?: string;
 }
 
 export interface User {

@@ -1,5 +1,6 @@
 {
   "name": "SchoolHub",
-  "description": "A handy website to upload, view, and download school materials like Canva presentations, PDFs, and Word documents.",
-  "requestFramePermissions": []
+  "description": "A refined repository for school materials, categorized by institution and class. Features include visibility duration and public archive filtering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

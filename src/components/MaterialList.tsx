@@ -12,7 +12,7 @@ import MoveModal from './MoveModal';
 import UploadModal from './UploadModal';
 import Dropdown from './Dropdown';
 import ContextMenu from './ContextMenu';
-import { Search, Filter, Lock, FolderPlus, ChevronRight, Home, ArrowLeft, BookOpen, Plus, Trash2, Move, Edit, Share2, Info, RotateCcw } from 'lucide-react';
+import { Search, Filter, Lock, FolderPlus, ChevronRight, Home, ArrowLeft, BookOpen, Plus, Trash2, Move, Edit, Share2, Info, RotateCcw, X } from 'lucide-react';
 
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -69,6 +69,12 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   const [userSaves, setUserSaves] = useState<Set<string>>(new Set());
   const [currentView, setCurrentView] = useState<'archive' | 'personal' | 'trash'>(view);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
+  
+  // School and Class filtering
+  const [schoolFilter, setSchoolFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [expiredUserMaterials, setExpiredUserMaterials] = useState<Material[]>([]);
 
   // Multi-selection state
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<Set<string>>(new Set());
@@ -391,7 +397,10 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
   const sortedFolders = useMemo(() => {
     const filtered = folders.filter(folder => {
-      return folder.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = folder.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSchool = !schoolFilter || (folder.schoolName && folder.schoolName.toLowerCase().includes(schoolFilter.toLowerCase()));
+      const matchesClass = !classFilter || (folder.className && folder.className.toLowerCase().includes(classFilter.toLowerCase()));
+      return matchesSearch && matchesSchool && matchesClass;
     });
 
     return [...filtered].sort((a, b) => {
@@ -403,13 +412,58 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     });
   }, [folders, searchTerm, sortBy]);
 
+  useEffect(() => {
+    if (auth.currentUser && currentView === 'personal') {
+      const expired = materials.filter(m => 
+        m.authorId === auth.currentUser?.uid && 
+        m.visibleInArchiveUntil && 
+        new Date(m.visibleInArchiveUntil) < new Date()
+      );
+      setExpiredUserMaterials(expired);
+    } else {
+      setExpiredUserMaterials([]);
+    }
+  }, [materials, currentView]);
+
+  const handleRepublish = async (material: Material) => {
+    try {
+      const materialRef = doc(db, 'materials', material.id);
+      // Reset visibility to forever for now, or the user can edit it
+      await updateDoc(materialRef, {
+        visibleInArchiveUntil: null,
+        updatedAt: serverTimestamp()
+      });
+      setErrorStatus(`Material "${material.title}" has been republished to Archive.`);
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `materials/${material.id}`);
+    }
+  };
+
+  const handleExtend = (material: Material) => {
+    setMaterialToEdit(material);
+    setIsEditModalOpen(true);
+  };
+
   const sortedMaterials = useMemo(() => {
     const filtered = materials.filter(material => {
       const matchesSearch = material.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             (material.description && material.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
                             (material.tags && material.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())));
       const matchesFilter = filterType === 'all' || material.type === filterType;
-      return matchesSearch && matchesFilter;
+      
+      const matchesSchool = !schoolFilter || (material.schoolName && material.schoolName.toLowerCase().includes(schoolFilter.toLowerCase()));
+      const matchesClass = !classFilter || (material.className && material.className.toLowerCase().includes(classFilter.toLowerCase()));
+      
+      // Archive visibility logic
+      const isExpired = material.visibleInArchiveUntil && new Date(material.visibleInArchiveUntil) < new Date();
+      const isPrivatelyViewed = currentView === 'personal' || (auth.currentUser && material.authorId === auth.currentUser.uid);
+      
+      // If we are in archive, hide expired items unless they are MINE
+      if (currentView === 'archive' && isExpired && !isPrivatelyViewed) {
+        return false;
+      }
+
+      return matchesSearch && matchesFilter && matchesSchool && matchesClass;
     });
 
     return [...filtered].sort((a, b) => {
@@ -860,6 +914,17 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
           </div>
           
           <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={cn(
+                "p-3 rounded-2xl transition-all border border-white/5",
+                showFilters || schoolFilter || classFilter ? "bg-luxury-gold text-luxury-black border-luxury-gold" : "bg-white/5 text-white/60 hover:text-white"
+              )}
+              title="Institution Filters"
+            >
+              <BookOpen className="w-5 h-5" />
+            </button>
+
             {isAuthenticated && currentView === 'personal' && (
               <div className="flex items-center gap-2">
                 <button
@@ -894,6 +959,70 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         </div>
       </div>
 
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-white/[0.01] border border-white/5 p-6 rounded-[2rem] flex flex-col md:flex-row gap-6 mb-8">
+              <div className="flex-1 space-y-2">
+                <label className="text-[9px] uppercase tracking-widest text-white/40 ml-1">Search by Institution</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={schoolFilter}
+                    onChange={(e) => setSchoolFilter(e.target.value)}
+                    placeholder="Enter school name..."
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-white/10 focus:outline-none focus:ring-1 focus:ring-luxury-gold/30 transition-all font-light"
+                  />
+                  {schoolFilter && (
+                    <button 
+                      onClick={() => setSchoolFilter('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 hover:text-white"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 space-y-2">
+                <label className="text-[9px] uppercase tracking-widest text-white/40 ml-1">Filter by Class Level</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={classFilter}
+                    onChange={(e) => setClassFilter(e.target.value)}
+                    placeholder="e.g. Year 10, Grade 5..."
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-white/10 focus:outline-none focus:ring-1 focus:ring-luxury-gold/30 transition-all font-light"
+                  />
+                   {classFilter && (
+                    <button 
+                      onClick={() => setClassFilter('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 hover:text-white"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-end pb-1">
+                {(schoolFilter || classFilter) && (
+                  <button 
+                    onClick={() => { setSchoolFilter(''); setClassFilter(''); }}
+                    className="text-[10px] text-luxury-gold uppercase tracking-widest hover:underline mb-2 px-2"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {errorStatus && (
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
@@ -902,6 +1031,50 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         >
           <p className="text-xs text-red-400 font-medium">{errorStatus}</p>
           <button onClick={() => setErrorStatus(null)} className="text-red-400/50 hover:text-red-400 text-xs uppercase tracking-widest font-bold px-2">Dismiss</button>
+        </motion.div>
+      )}
+
+      {expiredUserMaterials.length > 0 && currentView === 'personal' && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-6 bg-luxury-gold/10 border border-luxury-gold/20 rounded-[2rem] flex flex-col gap-4 relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+            <Lock className="w-12 h-12" />
+          </div>
+          <div className="relative z-10">
+            <h4 className="text-sm font-serif text-luxury-gold mb-1">Archive Expiration Notice</h4>
+            <p className="text-xs text-white/60 font-light max-w-2xl leading-relaxed">
+              The following {expiredUserMaterials.length === 1 ? 'item has' : 'items have'} been designated as private and hidden from the global archive due to expired visibility settings.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3 relative z-10">
+            {expiredUserMaterials.slice(0, 3).map(m => (
+              <div key={m.id} className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-xl">
+                <span className="text-[10px] text-white/80 font-medium truncate max-w-[150px]">{m.title}</span>
+                <div className="flex items-center gap-2 border-l border-white/10 pl-3">
+                   <button 
+                    onClick={() => handleRepublish(m)}
+                    className="text-[9px] uppercase tracking-widest text-luxury-gold hover:text-white transition-colors"
+                  >
+                    Republish
+                  </button>
+                  <button 
+                    onClick={() => handleExtend(m)}
+                    className="text-[9px] uppercase tracking-widest text-white/40 hover:text-white transition-colors"
+                  >
+                    Extend
+                  </button>
+                </div>
+              </div>
+            ))}
+            {expiredUserMaterials.length > 3 && (
+              <div className="flex items-center px-3 text-[10px] text-white/20 italic">
+                + {expiredUserMaterials.length - 3} more
+              </div>
+            )}
+          </div>
         </motion.div>
       )}
 

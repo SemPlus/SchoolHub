@@ -50,7 +50,12 @@
         "createdAt": {
           "type": "timestamp",
           "description": "When the material was created."
-        }
+        },
+        "schoolId": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "visibleInArchiveUntil": { "type": "timestamp" }
       },
       "required": ["title", "type", "url", "authorId", "authorName", "createdAt"]
     },
@@ -67,7 +72,11 @@
         "isPublic": { "type": "boolean", "description": "Whether the folder is visible to everyone." },
         "createdAt": { "type": "timestamp" },
         "isDeleted": { "type": "boolean" },
-        "deletedAt": { "type": "timestamp" }
+        "deletedAt": { "type": "timestamp" },
+        "schoolId": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" }
       },
       "required": ["name", "authorId", "authorName", "isPublic", "createdAt"]
     },

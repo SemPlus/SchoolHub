@@ -144,6 +144,13 @@ export default function FolderCard({
         <h3 className="text-xl font-serif text-white mb-1 line-clamp-1 group-hover:text-luxury-gold transition-colors">
           {folder.name}
         </h3>
+        {(folder.schoolName || folder.className) && (
+          <div className="flex items-center gap-1 mb-2">
+            <span className="text-[8px] uppercase tracking-widest text-luxury-gold/60 font-medium">
+              {[folder.schoolName, folder.className].filter(Boolean).join(' • ')}
+            </span>
+          </div>
+        )}
         {isInTrash && (
           <p className="text-[10px] font-bold text-red-400/80 mb-2">
             Expires in {getDaysRemaining()} days

@@ -65,7 +65,7 @@ service cloud.firestore {
     // ===============================================================
     
     function isValidMaterialData(data) {
-      let allowedFields = ['id', 'title', 'description', 'type', 'url', 'authorId', 'authorName', 'authorPhotoUrl', 'tags', 'downloadCount', 'folderId', 'createdAt', 'updatedAt', 'isDeleted', 'deletedAt'];
+      let allowedFields = ['id', 'title', 'description', 'type', 'url', 'authorId', 'authorName', 'authorPhotoUrl', 'tags', 'downloadCount', 'folderId', 'createdAt', 'updatedAt', 'isDeleted', 'deletedAt', 'schoolId', 'schoolName', 'classId', 'className', 'visibleInArchiveUntil'];
       let requiredFields = ['title', 'type', 'url', 'authorId', 'authorName', 'downloadCount', 'createdAt'];
       
       return data.keys().hasAll(requiredFields) &&
@@ -82,11 +82,16 @@ service cloud.firestore {
              data.createdAt is timestamp &&
              (!('updatedAt' in data) || data.updatedAt == null || data.updatedAt is timestamp) &&
              (!('isDeleted' in data) || data.isDeleted is bool) &&
-             (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp);
+             (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp) &&
+             (!('schoolId' in data) || data.schoolId == null || (data.schoolId is string && data.schoolId.size() <= 128)) &&
+             (!('schoolName' in data) || data.schoolName == null || (data.schoolName is string && data.schoolName.size() <= 200)) &&
+             (!('classId' in data) || data.classId == null || (data.classId is string && data.classId.size() <= 128)) &&
+             (!('className' in data) || data.className == null || (data.className is string && data.className.size() <= 200)) &&
+             (!('visibleInArchiveUntil' in data) || data.visibleInArchiveUntil == null || data.visibleInArchiveUntil is timestamp);
     }
 
     function isValidFolderData(data) {
-      let allowedFields = ['id', 'name', 'authorId', 'authorName', 'parentId', 'isPublic', 'createdAt', 'updatedAt', 'isDeleted', 'deletedAt'];
+      let allowedFields = ['id', 'name', 'authorId', 'authorName', 'parentId', 'isPublic', 'createdAt', 'updatedAt', 'isDeleted', 'deletedAt', 'schoolId', 'schoolName', 'classId', 'className'];
       let requiredFields = ['name', 'authorId', 'authorName', 'isPublic', 'createdAt'];
       
       return data.keys().hasAll(requiredFields) &&
@@ -98,7 +103,11 @@ service cloud.firestore {
              data.createdAt is timestamp &&
              (!('updatedAt' in data) || data.updatedAt == null || data.updatedAt is timestamp) &&
              (!('isDeleted' in data) || data.isDeleted is bool) &&
-             (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp);
+             (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp) &&
+             (!('schoolId' in data) || data.schoolId == null || (data.schoolId is string && data.schoolId.size() <= 128)) &&
+             (!('schoolName' in data) || data.schoolName == null || (data.schoolName is string && data.schoolName.size() <= 200)) &&
+             (!('classId' in data) || data.classId == null || (data.classId is string && data.classId.size() <= 128)) &&
+             (!('className' in data) || data.className == null || (data.className is string && data.className.size() <= 200));
     }
 
     function isValidUserData(data) {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, File, Link as LinkIcon, ExternalLink, Download, Trash2, Presentation, Share2, Edit2, Move, Bookmark, BookmarkCheck, ArrowLeft } from 'lucide-react';
+import { FileText, File, Link as LinkIcon, ExternalLink, Download, Trash2, Presentation, Share2, Edit2, Move, Bookmark, BookmarkCheck, ArrowLeft, BookOpen } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Material } from '../types';
 import { auth, db } from '../firebase';
@@ -340,9 +340,20 @@ export default function MaterialCard({
         </div>
       </div>
       
-      <h3 className="font-serif text-2xl text-white mb-3 line-clamp-2 leading-tight group-hover:text-luxury-gold transition-colors relative z-10">
+      <h3 className="font-serif text-2xl text-white mb-1 line-clamp-2 leading-tight group-hover:text-luxury-gold transition-colors relative z-10">
         {material.title}
       </h3>
+
+      <div className="flex flex-wrap gap-2 mb-4 relative z-10">
+        {(material.schoolName || material.className) && (
+          <div className="flex items-center gap-1 bg-luxury-gold/10 border border-luxury-gold/20 px-2 py-0.5 rounded-full">
+            <BookOpen className="w-2.5 h-2.5 text-luxury-gold" />
+            <span className="text-[8px] uppercase tracking-widest text-luxury-gold font-medium">
+              {[material.schoolName, material.className].filter(Boolean).join(' • ')}
+            </span>
+          </div>
+        )}
+      </div>
 
       {material.tags && material.tags.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-4 relative z-10">
@@ -409,11 +420,12 @@ export default function MaterialCard({
           download={!isExternalLink ? `${material.title}.${material.type === 'pdf' ? 'pdf' : material.type === 'word' ? 'docx' : 'file'}` : undefined}
           onClick={handleDownload}
           whileHover={{ x: 5 }}
-          className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-medium text-white/80 hover:text-luxury-gold transition-colors"
+          whileTap={{ scale: 0.95 }}
+          className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold text-luxury-black bg-white px-4 py-2 rounded-full hover:bg-luxury-gold transition-all shadow-lg shadow-white/5"
         >
           {isExternalLink ? (
             <>
-              <span>Access</span>
+              <span>Open</span>
               <ExternalLink className="w-3 h-3" />
             </>
           ) : (

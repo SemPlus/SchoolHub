@@ -15,6 +15,8 @@ export default function CreateFolderModal({ isOpen, onClose, parentId }: CreateF
   const [isPublic, setIsPublic] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
+  const [school, setSchool] = useState('');
+  const [className, setClassName] = useState('');
 
   if (!isOpen) return null;
 
@@ -35,8 +37,12 @@ export default function CreateFolderModal({ isOpen, onClose, parentId }: CreateF
         isPublic: isPublic,
         createdAt: serverTimestamp(),
         isDeleted: false,
+        schoolName: school.trim() || null,
+        className: className.trim() || null,
       });
       setName('');
+      setSchool('');
+      setClassName('');
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to create folder');
@@ -96,6 +102,29 @@ export default function CreateFolderModal({ isOpen, onClose, parentId }: CreateF
                   placeholder="e.g. Ancient Wisdom"
                   required
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">School</label>
+                  <input
+                    type="text"
+                    value={school}
+                    onChange={(e) => setSchool(e.target.value)}
+                    className="w-full bg-transparent border-b border-white/10 py-3 px-0 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm text-white"
+                    placeholder="Ref. School"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Class</label>
+                  <input
+                    type="text"
+                    value={className}
+                    onChange={(e) => setClassName(e.target.value)}
+                    className="w-full bg-transparent border-b border-white/10 py-3 px-0 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm text-white"
+                    placeholder="Ref. Class"
+                  />
+                </div>
               </div>
 
               <div className="space-y-3">

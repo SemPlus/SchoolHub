@@ -40,6 +40,9 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
   const [materialType, setMaterialType] = useState<MaterialType>('link');
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState('');
+  const [school, setSchool] = useState('');
+  const [className, setClassName] = useState('');
+  const [visibilityDuration, setVisibilityDuration] = useState('forever');
 
   useEffect(() => {
     if (material) {
@@ -48,6 +51,17 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
       setTags(material.tags?.join(', ') || '');
       setLinkUrl(material.url || '');
       setMaterialType(material.type || 'link');
+      setSchool(material.schoolName || '');
+      setClassName(material.className || '');
+      
+      if (material.visibleInArchiveUntil) {
+        // Just for simplicity, we'll keep it as it is or allow changing it
+        // The user can choose a NEW duration or keep existing (which would require complex date diff logic for the dropdown)
+        // Let's just default to 'forever' for edits UNLESS changed, or implement a basic detection.
+        setVisibilityDuration('forever'); 
+      } else {
+        setVisibilityDuration('forever');
+      }
     }
   }, [material, isOpen]);
 
@@ -74,6 +88,15 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
 
     try {
       const materialRef = doc(db, 'materials', material.id);
+      
+      let visibleInArchiveUntil = material.visibleInArchiveUntil || null;
+      if (visibilityDuration !== 'forever') {
+        const days = parseInt(visibilityDuration);
+        const date = new Date();
+        date.setDate(date.getDate() + days);
+        visibleInArchiveUntil = date;
+      }
+
       await updateDoc(materialRef, {
         title: title.trim(),
         description: description.trim(),
@@ -81,6 +104,9 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
         type: materialType,
         url: linkUrl.trim(),
         updatedAt: serverTimestamp(),
+        schoolName: school.trim() || null,
+        className: className.trim() || null,
+        visibleInArchiveUntil: visibleInArchiveUntil,
       });
 
       onClose();
@@ -147,6 +173,47 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
                       onChange={(val) => setMaterialType(val as MaterialType)}
                     />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Institution / School</label>
+                    <input
+                      type="text"
+                      value={school}
+                      onChange={(e) => setSchool(e.target.value)}
+                      className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
+                      placeholder="School name..."
+                      maxLength={100}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Academic Class</label>
+                    <input
+                      type="text"
+                      value={className}
+                      onChange={(e) => setClassName(e.target.value)}
+                      className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
+                      placeholder="Grade/Year..."
+                      maxLength={100}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Archive Visibility (Reset Timer)</label>
+                  <Dropdown
+                    options={[
+                      { value: 'forever', label: 'Indefinitely (Forever)' },
+                      { value: '30', label: 'Extend by 30 Days' },
+                      { value: '90', label: 'Extend by 90 Days' },
+                      { value: '365', label: 'Extend by 1 Year' },
+                    ]}
+                    value={visibilityDuration}
+                    onChange={setVisibilityDuration}
+                    className="w-full"
+                  />
+                  <p className="text-[9px] text-white/20 italic mt-1 ml-1">Choose a duration to set or reset the public archive expiration date.</p>
                 </div>
 
                 <div className="space-y-2">

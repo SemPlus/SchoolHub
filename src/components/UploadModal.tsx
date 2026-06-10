@@ -44,6 +44,11 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   
+  // School and Class state
+  const [school, setSchool] = useState('');
+  const [className, setClassName] = useState('');
+  const [visibilityDuration, setVisibilityDuration] = useState('forever');
+  
   // Tag auto-proposal state
   const [existingTags, setExistingTags] = useState<string[]>([]);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
@@ -136,6 +141,14 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
 
     try {
       try {
+        let visibleInArchiveUntil = null;
+        if (visibilityDuration !== 'forever') {
+          const days = parseInt(visibilityDuration);
+          const date = new Date();
+          date.setDate(date.getDate() + days);
+          visibleInArchiveUntil = date;
+        }
+
         await addDoc(collection(db, 'materials'), {
           title: title.trim(),
           description: description.trim() || null,
@@ -149,6 +162,9 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
           folderId: currentFolderId || null,
           createdAt: serverTimestamp(),
           isDeleted: false,
+          schoolName: school.trim() || null,
+          className: className.trim() || null,
+          visibleInArchiveUntil: visibleInArchiveUntil,
         });
 
         // Update user badges
@@ -179,6 +195,9 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
       setTags('');
       setLinkUrl('');
       setMaterialType('link');
+      setSchool('');
+      setClassName('');
+      setVisibilityDuration('forever');
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'An error occurred during upload.');
@@ -282,6 +301,48 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
                       </motion.div>
                     )}
                   </AnimatePresence>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Institution / School</label>
+                    <input
+                      type="text"
+                      value={school}
+                      onChange={(e) => setSchool(e.target.value)}
+                      className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
+                      placeholder="School name..."
+                      maxLength={100}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Academic Class</label>
+                    <input
+                      type="text"
+                      value={className}
+                      onChange={(e) => setClassName(e.target.value)}
+                      className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
+                      placeholder="e.g. Year 10, Grade 5..."
+                      maxLength={100}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Archive Visibility</label>
+                  <Dropdown
+                    options={[
+                      { value: 'forever', label: 'Indefinitely (Forever)' },
+                      { value: '30', label: '30 Days' },
+                      { value: '90', label: '90 Days' },
+                      { value: '180', label: '180 Days' },
+                      { value: '365', label: '1 Year' },
+                    ]}
+                    value={visibilityDuration}
+                    onChange={setVisibilityDuration}
+                    className="w-full"
+                  />
+                  <p className="text-[9px] text-white/20 italic mt-1 ml-1">After this duration, the entry will be hidden from the public archive.</p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-8">
