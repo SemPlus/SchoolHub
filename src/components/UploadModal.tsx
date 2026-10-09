@@ -168,13 +168,22 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
           className: className.trim() || null,
           visibleInArchiveUntil: visibleInArchiveUntil,
         });
-      } catch (err) {
+      } catch (err: any) {
         try {
           handleFirestoreError(err, OperationType.CREATE, 'materials');
         } catch {
           // Already logged with full context; show a readable message instead.
         }
-        throw new Error('Could not save this entry. Check the URL and your connection, then try again.');
+        // Always include Firebase's own code and reason so the cause is visible.
+        const code: string = err?.code || 'unknown';
+        const reason: string = err?.message || String(err);
+        if (code === 'permission-denied') {
+          throw new Error(`The database rejected this entry (permission-denied). The Firestore rules deployed to the database do not allow this write. Details: ${reason}`);
+        }
+        if (code === 'unavailable') {
+          throw new Error(`Could not reach the database (unavailable). Check your connection or disable an ad-blocker for this site. Details: ${reason}`);
+        }
+        throw new Error(`Could not save this entry (${code}): ${reason}`);
       }
 
       // The material is saved at this point. A badge sync failure must not
