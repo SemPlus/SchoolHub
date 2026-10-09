@@ -31,7 +31,7 @@ export default function AchievementBadges({ unlockedBadgeIds, contributionCount,
           >
             {/* Tooltip / Description for non-compact view */}
             {!compact && isUnlocked && (
-              <div className="absolute inset-0 z-10 opacit-0 hover:opacity-100 bg-luxury-black/90 p-4 rounded-2xl flex flex-col items-center justify-center text-center transition-opacity">
+              <div className="absolute inset-0 z-10 opacity-0 hover:opacity-100 bg-luxury-black/90 p-4 rounded-2xl flex flex-col items-center justify-center text-center transition-opacity">
                 <p className="text-[10px] font-bold text-luxury-gold uppercase tracking-widest mb-1">{badge.name}</p>
                 <p className="text-[9px] text-white/60 leading-tight">{badge.description}</p>
               </div>

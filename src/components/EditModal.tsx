@@ -54,14 +54,8 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
       setSchool(material.schoolName || '');
       setClassName(material.className || '');
       
-      if (material.visibleInArchiveUntil) {
-        // Just for simplicity, we'll keep it as it is or allow changing it
-        // The user can choose a NEW duration or keep existing (which would require complex date diff logic for the dropdown)
-        // Let's just default to 'forever' for edits UNLESS changed, or implement a basic detection.
-        setVisibilityDuration('forever'); 
-      } else {
-        setVisibilityDuration('forever');
-      }
+      // Materials with an expiry keep it unless the user picks another option.
+      setVisibilityDuration(material.visibleInArchiveUntil ? 'keep' : 'forever');
     }
   }, [material, isOpen]);
 
@@ -89,8 +83,12 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
     try {
       const materialRef = doc(db, 'materials', material.id);
       
-      let visibleInArchiveUntil = material.visibleInArchiveUntil || null;
-      if (visibilityDuration !== 'forever') {
+      // 'keep' leaves the current expiry, 'forever' clears it, and a number
+      // of days sets a new expiry counted from today.
+      let visibleInArchiveUntil: any = null;
+      if (visibilityDuration === 'keep') {
+        visibleInArchiveUntil = material.visibleInArchiveUntil || null;
+      } else if (visibilityDuration !== 'forever') {
         const days = parseInt(visibilityDuration);
         const date = new Date();
         date.setDate(date.getDate() + days);
@@ -204,6 +202,7 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
                   <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Archive Visibility (Reset Timer)</label>
                   <Dropdown
                     options={[
+                      ...(material.visibleInArchiveUntil ? [{ value: 'keep', label: 'Keep Current Expiry' }] : []),
                       { value: 'forever', label: 'Indefinitely (Forever)' },
                       { value: '30', label: 'Extend by 30 Days' },
                       { value: '90', label: 'Extend by 90 Days' },

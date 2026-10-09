@@ -139,23 +139,25 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
 
     setIsUploading(true);
 
-    try {
-      try {
-        let visibleInArchiveUntil = null;
-        if (visibilityDuration !== 'forever') {
-          const days = parseInt(visibilityDuration);
-          const date = new Date();
-          date.setDate(date.getDate() + days);
-          visibleInArchiveUntil = date;
-        }
+    const uid = auth.currentUser.uid;
 
+    try {
+      let visibleInArchiveUntil = null;
+      if (visibilityDuration !== 'forever') {
+        const days = parseInt(visibilityDuration);
+        const date = new Date();
+        date.setDate(date.getDate() + days);
+        visibleInArchiveUntil = date;
+      }
+
+      try {
         await addDoc(collection(db, 'materials'), {
           title: title.trim(),
           description: description.trim() || null,
           tags: tags.split(',').map(t => t.trim()).filter(t => t !== ''),
           type: materialType,
           url: linkUrl.trim(),
-          authorId: auth.currentUser.uid,
+          authorId: uid,
           authorName: auth.currentUser.displayName || 'Unknown User',
           authorPhotoUrl: auth.currentUser.photoURL || null,
           downloadCount: 0,
@@ -166,26 +168,34 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
           className: className.trim() || null,
           visibleInArchiveUntil: visibleInArchiveUntil,
         });
-
-        // Update user badges
-        const userRef = doc(db, 'users', auth.currentUser.uid);
-        const userSnap = await getDoc(userRef);
-        const currentBadges = userSnap.exists() ? (userSnap.data()?.unlockedBadges || []) : [];
-        
-        const q = query(
-          collection(db, 'materials'),
-          where('authorId', '==', auth.currentUser.uid)
-        );
-        const snapshot = await getDocs(q);
-        const newCount = snapshot.size;
-        const potentialBadges = getUnlockedBadges(newCount);
-        const updatedBadges = Array.from(new Set([...currentBadges, ...potentialBadges]));
-        
-        await updateDoc(userRef, {
-          unlockedBadges: updatedBadges
-        });
       } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, 'materials');
+        try {
+          handleFirestoreError(err, OperationType.CREATE, 'materials');
+        } catch {
+          // Already logged with full context; show a readable message instead.
+        }
+        throw new Error('Could not save this entry. Check the URL and your connection, then try again.');
+      }
+
+      // The material is saved at this point. A badge sync failure must not
+      // be reported as an upload failure, or a retry would create a duplicate.
+      try {
+        const userRef = doc(db, 'users', uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const currentBadges: string[] = userSnap.data()?.unlockedBadges || [];
+          const snapshot = await getDocs(query(
+            collection(db, 'materials'),
+            where('authorId', '==', uid)
+          ));
+          const potentialBadges = getUnlockedBadges(snapshot.size);
+          const updatedBadges = Array.from(new Set([...currentBadges, ...potentialBadges]));
+          if (updatedBadges.length !== currentBadges.length) {
+            await updateDoc(userRef, { unlockedBadges: updatedBadges });
+          }
+        }
+      } catch (badgeError) {
+        console.error('Failed to update achievement badges:', badgeError);
       }
 
       onClose();

@@ -23,7 +23,7 @@ export interface Material {
   createdAt: Date;
   folderId?: string | null;
   isDeleted?: boolean;
-  deletedAt?: Date;
+  deletedAt?: Date | null;
   schoolId?: string;
   schoolName?: string;
   classId?: string;

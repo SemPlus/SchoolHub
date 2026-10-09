@@ -131,11 +131,16 @@ export default function MaterialCard({
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isInTrash) {
+      if (!confirm(`Permanently delete "${material.title}"? This cannot be undone.`)) return;
       setIsDeleting(true);
       try {
         await deleteDoc(doc(db, 'materials', material.id));
       } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `materials/${material.id}`);
+        try {
+          handleFirestoreError(error, OperationType.DELETE, `materials/${material.id}`);
+        } catch {
+          alert('Could not delete this material. You may not have permission.');
+        }
       } finally {
         setIsDeleting(false);
       }
@@ -149,7 +154,11 @@ export default function MaterialCard({
         deletedAt: serverTimestamp()
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
+      try {
+        handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
+      } catch {
+        alert('Could not move this material to Trash. You may not have permission.');
+      }
     } finally {
       setIsDeleting(false);
     }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ExternalLink, Download, FileText, File, Presentation, Link as LinkIcon, Calendar, User, Tag, Trash2, Bookmark, BookmarkCheck, Share2, Home } from 'lucide-react';
+import { X, ExternalLink, Download, FileText, File, Presentation, Link as LinkIcon, Calendar, User, Tag, Trash2, Bookmark, BookmarkCheck, Share2, Home, BookOpen } from 'lucide-react';
 import { Material } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
@@ -91,6 +91,8 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
   const canDelete = isOwner || isAdmin;
 
   React.useEffect(() => {
+    // Never carry the saved flag over from a previously opened material.
+    setIsSaved(false);
     if (isOpen && material?.id && auth.currentUser) {
       const q = query(
         collection(db, 'saves'),
@@ -117,21 +119,30 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
           isDeleted: true,
           deletedAt: serverTimestamp()
         });
-        onClose();
+        // handleClose also drops a ?material= deep-link from the URL.
+        handleClose();
       } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
+        try {
+          handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
+        } catch {
+          alert('Could not move this material to Trash. You may not have permission.');
+        }
       } finally {
         setIsDeleting(false);
       }
     }
   };
-  
+
   React.useEffect(() => {
+    // Clear the previous author so their custom badge and colour are not shown
+    // on a different author's material while the new profile loads.
+    setAuthorProfile(null);
     if (isOpen && material?.authorId) {
+      let cancelled = false;
       const fetchAuthor = async () => {
         try {
           const userDoc = await getDoc(doc(db, 'users', material.authorId));
-          if (userDoc.exists()) {
+          if (!cancelled && userDoc.exists()) {
             setAuthorProfile(userDoc.data() as UserType);
           }
         } catch (error) {
@@ -139,6 +150,9 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
         }
       };
       fetchAuthor();
+      return () => {
+        cancelled = true;
+      };
     }
   }, [isOpen, material?.authorId]);
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { X, BookOpen, ExternalLink, Download, FileText, File, Link as LinkIcon, Edit2, Folder as FolderIcon, ChevronLeft, Trash2 } from 'lucide-react';
 import { Material, Folder } from '../types';
 import { formatDistanceToNow } from 'date-fns';
-import { doc, updateDoc, increment, getDoc, query, collection, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, increment, getDoc, query, collection, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { OperationType, User } from '../types';
@@ -100,6 +100,8 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
       setTotalManuscriptsCount(allMaterialsList.length);
 
       const filteredList = allMaterialsList.filter(material => {
+        // Trashed entries must not appear on a public profile.
+        if (material.isDeleted) return false;
         if (currentFolderId === null) {
           return !material.folderId;
         }
@@ -135,10 +137,10 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
       }
       
       const snapshot = await getDocs(q);
-      const foldersList = snapshot.docs.map(doc => ({
+      const foldersList = (snapshot.docs.map(doc => ({
         id: doc.id,
         ...(doc.data() as any)
-      })) as Folder[];
+      })) as Folder[]).filter(folder => !folder.isDeleted);
       // Sort in memory
       foldersList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       setPublicFolders(foldersList);
@@ -185,29 +187,39 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
 
   const handleDelete = async (e: React.MouseEvent, material: Material) => {
     e.stopPropagation();
-    if (confirm(`Are you sure you want to delete "${material.title}"?`)) {
+    // Same behaviour as everywhere else in the app: move to Trash so the
+    // entry can still be restored, instead of destroying it immediately.
+    if (confirm(`Move "${material.title}" to Trash?`)) {
       try {
-        await deleteDoc(doc(db, 'materials', material.id));
+        await updateDoc(doc(db, 'materials', material.id), {
+          isDeleted: true,
+          deletedAt: serverTimestamp()
+        });
         setPersonalMaterials(prev => prev.filter(m => m.id !== material.id));
-        setTotalManuscriptsCount(prev => prev - 1);
       } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `materials/${material.id}`);
+        try {
+          handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
+        } catch {
+          alert('Could not move this material to Trash. You may not have permission.');
+        }
       }
     }
   };
 
   const handleFolderDelete = async (e: React.MouseEvent, folder: Folder) => {
     e.stopPropagation();
-    if (confirm(`Are you sure you want to delete folder "${folder.name}"?`)) {
+    if (confirm(`Move folder "${folder.name}" to Trash?`)) {
       try {
-        await deleteDoc(doc(db, 'folders', folder.id));
+        await updateDoc(doc(db, 'folders', folder.id), {
+          isDeleted: true,
+          deletedAt: serverTimestamp()
+        });
         setPublicFolders(prev => prev.filter(f => f.id !== folder.id));
       } catch (error) {
         try {
-          handleFirestoreError(error, OperationType.DELETE, `folders/${folder.id}`);
-        } catch (e) {
-          console.error('Failed to delete folder:', e);
-          alert('Failed to delete folder. You may not have sufficient permissions.');
+          handleFirestoreError(error, OperationType.UPDATE, `folders/${folder.id}`);
+        } catch {
+          alert('Could not move this folder to Trash. You may not have permission.');
         }
       }
     }

@@ -182,7 +182,10 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if true;
+      // Single profiles are public (author cards read them). Listing the whole
+      // collection would expose every e-mail address, so only admins may list.
+      allow get: if true;
+      allow list: if isAdmin();
       
       allow create: if isAuthenticated() && 
                       userId == request.auth.uid &&

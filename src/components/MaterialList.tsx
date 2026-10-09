@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { collection, query, onSnapshot, orderBy, where, doc, deleteDoc, or, and, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, where, doc, deleteDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Material, Folder, OperationType } from '../types';
 import MaterialCard from './MaterialCard';
@@ -15,9 +15,31 @@ import ContextMenu from './ContextMenu';
 import { Search, Filter, Lock, FolderPlus, ChevronRight, Home, ArrowLeft, BookOpen, Plus, Trash2, Move, Edit, Share2, Info, RotateCcw, X } from 'lucide-react';
 
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, toDate } from '../lib/utils';
 
-const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+// Firestore Timestamps must be converted explicitly: `new Date(timestamp)`
+// returns an Invalid Date, which silently broke every expiry comparison.
+const mapMaterialDoc = (id: string, data: any): Material => ({
+  id,
+  ...data,
+  createdAt: toDate(data.createdAt) ?? new Date(),
+  deletedAt: toDate(data.deletedAt),
+  visibleInArchiveUntil: toDate(data.visibleInArchiveUntil),
+} as Material);
+
+const mapFolderDoc = (id: string, data: any): Folder => ({
+  id,
+  ...data,
+  createdAt: toDate(data.createdAt) ?? new Date(),
+  deletedAt: toDate(data.deletedAt),
+} as Folder);
+
+// Logs the full context and returns a readable message. It deliberately does
+// not throw: a throw inside a Firestore listener or an async click handler is
+// an unhandled error that the user never sees.
+const handleFirestoreError = (error: any, operationType: OperationType, path: string | null): string => {
   const errInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -36,7 +58,7 @@ const handleFirestoreError = (error: any, operationType: OperationType, path: st
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  return errInfo.error;
 };
 
 interface MaterialListProps {
@@ -46,7 +68,9 @@ interface MaterialListProps {
 }
 
 export default function MaterialList({ userRole, view = 'archive', onViewChange }: MaterialListProps) {
-  const [materials, setMaterials] = useState<Material[]>([]);
+  // Every material returned by the current listener. View, folder and saved
+  // filtering happens in `materials` below so it always sees fresh state.
+  const [rawMaterials, setRawMaterials] = useState<Material[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [authorCounts, setAuthorCounts] = useState<Record<string, number>>({});
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -69,7 +93,8 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   const [userSaves, setUserSaves] = useState<Set<string>>(new Set());
   const [currentView, setCurrentView] = useState<'archive' | 'personal' | 'trash'>(view);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
-  
+  const [noticeStatus, setNoticeStatus] = useState<string | null>(null);
+
   // School and Class filtering
   const [schoolFilter, setSchoolFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
@@ -84,9 +109,13 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, target: any, type: 'material' | 'folder' | 'background' } | null>(null);
 
   const handleContextMenu = (e: React.MouseEvent, type: 'material' | 'folder' | 'background', target?: any) => {
+    // Creating items is only possible in the signed-in Personal space (the
+    // same place the + buttons appear). Elsewhere keep the browser menu.
+    if (type === 'background' && (!isAuthenticated || currentView !== 'personal')) return;
+
     e.preventDefault();
     e.stopPropagation();
-    
+
     // If right clicking an item that isn't selected, select only that item
     if (type !== 'background' && target) {
       const isSelected = type === 'material' ? selectedMaterialIds.has(target.id) : selectedFolderIds.has(target.id);
@@ -120,19 +149,25 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       ];
     }
 
-    const items = [
-      { label: multiple ? 'Relocate Selected' : 'Relocate', icon: <Move className="w-4 h-4" />, onClick: handleBulkMove },
-      { label: multiple ? 'Move to Trash' : 'Trash', icon: <Trash2 className="w-4 h-4" />, onClick: handleBulkTrash, variant: 'danger' as const },
-    ];
+    const canModifyTarget = isAuthenticated && (userRole === 'admin' || auth.currentUser?.uid === target?.authorId);
+
+    const items: { label: string; icon: React.ReactNode; onClick: () => void; variant?: 'danger' | 'default' }[] = [];
+
+    // For a multi-selection the per-item permission is enforced by Firestore
+    // and any failure is reported in the error banner.
+    if (multiple || canModifyTarget) {
+      items.push(
+        { label: multiple ? 'Relocate Selected' : 'Relocate', icon: <Move className="w-4 h-4" />, onClick: handleBulkMove },
+        { label: multiple ? 'Move to Trash' : 'Trash', icon: <Trash2 className="w-4 h-4" />, onClick: handleBulkTrash, variant: 'danger' as const },
+      );
+    }
 
     if (!multiple) {
       if (type === 'material') {
-        const canEdit = isAuthenticated && (userRole === 'admin' || auth.currentUser?.uid === target.authorId);
-        if (canEdit) items.unshift({ label: 'Edit Metadata', icon: <Edit className="w-4 h-4" />, onClick: () => handleEditClick(target) });
+        if (canModifyTarget) items.unshift({ label: 'Edit Metadata', icon: <Edit className="w-4 h-4" />, onClick: () => handleEditClick(target) });
         items.push({ label: 'View Insights', icon: <Info className="w-4 h-4" />, onClick: () => handleCardClick(target) });
-      } else {
-        const canEdit = isAuthenticated && (userRole === 'admin' || auth.currentUser?.uid === target.authorId);
-        if (canEdit) items.unshift({ label: 'Rename Directory', icon: <Edit className="w-4 h-4" />, onClick: () => handleMoveFolder(target) });
+      } else if (canModifyTarget) {
+        items.unshift({ label: 'Rename Directory', icon: <Edit className="w-4 h-4" />, onClick: () => handleRenameFolder(target) });
       }
     }
 
@@ -148,13 +183,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
           const docRef = doc(db, 'materials', materialId);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            const data = docSnap.data();
-            const material = {
-              id: docSnap.id,
-              ...data,
-              createdAt: data.createdAt?.toDate?.() || (data.createdAt?.seconds ? new Date(data.createdAt.seconds * 1000) : new Date()),
-              deletedAt: data.deletedAt?.toDate?.() || (data.deletedAt?.seconds ? new Date(data.deletedAt.seconds * 1000) : null),
-            } as Material;
+            const material = mapMaterialDoc(docSnap.id, docSnap.data());
             
             // If in trash, we might want to inform the user or just not open it
             if (!material.isDeleted) {
@@ -283,17 +312,8 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     }
 
     const unsubFolders = foldersQuery ? onSnapshot(foldersQuery, (snapshot) => {
-      const foldersList = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate?.() || (data.createdAt?.seconds ? new Date(data.createdAt.seconds * 1000) : new Date()),
-          deletedAt: data.deletedAt?.toDate?.() || (data.deletedAt?.seconds ? new Date(data.deletedAt.seconds * 1000) : null),
-        } as Folder;
-      });
-      
-      const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+      const foldersList = snapshot.docs.map(doc => mapFolderDoc(doc.id, doc.data()));
+
       const now = Date.now();
 
       // Filter by isDeleted for non-trash view
@@ -310,63 +330,19 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       filteredFolders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       setFolders(filteredFolders);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'folders');
+      setFolders([]);
+      setErrorStatus(`Could not load directories: ${handleFirestoreError(error, OperationType.LIST, 'folders')}`);
     }) : () => {
       setFolders([]);
     };
 
     const unsubMaterials = onSnapshot(materialsQuery, (snapshot) => {
-      const materialsList = snapshot.docs
-        .map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt?.toDate?.() || (data.createdAt?.seconds ? new Date(data.createdAt.seconds * 1000) : new Date()),
-            deletedAt: data.deletedAt?.toDate?.() || (data.deletedAt?.seconds ? new Date(data.deletedAt.seconds * 1000) : null),
-          } as Material;
-        })
-        .filter(material => {
-          const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-          const now = Date.now();
-
-          if (currentView === 'trash') {
-            if (material.isDeleted !== true || material.authorId !== auth.currentUser?.uid) return false;
-            const deletedTime = material.deletedAt ? material.deletedAt.getTime() : now;
-            return (now - deletedTime) < THIRTY_DAYS_MS;
-          }
-
-          if (material.isDeleted) return false;
-
-          if (currentView === 'archive') return true; // Show everything flat
-          
-          if (currentView === 'personal' && auth.currentUser) {
-            // Show if it's mine OR if I saved it
-            const isMine = material.authorId === auth.currentUser.uid;
-            const isSaved = userSaves.has(material.id);
-            
-            if (isMine || isSaved) {
-              if (currentFolderId === null) {
-                return !material.folderId || !isMine; // Show saved items at root of personal space if they aren't mine (since they won't match my folder structure)
-              }
-              return material.folderId === currentFolderId;
-            }
-            return false;
-          }
-
-          if (currentFolderId === null) {
-            return !material.folderId;
-          }
-          return material.folderId === currentFolderId;
-        }) as Material[];
-      
-      // Sort in memory
+      const materialsList = snapshot.docs.map(doc => mapMaterialDoc(doc.id, doc.data()));
       materialsList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-      
-      setMaterials(materialsList);
+      setRawMaterials(materialsList);
       setIsLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'materials');
+      setErrorStatus(`Could not load materials: ${handleFirestoreError(error, OperationType.LIST, 'materials')}`);
       setIsLoading(false);
     });
 
@@ -374,7 +350,53 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       unsubFolders();
       unsubMaterials();
     };
-  }, [currentFolderId, currentView, auth.currentUser?.uid, isAuthenticated]);
+    // userRole is needed: an admin's role arrives after the first render and
+    // must switch the archive to the unfiltered folder query.
+  }, [currentFolderId, currentView, isAuthenticated, userRole]);
+
+  // Filter the raw snapshot for the active view. Done here rather than inside
+  // the listener so saving or unsaving an item updates Personal immediately.
+  const materials = useMemo(() => {
+    const now = Date.now();
+    const uid = auth.currentUser?.uid;
+
+    return rawMaterials.filter(material => {
+      if (currentView === 'trash') {
+        if (material.isDeleted !== true || !uid || material.authorId !== uid) return false;
+        const deletedTime = material.deletedAt ? material.deletedAt.getTime() : now;
+        return (now - deletedTime) < THIRTY_DAYS_MS;
+      }
+
+      if (material.isDeleted) return false;
+
+      if (currentView === 'archive') {
+        // The archive root shows every entry flat. Inside a directory, only
+        // that directory's entries are shown.
+        if (currentFolderId === null) return true;
+        return material.folderId === currentFolderId;
+      }
+
+      if (currentView === 'personal' && uid) {
+        // Show if it's mine OR if I saved it
+        const isMine = material.authorId === uid;
+        const isSaved = userSaves.has(material.id);
+
+        if (isMine || isSaved) {
+          if (currentFolderId === null) {
+            // Saved items from other authors live at the root of the personal space
+            return !material.folderId || !isMine;
+          }
+          return material.folderId === currentFolderId;
+        }
+        return false;
+      }
+
+      if (currentFolderId === null) {
+        return !material.folderId;
+      }
+      return material.folderId === currentFolderId;
+    });
+  }, [rawMaterials, currentView, currentFolderId, userSaves, isAuthenticated]);
 
   useEffect(() => {
     // Fetch global counts for rank calculation
@@ -410,14 +432,15 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       if (sortBy === 'za') return b.name.localeCompare(a.name);
       return 0;
     });
-  }, [folders, searchTerm, sortBy]);
+  }, [folders, searchTerm, sortBy, schoolFilter, classFilter]);
 
   useEffect(() => {
     if (auth.currentUser && currentView === 'personal') {
-      const expired = materials.filter(m => 
-        m.authorId === auth.currentUser?.uid && 
-        m.visibleInArchiveUntil && 
-        new Date(m.visibleInArchiveUntil) < new Date()
+      const now = Date.now();
+      const expired = materials.filter(m =>
+        m.authorId === auth.currentUser?.uid &&
+        m.visibleInArchiveUntil &&
+        m.visibleInArchiveUntil.getTime() < now
       );
       setExpiredUserMaterials(expired);
     } else {
@@ -426,6 +449,8 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   }, [materials, currentView]);
 
   const handleRepublish = async (material: Material) => {
+    setErrorStatus(null);
+    setNoticeStatus(null);
     try {
       const materialRef = doc(db, 'materials', material.id);
       // Reset visibility to forever for now, or the user can edit it
@@ -433,9 +458,9 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         visibleInArchiveUntil: null,
         updatedAt: serverTimestamp()
       });
-      setErrorStatus(`Material "${material.title}" has been republished to Archive.`);
+      setNoticeStatus(`Material "${material.title}" has been republished to Archive.`);
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `materials/${material.id}`);
+      setErrorStatus(`Republish failed: ${handleFirestoreError(err, OperationType.UPDATE, `materials/${material.id}`)}`);
     }
   };
 
@@ -455,7 +480,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       const matchesClass = !classFilter || (material.className && material.className.toLowerCase().includes(classFilter.toLowerCase()));
       
       // Archive visibility logic
-      const isExpired = material.visibleInArchiveUntil && new Date(material.visibleInArchiveUntil) < new Date();
+      const isExpired = !!material.visibleInArchiveUntil && material.visibleInArchiveUntil.getTime() < Date.now();
       const isPrivatelyViewed = currentView === 'personal' || (auth.currentUser && material.authorId === auth.currentUser.uid);
       
       // If we are in archive, hide expired items unless they are MINE
@@ -473,7 +498,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       if (sortBy === 'za') return b.title.localeCompare(a.title);
       return 0;
     });
-  }, [materials, searchTerm, filterType, sortBy]);
+  }, [materials, searchTerm, filterType, sortBy, schoolFilter, classFilter, currentView, isAuthenticated]);
 
   // Selection box state
   const [marquee, setMarquee] = useState<{ start: { x: number, y: number }, end: { x: number, y: number } } | null>(null);
@@ -628,9 +653,19 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger if typing in search or other inputs
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.target instanceof HTMLElement && e.target.isContentEditable) return;
+
+      // Grid shortcuts must not act behind an open dialog.
+      const isAnyModalOpen = isDetailModalOpen || isEditModalOpen || isCreateFolderOpen ||
+        isUploadModalOpen || isMoveModalOpen || !!selectedProfile;
+      if (isAnyModalOpen) return;
 
       if ((e.key === 'Delete' || e.key === 'Backspace') && (selectedMaterialIds.size > 0 || selectedFolderIds.size > 0)) {
-        if (confirm(`Move ${selectedMaterialIds.size + selectedFolderIds.size} items to Trash?`)) {
+        e.preventDefault();
+        if (currentView === 'trash') {
+          // handleBulkDelete asks for its own confirmation.
+          handleBulkDelete();
+        } else if (confirm(`Move ${selectedMaterialIds.size + selectedFolderIds.size} items to Trash?`)) {
           handleBulkTrash();
         }
       }
@@ -647,7 +682,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         setLastSelectedIndex(null);
       }
 
-      if (e.key === 'Enter' && lastSelectedIndex) {
+      if (e.key === 'Enter' && lastSelectedIndex && currentView !== 'trash') {
         const item = allItems[lastSelectedIndex.index];
         if (item) {
           if (item.itemType === 'folder') {
@@ -661,7 +696,8 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedMaterialIds, selectedFolderIds, sortedMaterials, sortedFolders, allItems]);
+  }, [selectedMaterialIds, selectedFolderIds, sortedMaterials, sortedFolders, allItems, lastSelectedIndex, currentView,
+      isDetailModalOpen, isEditModalOpen, isCreateFolderOpen, isUploadModalOpen, isMoveModalOpen, selectedProfile]);
 
   const handleBulkTrash = async () => {
     setErrorStatus(null);
@@ -750,11 +786,11 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   const handleFolderDelete = async (folder: Folder) => {
     setErrorStatus(null);
     if (currentView === 'trash') {
+      if (!confirm(`Permanently delete directory "${folder.name}"? This cannot be undone.`)) return;
       try {
         await deleteDoc(doc(db, 'folders', folder.id));
       } catch (error: any) {
-        setErrorStatus(`Permanent Delete Failed: ${error.message || String(error)}`);
-        handleFirestoreError(error, OperationType.DELETE, `folders/${folder.id}`);
+        setErrorStatus(`Permanent Delete Failed: ${handleFirestoreError(error, OperationType.DELETE, `folders/${folder.id}`)}`);
       }
       return;
     }
@@ -765,30 +801,51 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         deletedAt: serverTimestamp()
       });
     } catch (error: any) {
-      setErrorStatus(`Move to Trash Failed: ${error.message || String(error)}`);
-      handleFirestoreError(error, OperationType.UPDATE, `folders/${folder.id}`);
+      setErrorStatus(`Move to Trash Failed: ${handleFirestoreError(error, OperationType.UPDATE, `folders/${folder.id}`)}`);
+    }
+  };
+
+  const handleRenameFolder = async (folder: Folder) => {
+    const newName = prompt('Rename directory', folder.name)?.trim();
+    if (!newName || newName === folder.name) return;
+    if (newName.length > 100) {
+      setErrorStatus('Directory names are limited to 100 characters.');
+      return;
+    }
+    setErrorStatus(null);
+    try {
+      await updateDoc(doc(db, 'folders', folder.id), {
+        name: newName,
+        updatedAt: serverTimestamp()
+      });
+      // Keep the breadcrumb in sync if the renamed folder is on the path.
+      setFolderPath(prev => prev.map(f => f.id === folder.id ? { ...f, name: newName } : f));
+    } catch (error) {
+      setErrorStatus(`Rename failed: ${handleFirestoreError(error, OperationType.UPDATE, `folders/${folder.id}`)}`);
     }
   };
 
   const handleRestoreFolder = async (folder: Folder) => {
+    setErrorStatus(null);
     try {
       await updateDoc(doc(db, 'folders', folder.id), {
         isDeleted: false,
         deletedAt: null
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `folders/${folder.id}`);
+      setErrorStatus(`Restore failed: ${handleFirestoreError(error, OperationType.UPDATE, `folders/${folder.id}`)}`);
     }
   };
 
   const handleRestoreMaterial = async (material: Material) => {
+    setErrorStatus(null);
     try {
       await updateDoc(doc(db, 'materials', material.id), {
         isDeleted: false,
         deletedAt: null
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
+      setErrorStatus(`Restore failed: ${handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`)}`);
     }
   };
 
@@ -843,6 +900,14 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     setItemsToMove({ materials: [], folders: [folder.id] });
     setIsMoveModalOpen(true);
   };
+
+  const contextMenuItems = getContextMenuItems();
+
+  // Show the latest copy of the open material, so edits made while the detail
+  // view is open (or download counts) are reflected without reopening it.
+  const liveSelectedMaterial = selectedMaterial
+    ? (rawMaterials.find(m => m.id === selectedMaterial.id) ?? selectedMaterial)
+    : null;
 
   if (isLoading && materials.length === 0 && folders.length === 0) {
     return (
@@ -1034,6 +1099,17 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         </motion.div>
       )}
 
+      {noticeStatus && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 bg-luxury-gold/10 border border-luxury-gold/20 rounded-2xl flex items-center justify-between"
+        >
+          <p className="text-xs text-luxury-gold font-medium">{noticeStatus}</p>
+          <button onClick={() => setNoticeStatus(null)} className="text-luxury-gold/50 hover:text-luxury-gold text-xs uppercase tracking-widest font-bold px-2">Dismiss</button>
+        </motion.div>
+      )}
+
       {expiredUserMaterials.length > 0 && currentView === 'personal' && (
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
@@ -1078,9 +1154,8 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         </motion.div>
       )}
 
-      <AnimatePresence mode="popLayout">
-        {/* Selection Marquee Overlay */}
-        {marquee && (
+      {/* Selection Marquee Overlay */}
+      {marquee && (
           <div 
             className="fixed pointer-events-none border-2 border-luxury-gold/40 bg-luxury-gold/5 z-[100] backdrop-blur-[2px]"
             style={{
@@ -1090,11 +1165,13 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
               height: Math.abs(marquee.start.y - marquee.end.y)
             }}
           />
-        )}
+      )}
 
+      <AnimatePresence>
         {/* Bulk Action Toolbar */}
         {(selectedMaterialIds.size > 0 || selectedFolderIds.size > 0) && (
           <motion.div
+            key="bulk-toolbar"
             initial={{ y: 50, opacity: 0, x: '-50%' }}
             animate={{ y: 0, opacity: 1, x: '-50%' }}
             exit={{ y: 50, opacity: 0, x: '-50%' }}
@@ -1152,20 +1229,17 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             </div>
           </motion.div>
         )}
+      </AnimatePresence>
 
-        <div 
-          ref={containerRef}
-          onMouseDown={handleMouseDown}
-          onContextMenu={(e) => handleContextMenu(e, 'background')}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 min-h-[500px]"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setSelectedMaterialIds(new Set());
-              setSelectedFolderIds(new Set());
-              setLastSelectedIndex(null);
-            }
-          }}
-        >
+      {/* Selection is cleared in handleMouseDown. A click handler here would
+          also fire after a marquee drag and wipe the selection just made. */}
+      <div
+        ref={containerRef}
+        onMouseDown={handleMouseDown}
+        onContextMenu={(e) => handleContextMenu(e, 'background')}
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 min-h-[500px]"
+      >
+        <AnimatePresence mode="popLayout">
           {sortedFolders.map((folder, index) => (
             <motion.div
               layout
@@ -1221,13 +1295,16 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
               />
             </motion.div>
           ))}
-        </div>
+        </AnimatePresence>
+      </div>
 
-        {contextMenu && (
+      <AnimatePresence>
+        {contextMenu && contextMenuItems.length > 0 && (
           <ContextMenu
+            key="context-menu"
             x={contextMenu.x}
             y={contextMenu.y}
-            items={getContextMenuItems()}
+            items={contextMenuItems}
             onClose={() => setContextMenu(null)}
           />
         )}
@@ -1286,8 +1363,8 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
           setIsDetailModalOpen(false);
           setIsDeepLinkOpen(false);
         }}
-        material={selectedMaterial}
-        authorContributionCount={selectedMaterial ? (authorCounts[selectedMaterial.authorId] || 0) : 0}
+        material={liveSelectedMaterial}
+        authorContributionCount={liveSelectedMaterial ? (authorCounts[liveSelectedMaterial.authorId] || 0) : 0}
         onAuthorClick={(id, name, photoUrl) => {
           setIsDetailModalOpen(false);
           setIsDeepLinkOpen(false);

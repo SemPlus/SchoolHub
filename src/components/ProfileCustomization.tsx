@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Palette, Shield, Sparkles, Check, Crown } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
@@ -27,6 +27,16 @@ export default function ProfileCustomization({ currentUserId, customColor, custo
   const [selectedColor, setSelectedColor] = useState(customColor || '#D4AF37');
   const [badgeText, setBadgeText] = useState(customBadge || '');
   const [isSaving, setIsSaving] = useState(false);
+
+  // The profile may load after this panel mounts. Keep the form in sync with
+  // the stored values so saving never overwrites them with the defaults.
+  useEffect(() => {
+    setSelectedColor(customColor || '#D4AF37');
+  }, [customColor]);
+
+  useEffect(() => {
+    setBadgeText(customBadge || '');
+  }, [customBadge]);
 
   const earnedBadges = BADGES.filter(b => unlockedBadges.includes(b.id));
 

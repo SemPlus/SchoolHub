@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Folder as FolderIcon, ChevronRight, Check, Move } from 'lucide-react';
 import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { Folder, Material } from '../types';
+import { Folder } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
@@ -18,16 +18,29 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
   const [currentParentId, setCurrentParentId] = useState<string | null>(null);
   const [history, setHistory] = useState<(string | null)[]>([]);
   const [isMoving, setIsMoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
       setCurrentParentId(null);
       setHistory([]);
+      setError(null);
       return;
     }
 
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      setFolders([]);
+      setError('You must be signed in to move items.');
+      return;
+    }
+
+    // Only the signed-in user's own directories are valid move targets.
+    // Scoping the query by authorId is also required by the Firestore rules:
+    // an unscoped query on `folders` is rejected for non-admin users.
     const q = query(
       collection(db, 'folders'),
+      where('authorId', '==', uid),
       where('parentId', '==', currentParentId)
     );
 
@@ -36,11 +49,20 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
         id: doc.id,
         ...doc.data()
       })) as Folder[];
-      
-      // Prevent moving a folder into itself OR into a descendant
-      // Note: Full descendant check would require recursion or structured IDs, 
-      // but we'll at least prevent moving into self for now.
-      setFolders(foldersList.filter(f => !targetItems.folders.includes(f.id)));
+
+      // Hide trashed directories and the folders being moved, so a folder can
+      // never be dropped into itself. Because the selected folders are never
+      // listed, their descendants are unreachable too.
+      const selectable = foldersList
+        .filter(f => !f.isDeleted && !targetItems.folders.includes(f.id))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      setFolders(selectable);
+      setError(null);
+    }, (err) => {
+      console.error('Failed to load directories for move:', err);
+      setFolders([]);
+      setError('Could not load your directories.');
     });
 
     return () => unsubscribe();
@@ -62,17 +84,19 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
 
   const handleMove = async () => {
     setIsMoving(true);
+    setError(null);
     try {
       const promises = [
         ...targetItems.materials.map(id => updateDoc(doc(db, 'materials', id), { folderId: currentParentId })),
         ...targetItems.folders.map(id => updateDoc(doc(db, 'folders', id), { parentId: currentParentId }))
       ];
-      
+
       await Promise.all(promises);
       onSuccess?.();
       onClose();
-    } catch (error) {
-      console.error('Failed to move items:', error);
+    } catch (err: any) {
+      console.error('Failed to move items:', err);
+      setError(err?.message || 'Failed to move the selected items.');
     } finally {
       setIsMoving(false);
     }
@@ -112,7 +136,7 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
             </div>
 
             <div className="p-4 bg-white/[0.02] border-b border-white/5 flex items-center gap-2 overflow-x-auto no-scrollbar">
-              <button 
+              <button
                 onClick={() => {
                   setCurrentParentId(null);
                   setHistory([]);
@@ -127,7 +151,7 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
               {history.length > 0 && (
                 <>
                   <ChevronRight className="w-3 h-3 text-white/10" />
-                  <button 
+                  <button
                     onClick={handleBack}
                     className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white"
                   >
@@ -136,6 +160,12 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
                 </>
               )}
             </div>
+
+            {error && (
+              <div className="mx-4 mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                <p className="text-xs text-red-400">{error}</p>
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
               <div className="space-y-1">
@@ -164,7 +194,7 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
             <div className="p-6 border-t border-white/5 bg-white/[0.02]">
               <button
                 onClick={handleMove}
-                disabled={isMoving}
+                disabled={isMoving || !auth.currentUser}
                 className="w-full luxury-button bg-white text-luxury-black font-semibold py-4 rounded-full shadow-2xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-20 transition-all flex items-center justify-center gap-2"
               >
                 {isMoving ? 'Translocating...' : (

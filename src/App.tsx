@@ -29,16 +29,29 @@ export default function App() {
   }, [activeTab]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    // Listeners tied to the signed-in user. onAuthStateChanged ignores any
+    // value returned from its callback, so they are tracked here and torn
+    // down explicitly on sign-out, account switch and unmount.
+    let unsubProfile: (() => void) | null = null;
+    let unsubMaterials: (() => void) | null = null;
+    const cleanupUserListeners = () => {
+      unsubProfile?.();
+      unsubMaterials?.();
+      unsubProfile = null;
+      unsubMaterials = null;
+    };
+
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      cleanupUserListeners();
       setUser(currentUser);
       setIsAuthReady(true);
 
       if (currentUser) {
         // Create/Update user profile and subscribe to changes
         const userRef = doc(db, 'users', currentUser.uid);
-        
+
         // Real-time user profile for customization
-        const unsubProfile = onSnapshot(userRef, (doc) => {
+        unsubProfile = onSnapshot(userRef, (doc) => {
           if (doc.exists()) {
             const data = doc.data();
             setUserRole(data.role || 'user');
@@ -48,7 +61,8 @@ export default function App() {
             const role = currentUser.email === 'sem.gk01@gmail.com' ? 'admin' : 'user';
             const newUser = {
               uid: currentUser.uid,
-              email: currentUser.email,
+              // The security rules require email to be a string.
+              email: currentUser.email ?? '',
               displayName: currentUser.displayName,
               photoURL: currentUser.photoURL,
               role: role,
@@ -63,23 +77,23 @@ export default function App() {
 
         // Real-time material count for rank
         const q = query(collection(db, 'materials'), where('authorId', '==', currentUser.uid));
-        const unsubMaterials = onSnapshot(q, (snapshot) => {
+        unsubMaterials = onSnapshot(q, (snapshot) => {
           setUserContributions(snapshot.size);
         }, (error) => {
           console.error("Material count snapshot error:", error);
         });
-
-        return () => {
-          unsubProfile();
-          unsubMaterials();
-        };
       } else {
         setUserRole(null);
         setUserContributions(0);
         setUserCustomColor(undefined);
+        // Personal and Trash are only reachable while signed in.
+        setActiveTab('archive');
       }
     });
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      cleanupUserListeners();
+    };
   }, []);
 
   if (!isAuthReady) {
@@ -123,7 +137,7 @@ export default function App() {
             
             <div className="flex items-center gap-6">
               {user && (
-                <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/10 hidden md:flex">
+                <div className="hidden md:flex items-center bg-white/5 rounded-full p-1 border border-white/10">
                   <button
                     onClick={() => setActiveTab('archive')}
                     className={`flex items-center gap-2 px-6 py-2 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'archive' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
@@ -254,21 +268,21 @@ export default function App() {
                 onClick={() => setActiveTab('archive')}
                 className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 rounded-full transition-all text-[9px] sm:text-[10px] uppercase tracking-[0.1em] sm:tracking-[0.2em] font-medium ${activeTab === 'archive' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
               >
-                <Library className="w-3.5 h-3.5 sm:w-4 h-4" />
+                <Library className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span>Archive</span>
               </button>
               <button
                 onClick={() => setActiveTab('personal')}
                 className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 rounded-full transition-all text-[9px] sm:text-[10px] uppercase tracking-[0.1em] sm:tracking-[0.2em] font-medium ${activeTab === 'personal' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
               >
-                <UserIcon className="w-3.5 h-3.5 sm:w-4 h-4" />
+                <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span>Personal</span>
               </button>
               <button
                 onClick={() => setActiveTab('trash')}
                 className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 rounded-full transition-all text-[9px] sm:text-[10px] uppercase tracking-[0.1em] sm:tracking-[0.2em] font-medium ${activeTab === 'trash' ? 'bg-red-400 text-luxury-black shadow-lg shadow-red-400/20' : 'text-white/40 hover:text-white'}`}
               >
-                <Trash2 className="w-3.5 h-3.5 sm:w-4 h-4" />
+                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span>Trash</span>
               </button>
             </div>
