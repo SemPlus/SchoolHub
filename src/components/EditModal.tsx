@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, Link as LinkIcon, ChevronDown } from 'lucide-react';
+import { X, Link as LinkIcon } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../firebase';
-import { Material, MaterialType, OperationType } from '../types';
+import { db } from '../firebase';
+import { Material, MaterialType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import Dropdown from './Dropdown';
+import ClassificationFields, { ClassificationValue, fromDateInputValue, toDateInputValue } from './ClassificationFields';
+import { classIdFor, formatClassName, SECTION_PATTERN } from '../lib/schoolYear';
+import { firebaseErrorMessage } from '../lib/engagement';
 
 interface EditModalProps {
   isOpen: boolean;
@@ -12,25 +15,13 @@ interface EditModalProps {
   material: Material | null;
 }
 
-const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
-  const errInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.error("Firestore Error:", JSON.stringify(errInfo));
-  return error.message || "An unexpected database error occurred.";
-};
+const typeOptions = [
+  { value: 'link', label: 'Link' },
+  { value: 'pdf', label: 'PDF' },
+  { value: 'word', label: 'Word document' },
+  { value: 'canva', label: 'Presentation' },
+  { value: 'other', label: 'Other' },
+];
 
 export default function EditModal({ isOpen, onClose, material }: EditModalProps) {
   const [title, setTitle] = useState('');
@@ -38,78 +29,70 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
   const [tags, setTags] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [materialType, setMaterialType] = useState<MaterialType>('link');
+  const [classification, setClassification] = useState<ClassificationValue>({ school: null, subject: '', examDate: '' });
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState('');
-  const [school, setSchool] = useState('');
-  const [className, setClassName] = useState('');
-  const [visibilityDuration, setVisibilityDuration] = useState('forever');
 
   useEffect(() => {
-    if (material) {
-      setTitle(material.title || '');
-      setDescription(material.description || '');
-      setTags(material.tags?.join(', ') || '');
-      setLinkUrl(material.url || '');
-      setMaterialType(material.type || 'link');
-      setSchool(material.schoolName || '');
-      setClassName(material.className || '');
-      
-      // Materials with an expiry keep it unless the user picks another option.
-      setVisibilityDuration(material.visibleInArchiveUntil ? 'keep' : 'forever');
-    }
+    if (!material) return;
+    setTitle(material.title || '');
+    setDescription(material.description || '');
+    setTags(material.tags?.join(', ') || '');
+    setLinkUrl(material.url || '');
+    setMaterialType(material.type || 'link');
+    setClassification({
+      school: material.schoolId
+        ? { id: material.schoolId, name: material.schoolName || material.schoolId, city: material.schoolCity || '' }
+        : null,
+      classYear: material.classYear,
+      classSection: material.classSection,
+      subject: material.subject || '',
+      examDate: toDateInputValue(material.examDate),
+    });
+    setError('');
   }, [material, isOpen]);
-
-  const classificationOptions = [
-    { value: 'link', label: 'External Link' },
-    { value: 'pdf', label: 'Manuscript (PDF Link)' },
-    { value: 'word', label: 'Document (Word Link)' },
-    { value: 'canva', label: 'Presentation' },
-    { value: 'other', label: 'Miscellaneous' },
-  ];
 
   if (!isOpen || !material) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsUpdating(true);
     setError('');
 
-    if (!linkUrl.trim() || !linkUrl.startsWith('http')) {
+    if (!/^https?:\/\//i.test(linkUrl.trim())) {
       setError('Please enter a valid URL starting with http:// or https://');
-      setIsUpdating(false);
       return;
     }
 
-    try {
-      const materialRef = doc(db, 'materials', material.id);
-      
-      // 'keep' leaves the current expiry, 'forever' clears it, and a number
-      // of days sets a new expiry counted from today.
-      let visibleInArchiveUntil: any = null;
-      if (visibilityDuration === 'keep') {
-        visibleInArchiveUntil = material.visibleInArchiveUntil || null;
-      } else if (visibilityDuration !== 'forever') {
-        const days = parseInt(visibilityDuration);
-        const date = new Date();
-        date.setDate(date.getDate() + days);
-        visibleInArchiveUntil = date;
-      }
+    const { school, classYear, classSection, subject, examDate } = classification;
+    const hasClass = !!school && !!classYear && !!classSection && SECTION_PATTERN.test(classSection);
+    const urlChanged = linkUrl.trim() !== material.url;
 
-      await updateDoc(materialRef, {
+    setIsUpdating(true);
+    try {
+      await updateDoc(doc(db, 'materials', material.id), {
         title: title.trim(),
         description: description.trim(),
         tags: tags.split(',').map(t => t.trim()).filter(t => t !== ''),
         type: materialType,
         url: linkUrl.trim(),
         updatedAt: serverTimestamp(),
-        schoolName: school.trim() || null,
-        className: className.trim() || null,
-        visibleInArchiveUntil: visibleInArchiveUntil,
+        schoolId: school?.id || null,
+        schoolName: school?.name || null,
+        schoolCity: school?.city || null,
+        classYear: hasClass ? classYear : null,
+        classSection: hasClass ? classSection : null,
+        className: hasClass ? formatClassName(classYear, classSection) : null,
+        classId: hasClass ? classIdFor(school?.id, classYear, classSection) : null,
+        subject: subject || null,
+        examDate: fromDateInputValue(examDate),
+        // A new link has not been checked, and a teacher's verification no
+        // longer applies to it.
+        ...(urlChanged ? { linkStatus: null, verifiedBy: null, verifiedByName: null, verifiedAt: null } : {}),
       });
-
       onClose();
     } catch (err: any) {
-      setError(handleFirestoreError(err, OperationType.UPDATE, `materials/${material.id}`));
+      console.error('Edit error:', err);
+      setError(firebaseErrorMessage(err, 'Could not save your changes.'));
     } finally {
       setIsUpdating(false);
     }
@@ -131,19 +114,16 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
             initial={{ opacity: 0, scale: 0.9, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 30 }}
-            className="glass-panel w-full max-w-xl relative overflow-hidden rounded-[2.5rem] shadow-2xl z-10 max-h-[90vh] flex flex-col"
+            className="glass-panel w-full max-w-xl relative overflow-hidden rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl z-10 max-h-[92vh] flex flex-col"
           >
-            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-              <div>
-                <h3 className="text-2xl font-serif text-white mb-1">Edit Manuscript</h3>
-                <p className="text-[10px] uppercase tracking-widest text-white/40 font-light">Refinement of Archive Entry</p>
-              </div>
+            <div className="p-6 sm:p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+              <h3 className="text-2xl font-serif text-white">Edit material</h3>
               <button onClick={onClose} className="text-white/20 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-8 overflow-y-auto custom-scrollbar">
+            <div className="p-6 sm:p-8 overflow-y-auto custom-scrollbar">
               {error && (
                 <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
                   <p className="text-xs text-red-400 font-medium">{error}</p>
@@ -159,85 +139,22 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       className="w-full bg-transparent border-b border-white/10 py-3 px-0 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                      placeholder="Entry Name"
                       required
+                      maxLength={200}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Classification</label>
+                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Type</label>
                     <Dropdown
-                      options={classificationOptions}
+                      options={typeOptions}
                       value={materialType}
                       onChange={(val) => setMaterialType(val as MaterialType)}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Institution / School</label>
-                    <input
-                      type="text"
-                      value={school}
-                      onChange={(e) => setSchool(e.target.value)}
-                      className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                      placeholder="School name..."
-                      maxLength={100}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Academic Class</label>
-                    <input
-                      type="text"
-                      value={className}
-                      onChange={(e) => setClassName(e.target.value)}
-                      className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                      placeholder="Grade/Year..."
-                      maxLength={100}
-                    />
-                  </div>
-                </div>
-
                 <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Archive Visibility (Reset Timer)</label>
-                  <Dropdown
-                    options={[
-                      ...(material.visibleInArchiveUntil ? [{ value: 'keep', label: 'Keep Current Expiry' }] : []),
-                      { value: 'forever', label: 'Indefinitely (Forever)' },
-                      { value: '30', label: 'Extend by 30 Days' },
-                      { value: '90', label: 'Extend by 90 Days' },
-                      { value: '365', label: 'Extend by 1 Year' },
-                    ]}
-                    value={visibilityDuration}
-                    onChange={setVisibilityDuration}
-                    className="w-full"
-                  />
-                  <p className="text-[9px] text-white/20 italic mt-1 ml-1">Choose a duration to set or reset the public archive expiration date.</p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Description</label>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-5 focus:border-luxury-gold/50 outline-none transition-all font-light tracking-wide text-sm min-h-[100px] placeholder:text-white/10"
-                    placeholder="Briefly describe the context..."
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Taxonomy (Comma Separated)</label>
-                  <input
-                    type="text"
-                    value={tags}
-                    onChange={(e) => setTags(e.target.value)}
-                    className="w-full bg-transparent border-b border-white/10 py-3 px-0 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                    placeholder="e.g. Manuscript, Lecture, Summary"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Digital Path (URL)</label>
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Link (URL)</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
                       <LinkIcon className="h-4 w-4 text-white/20" />
@@ -253,13 +170,35 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
                   </div>
                 </div>
 
-                <div className="pt-6">
+                <ClassificationFields value={classification} onChange={setClassification} />
+
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Description</label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-5 focus:border-luxury-gold/50 outline-none transition-all font-light tracking-wide text-sm min-h-[100px] placeholder:text-white/10"
+                    maxLength={2000}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Tags (comma separated)</label>
+                  <input
+                    type="text"
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    className="w-full bg-transparent border-b border-white/10 py-3 px-0 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
+                  />
+                </div>
+
+                <div className="pt-4">
                   <button
                     type="submit"
                     disabled={isUpdating}
                     className="w-full luxury-button bg-white text-luxury-black font-semibold py-4 rounded-full shadow-2xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-20 transition-all"
                   >
-                    {isUpdating ? 'Updating Archive...' : 'Save Changes'}
+                    {isUpdating ? 'Saving…' : 'Save changes'}
                   </button>
                 </div>
               </form>

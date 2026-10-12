@@ -126,8 +126,8 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
                   <Move className="w-5 h-5 text-luxury-gold" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-serif text-white">Translocate Records</h3>
-                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-light">Moving {targetItems.materials.length + targetItems.folders.length} selected items</p>
+                  <h3 className="text-lg font-serif text-white">Move items</h3>
+                  <p className="text-[10px] uppercase tracking-widest text-white/40 font-light">{targetItems.materials.length + targetItems.folders.length} selected · pick a folder</p>
                 </div>
               </div>
               <button onClick={onClose} className="text-white/20 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full">
@@ -146,7 +146,7 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
                   currentParentId === null ? "bg-luxury-gold text-luxury-black font-bold" : "text-white/40 hover:text-white"
                 )}
               >
-                Root
+                Top level
               </button>
               {history.length > 0 && (
                 <>
@@ -171,7 +171,7 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
               <div className="space-y-1">
                 {folders.length === 0 ? (
                   <div className="py-12 text-center">
-                    <p className="text-white/20 text-xs font-light italic">No sub-directories here</p>
+                    <p className="text-white/20 text-xs font-light italic">No folders here</p>
                   </div>
                 ) : (
                   folders.map((folder) => (
@@ -197,10 +197,10 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
                 disabled={isMoving || !auth.currentUser}
                 className="w-full luxury-button bg-white text-luxury-black font-semibold py-4 rounded-full shadow-2xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-20 transition-all flex items-center justify-center gap-2"
               >
-                {isMoving ? 'Translocating...' : (
+                {isMoving ? 'Moving…' : (
                   <>
                     <Check className="w-4 h-4" />
-                    Place Here
+                    Move here
                   </>
                 )}
               </button>

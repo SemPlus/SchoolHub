@@ -1,8 +1,19 @@
 {
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "crons": [
+    {
+      "path": "/api/check-links",
+      "schedule": "0 4 * * 1"
+    }
+  ],
+  "functions": {
+    "api/check-links.ts": {
+      "maxDuration": 60
+    }
+  }
 }

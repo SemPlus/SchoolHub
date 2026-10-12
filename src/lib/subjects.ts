@@ -1,0 +1,31 @@
+// Fixed list so subjects can be grouped and filtered reliably.
+export const SUBJECTS = [
+  'Italian',
+  'Latin',
+  'Ancient Greek',
+  'English',
+  'French',
+  'Spanish',
+  'German',
+  'History',
+  'Geography',
+  'Philosophy',
+  'Mathematics',
+  'Physics',
+  'Chemistry',
+  'Natural Sciences',
+  'Computer Science',
+  'Art & Art History',
+  'Music',
+  'Technology',
+  'Law & Economics',
+  'Business',
+  'Human Sciences',
+  'Physical Education',
+  'Religion',
+  'Civic Education',
+  'Technical Subjects',
+  'Other',
+] as const;
+
+export type Subject = typeof SUBJECTS[number];

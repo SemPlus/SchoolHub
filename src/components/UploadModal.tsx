@@ -1,33 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Link as LinkIcon, ChevronDown } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, getDocs, query, limit, where, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { X, Link as LinkIcon } from 'lucide-react';
+import { collection, addDoc, serverTimestamp, getDocs, query, limit } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { MaterialType, OperationType, User } from '../types';
+import { MaterialType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import Dropdown from './Dropdown';
-import { getUnlockedBadges } from '../lib/badges';
-
-const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
-  const errInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-};
+import ClassificationFields, { ClassificationValue, fromDateInputValue } from './ClassificationFields';
+import { useAppData } from '../context/AppData';
+import { classIdFor, formatClassName, SECTION_PATTERN } from '../lib/schoolYear';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -35,69 +15,67 @@ interface UploadModalProps {
   currentFolderId?: string | null;
 }
 
+const typeOptions = [
+  { value: 'link', label: 'Link' },
+  { value: 'pdf', label: 'PDF' },
+  { value: 'word', label: 'Word document' },
+  { value: 'canva', label: 'Presentation' },
+  { value: 'other', label: 'Other' },
+];
+
 export default function UploadModal({ isOpen, onClose, currentFolderId }: UploadModalProps) {
+  const { profile } = useAppData();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [materialType, setMaterialType] = useState<MaterialType>('link');
+  const [classification, setClassification] = useState<ClassificationValue>({ school: null, subject: '', examDate: '' });
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
-  
-  // School and Class state
-  const [school, setSchool] = useState('');
-  const [className, setClassName] = useState('');
-  const [visibilityDuration, setVisibilityDuration] = useState('forever');
-  
-  // Tag auto-proposal state
+
+  // Tag suggestions
   const [existingTags, setExistingTags] = useState<string[]>([]);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const tagInputRef = useRef<HTMLInputElement>(null);
 
-  const classificationOptions = [
-    { value: 'link', label: 'External Link' },
-    { value: 'pdf', label: 'Manuscript (PDF Link)' },
-    { value: 'word', label: 'Document (Word Link)' },
-    { value: 'canva', label: 'Presentation' },
-    { value: 'other', label: 'Miscellaneous' },
-  ];
-
   useEffect(() => {
-    if (isOpen) {
-      fetchExistingTags();
-    }
+    if (!isOpen) return;
+    fetchExistingTags();
+    // Default to the uploader's own school and class.
+    setClassification({
+      school: profile?.schoolId
+        ? { id: profile.schoolId, name: profile.schoolName || profile.schoolId, city: profile.schoolCity || '', grade: profile.schoolGrade }
+        : null,
+      classYear: profile?.classYear,
+      classSection: profile?.classSection,
+      subject: '',
+      examDate: '',
+    });
   }, [isOpen]);
 
   const fetchExistingTags = async () => {
     try {
-      const q = query(collection(db, 'materials'), limit(100));
-      const querySnapshot = await getDocs(q);
+      const querySnapshot = await getDocs(query(collection(db, 'materials'), limit(100)));
       const allTags = new Set<string>();
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.tags && Array.isArray(data.tags)) {
-          data.tags.forEach((tag: string) => allTags.add(tag));
-        }
+      querySnapshot.forEach((d) => {
+        const data = d.data();
+        if (Array.isArray(data.tags)) data.tags.forEach((tag: string) => allTags.add(tag));
       });
       setExistingTags(Array.from(allTags));
     } catch (err) {
-      try {
-        handleFirestoreError(err, OperationType.LIST, 'materials');
-      } catch (e) {
-        console.error('Error fetching tags:', err);
-      }
+      console.error('Error fetching tags:', err);
     }
   };
 
   const handleTagChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setTags(value);
-    
     const lastTag = value.split(',').pop()?.trim().toLowerCase() || '';
     if (lastTag.length > 0) {
-      const suggestions = existingTags.filter(tag => 
-        tag.toLowerCase().includes(lastTag) && 
+      const suggestions = existingTags.filter(tag =>
+        tag.toLowerCase().includes(lastTag) &&
         !value.toLowerCase().includes(tag.toLowerCase())
       ).slice(0, 5);
       setTagSuggestions(suggestions);
@@ -110,116 +88,75 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
   const selectTagSuggestion = (suggestion: string) => {
     const parts = tags.split(',');
     parts.pop();
-    const newTags = [...parts.map(p => p.trim()), suggestion].filter(p => p !== '').join(', ') + ', ';
-    setTags(newTags);
+    setTags([...parts.map(p => p.trim()), suggestion].filter(p => p !== '').join(', ') + ', ');
     setShowTagSuggestions(false);
     tagInputRef.current?.focus();
   };
 
   if (!isOpen) return null;
 
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setTags('');
+    setLinkUrl('');
+    setMaterialType('link');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (!auth.currentUser) {
-      setError('You must be logged in to upload materials.');
+      setError('You must be signed in to add materials.');
       return;
     }
-
     if (!title.trim()) {
       setError('Title is required.');
       return;
     }
-
-    if (!linkUrl.trim() || !linkUrl.startsWith('http')) {
+    if (!/^https?:\/\//i.test(linkUrl.trim())) {
       setError('Please enter a valid URL starting with http:// or https://');
       return;
     }
 
+    const { school, classYear, classSection, subject, examDate } = classification;
+    const hasClass = !!school && !!classYear && !!classSection && SECTION_PATTERN.test(classSection);
+
     setIsUploading(true);
-
-    const uid = auth.currentUser.uid;
-
     try {
-      let visibleInArchiveUntil = null;
-      if (visibilityDuration !== 'forever') {
-        const days = parseInt(visibilityDuration);
-        const date = new Date();
-        date.setDate(date.getDate() + days);
-        visibleInArchiveUntil = date;
-      }
-
-      try {
-        await addDoc(collection(db, 'materials'), {
-          title: title.trim(),
-          description: description.trim() || null,
-          tags: tags.split(',').map(t => t.trim()).filter(t => t !== ''),
-          type: materialType,
-          url: linkUrl.trim(),
-          authorId: uid,
-          authorName: auth.currentUser.displayName || 'Unknown User',
-          authorPhotoUrl: auth.currentUser.photoURL || null,
-          downloadCount: 0,
-          folderId: currentFolderId || null,
-          createdAt: serverTimestamp(),
-          isDeleted: false,
-          schoolName: school.trim() || null,
-          className: className.trim() || null,
-          visibleInArchiveUntil: visibleInArchiveUntil,
-        });
-      } catch (err: any) {
-        try {
-          handleFirestoreError(err, OperationType.CREATE, 'materials');
-        } catch {
-          // Already logged with full context; show a readable message instead.
-        }
-        // Always include Firebase's own code and reason so the cause is visible.
-        const code: string = err?.code || 'unknown';
-        const reason: string = err?.message || String(err);
-        if (code === 'permission-denied') {
-          throw new Error(`The database rejected this entry (permission-denied). The Firestore rules deployed to the database do not allow this write. Details: ${reason}`);
-        }
-        if (code === 'unavailable') {
-          throw new Error(`Could not reach the database (unavailable). Check your connection or disable an ad-blocker for this site. Details: ${reason}`);
-        }
-        throw new Error(`Could not save this entry (${code}): ${reason}`);
-      }
-
-      // The material is saved at this point. A badge sync failure must not
-      // be reported as an upload failure, or a retry would create a duplicate.
-      try {
-        const userRef = doc(db, 'users', uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const currentBadges: string[] = userSnap.data()?.unlockedBadges || [];
-          const snapshot = await getDocs(query(
-            collection(db, 'materials'),
-            where('authorId', '==', uid)
-          ));
-          const potentialBadges = getUnlockedBadges(snapshot.size);
-          const updatedBadges = Array.from(new Set([...currentBadges, ...potentialBadges]));
-          if (updatedBadges.length !== currentBadges.length) {
-            await updateDoc(userRef, { unlockedBadges: updatedBadges });
-          }
-        }
-      } catch (badgeError) {
-        console.error('Failed to update achievement badges:', badgeError);
-      }
-
+      await addDoc(collection(db, 'materials'), {
+        title: title.trim(),
+        description: description.trim() || null,
+        tags: tags.split(',').map(t => t.trim()).filter(t => t !== ''),
+        type: materialType,
+        url: linkUrl.trim(),
+        authorId: auth.currentUser.uid,
+        authorName: auth.currentUser.displayName || 'Unknown User',
+        authorPhotoUrl: auth.currentUser.photoURL || null,
+        downloadCount: 0,
+        saveCount: 0,
+        folderId: currentFolderId || null,
+        createdAt: serverTimestamp(),
+        isDeleted: false,
+        schoolId: school?.id || null,
+        schoolName: school?.name || null,
+        schoolCity: school?.city || null,
+        classYear: hasClass ? classYear : null,
+        classSection: hasClass ? classSection : null,
+        className: hasClass ? formatClassName(classYear, classSection) : null,
+        classId: hasClass ? classIdFor(school?.id, classYear, classSection) : null,
+        subject: subject || null,
+        examDate: fromDateInputValue(examDate),
+      });
+      resetForm();
       onClose();
-      // Reset form
-      setTitle('');
-      setDescription('');
-      setTags('');
-      setLinkUrl('');
-      setMaterialType('link');
-      setSchool('');
-      setClassName('');
-      setVisibilityDuration('forever');
     } catch (err: any) {
       console.error('Upload error:', err);
-      setError(err.message || 'An error occurred during upload.');
+      const code: string = err?.code || 'unknown';
+      setError(code === 'permission-denied'
+        ? `The database rejected this entry (permission-denied). ${err?.message || ''}`
+        : `Could not save this entry (${code}): ${err?.message || String(err)}`);
     } finally {
       setIsUploading(false);
     }
@@ -229,33 +166,25 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-luxury-black/90 backdrop-blur-xl p-4">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="glass-panel rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] border-white/20 relative"
+            className="glass-panel rounded-[2rem] sm:rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] border-white/20 relative"
           >
-            {/* Decorative background element */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 bg-luxury-gold/10 rounded-full blur-[80px] pointer-events-none"></div>
-            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-white/5 rounded-full blur-[80px] pointer-events-none"></div>
-
-            <div className="flex items-center justify-between p-8 border-b border-white/10 relative z-10">
-              <h2 className="text-3xl font-serif text-white tracking-tight">New Entry</h2>
+            <div className="flex items-center justify-between p-6 sm:p-8 border-b border-white/10 relative z-10">
+              <h2 className="text-3xl font-serif text-white tracking-tight">Add material</h2>
               <button onClick={onClose} className="text-white/20 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-8 overflow-y-auto custom-scrollbar relative z-10">
+            <div className="p-6 sm:p-8 overflow-y-auto custom-scrollbar relative z-10">
               {error && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="mb-6 p-4 bg-red-400/10 text-red-400 text-xs rounded-2xl border border-red-400/20 font-light tracking-wide"
-                >
+                <div className="mb-6 p-4 bg-red-400/10 text-red-400 text-xs rounded-2xl border border-red-400/20 font-light tracking-wide">
                   {error}
-                </motion.div>
+                </div>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-8">
@@ -266,42 +195,68 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                    placeholder="The title of your work..."
+                    placeholder="e.g. Chapter 5 summary"
                     required
                     maxLength={100}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Annotation</label>
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Link (URL)</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+                      <LinkIcon className="h-4 w-4 text-white/20" />
+                    </div>
+                    <input
+                      type="url"
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      className="w-full pl-8 pr-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
+                      placeholder="https://..."
+                      required
+                    />
+                  </div>
+                  <p className="text-[9px] text-white/25 ml-1">For Google Drive files, set sharing to "Anyone with the link".</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Type</label>
+                  <Dropdown
+                    options={typeOptions}
+                    value={materialType}
+                    onChange={(val) => setMaterialType(val as MaterialType)}
+                    className="w-full"
+                  />
+                </div>
+
+                <ClassificationFields value={classification} onChange={setClassification} />
+
+                <div className="space-y-2">
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Description</label>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10 resize-none h-24 italic"
-                    placeholder="A brief summary of the contents..."
+                    className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10 resize-none h-24"
+                    placeholder="What is in it, and who is it for?"
                     maxLength={1000}
                   />
                 </div>
 
                 <div className="space-y-2 relative">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Keywords / Tags</label>
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Tags</label>
                   <input
                     ref={tagInputRef}
                     type="text"
                     value={tags}
                     onChange={handleTagChange}
                     onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
-                    onFocus={() => {
-                      const lastTag = tags.split(',').pop()?.trim().toLowerCase() || '';
-                      if (lastTag.length > 0) setShowTagSuggestions(tagSuggestions.length > 0);
-                    }}
                     className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                    placeholder="e.g. Biology, Exam, Notes (comma separated)"
+                    placeholder="e.g. Exam, Notes, Exercises (comma separated)"
                     maxLength={100}
                   />
                   <AnimatePresence>
                     {showTagSuggestions && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
@@ -322,84 +277,13 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
                   </AnimatePresence>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Institution / School</label>
-                    <input
-                      type="text"
-                      value={school}
-                      onChange={(e) => setSchool(e.target.value)}
-                      className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                      placeholder="School name..."
-                      maxLength={100}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Academic Class</label>
-                    <input
-                      type="text"
-                      value={className}
-                      onChange={(e) => setClassName(e.target.value)}
-                      className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                      placeholder="e.g. Year 10, Grade 5..."
-                      maxLength={100}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Archive Visibility</label>
-                  <Dropdown
-                    options={[
-                      { value: 'forever', label: 'Indefinitely (Forever)' },
-                      { value: '30', label: '30 Days' },
-                      { value: '90', label: '90 Days' },
-                      { value: '180', label: '180 Days' },
-                      { value: '365', label: '1 Year' },
-                    ]}
-                    value={visibilityDuration}
-                    onChange={setVisibilityDuration}
-                    className="w-full"
-                  />
-                  <p className="text-[9px] text-white/20 italic mt-1 ml-1">After this duration, the entry will be hidden from the public archive.</p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-8">
-                  <div className="space-y-2">
-                    <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Classification</label>
-                    <Dropdown
-                      options={classificationOptions}
-                      value={materialType}
-                      onChange={(val) => setMaterialType(val as MaterialType)}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Digital Path</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
-                      <LinkIcon className="h-4 w-4 text-white/20" />
-                    </div>
-                    <input
-                      type="url"
-                      value={linkUrl}
-                      onChange={(e) => setLinkUrl(e.target.value)}
-                      className="w-full pl-8 pr-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                      placeholder="https://..."
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-10">
+                <div className="pt-4">
                   <button
                     type="submit"
                     disabled={isUploading}
                     className="w-full luxury-button bg-white text-luxury-black font-semibold py-4 rounded-full shadow-2xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-20 transition-all"
                   >
-                    {isUploading ? 'Archiving...' : 'Add to Collection'}
+                    {isUploading ? 'Saving…' : 'Add material'}
                   </button>
                 </div>
               </form>

@@ -1,37 +1,23 @@
 import React from 'react';
-import { X, BookOpen, ExternalLink, Download, FileText, File, Link as LinkIcon, Edit2, Folder as FolderIcon, ChevronLeft, Trash2 } from 'lucide-react';
-import { Material, Folder } from '../types';
+import {
+  X, BookOpen, ExternalLink, FileText, File, Link as LinkIcon, Edit2, Folder as FolderIcon, ChevronLeft,
+  Trash2, GraduationCap, School, Eye, Bookmark, HeartHandshake, BadgeCheck,
+} from 'lucide-react';
+import { Material, Folder, User } from '../types';
 import { formatDistanceToNow } from 'date-fns';
-import { doc, updateDoc, increment, getDoc, query, collection, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot, query, collection, where, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
-import { OperationType, User } from '../types';
-import { getRank } from '../lib/ranks';
+import { getNextRank, getRank } from '../lib/ranks';
+import { getEarnedBadges } from '../lib/badges';
+import { IMPACT_POINTS } from '../lib/stats';
+import { firebaseErrorMessage, recordOpen } from '../lib/engagement';
+import { mapFolderDoc } from '../lib/mappers';
+import { formatClassName } from '../lib/schoolYear';
+import { useAppData } from '../context/AppData';
 import AchievementBadges from './AchievementBadges';
 import ProfileCustomization from './ProfileCustomization';
-
-const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
-  const errInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-};
-
+import OnboardingModal from './OnboardingModal';
 import UserAvatar from './UserAvatar';
 
 interface AuthorProfileModalProps {
@@ -46,118 +32,58 @@ interface AuthorProfileModalProps {
 }
 
 export default function AuthorProfileModal({ isOpen, onClose, authorId, authorName, authorPhotoUrl, onMaterialClick, onEditClick, userRole }: AuthorProfileModalProps) {
+  const { materials, getStats, profile: myProfile } = useAppData();
   const [authorProfile, setAuthorProfile] = React.useState<User | null>(null);
-  const [personalMaterials, setPersonalMaterials] = React.useState<Material[]>([]);
-  const [totalManuscriptsCount, setTotalManuscriptsCount] = React.useState(0);
-  const [publicFolders, setPublicFolders] = React.useState<Folder[]>([]);
+  const [folders, setFolders] = React.useState<Folder[]>([]);
   const [currentFolderId, setCurrentFolderId] = React.useState<string | null>(null);
   const [folderPath, setFolderPath] = React.useState<Folder[]>([]);
-  const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
-  const [isLoadingMaterials, setIsLoadingMaterials] = React.useState(true);
   const [isLoadingFolders, setIsLoadingFolders] = React.useState(true);
-  
-  const rank = getRank(totalManuscriptsCount);
+  const [isEditingClass, setIsEditingClass] = React.useState(false);
+  const [roleBusy, setRoleBusy] = React.useState(false);
+
+  const stats = getStats(authorId);
+  const rank = getRank(stats.impact);
+  const nextRank = getNextRank(stats.impact);
+  const earnedBadges = getEarnedBadges(stats);
   const isCurrentUser = auth.currentUser?.uid === authorId;
-  const canCustomize = rank.canCustomize && isCurrentUser;
+  const canCustomize = !!rank.canCustomize && isCurrentUser;
+  const isAdmin = userRole === 'admin';
 
-  const fetchProfile = async () => {
-    if (!authorId) return;
-    setIsLoadingProfile(true);
-    try {
-      const userDoc = await getDoc(doc(db, 'users', authorId));
-      if (userDoc.exists()) {
-        setAuthorProfile(userDoc.data() as User);
-      }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-    } finally {
-      setIsLoadingProfile(false);
-    }
-  };
-
-  const fetchMaterials = async () => {
-    if (!authorId) return;
-    setIsLoadingMaterials(true);
-    try {
-      const q = query(
-        collection(db, 'materials'),
-        where('authorId', '==', authorId)
-      );
-      
-      const snapshot = await getDocs(q);
-      const allMaterialsList = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-        } as Material;
-      });
-
-      // Sort in memory
-      allMaterialsList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-
-      setTotalManuscriptsCount(allMaterialsList.length);
-
-      const filteredList = allMaterialsList.filter(material => {
-        // Trashed entries must not appear on a public profile.
-        if (material.isDeleted) return false;
-        if (currentFolderId === null) {
-          return !material.folderId;
-        }
-        return material.folderId === currentFolderId;
-      });
-
-      setPersonalMaterials(filteredList);
-    } catch (error) {
-      console.error('Error fetching author materials:', error);
-    } finally {
-      setIsLoadingMaterials(false);
-    }
-  };
-
-  const fetchFolders = async () => {
-    if (!authorId) return;
-    setIsLoadingFolders(true);
-    try {
-      let q;
-      if (userRole === 'admin') {
-        q = query(
-          collection(db, 'folders'),
-          where('authorId', '==', authorId),
-          where('parentId', '==', currentFolderId)
-        );
-      } else {
-        q = query(
-          collection(db, 'folders'),
-          where('authorId', '==', authorId),
-          where('parentId', '==', currentFolderId),
-          where('isPublic', '==', true)
-        );
-      }
-      
-      const snapshot = await getDocs(q);
-      const foldersList = (snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as any)
-      })) as Folder[]).filter(folder => !folder.isDeleted);
-      // Sort in memory
-      foldersList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      setPublicFolders(foldersList);
-    } catch (error) {
-      console.error('Error fetching author folders:', error);
-    } finally {
-      setIsLoadingFolders(false);
-    }
-  };
-
+  // Live profile, so role and customization changes show immediately.
   React.useEffect(() => {
-    if (isOpen && authorId) {
-      fetchProfile();
-      fetchFolders();
-      fetchMaterials();
-    }
+    if (!isOpen || !authorId) return;
+    const unsubscribe = onSnapshot(doc(db, 'users', authorId), (snapshot) => {
+      setAuthorProfile(snapshot.exists() ? ({ uid: snapshot.id, ...(snapshot.data() as any) } as User) : null);
+    }, (error) => console.error('Error loading profile:', error));
+    return () => unsubscribe();
+  }, [isOpen, authorId]);
+
+  // Every folder is visible to everyone now.
+  React.useEffect(() => {
+    if (!isOpen || !authorId) return;
+    setIsLoadingFolders(true);
+    const q = query(
+      collection(db, 'folders'),
+      where('authorId', '==', authorId),
+      where('parentId', '==', currentFolderId)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(d => mapFolderDoc(d.id, d.data())).filter(f => !f.isDeleted);
+      list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      setFolders(list);
+      setIsLoadingFolders(false);
+    }, (error) => {
+      console.error('Error fetching folders:', error);
+      setIsLoadingFolders(false);
+    });
+    return () => unsubscribe();
   }, [isOpen, authorId, currentFolderId]);
+
+  const authorMaterials = React.useMemo(() => materials.filter(m =>
+    m.authorId === authorId &&
+    !m.isDeleted &&
+    (currentFolderId === null ? !m.folderId : m.folderId === currentFolderId)
+  ), [materials, authorId, currentFolderId]);
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -169,331 +95,274 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
     }
   };
 
-  const handleDownload = async (material: Material) => {
-    if (material.type !== 'link' && material.type !== 'canva') {
-      try {
-        await updateDoc(doc(db, 'materials', material.id), {
-          downloadCount: increment(1)
-        });
-      } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
-        } catch (e) {
-          console.error('Error incrementing download count: ', error);
-        }
-      }
+  const handleTrash = async (e: React.MouseEvent, collectionName: 'materials' | 'folders', id: string, name: string) => {
+    e.stopPropagation();
+    if (!confirm(`Move "${name}" to Trash?`)) return;
+    try {
+      await updateDoc(doc(db, collectionName, id), { isDeleted: true, deletedAt: serverTimestamp() });
+    } catch (error) {
+      alert(firebaseErrorMessage(error, 'Could not move this to Trash.'));
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, material: Material) => {
-    e.stopPropagation();
-    // Same behaviour as everywhere else in the app: move to Trash so the
-    // entry can still be restored, instead of destroying it immediately.
-    if (confirm(`Move "${material.title}" to Trash?`)) {
-      try {
-        await updateDoc(doc(db, 'materials', material.id), {
-          isDeleted: true,
-          deletedAt: serverTimestamp()
-        });
-        setPersonalMaterials(prev => prev.filter(m => m.id !== material.id));
-      } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
-        } catch {
-          alert('Could not move this material to Trash. You may not have permission.');
-        }
-      }
+  const toggleTeacher = async () => {
+    if (!authorProfile) return;
+    const next = authorProfile.role === 'teacher' ? 'user' : 'teacher';
+    if (!confirm(next === 'teacher' ? `Make ${authorName} a teacher? Teachers can verify materials from their school.` : `Remove the teacher role from ${authorName}?`)) return;
+    setRoleBusy(true);
+    try {
+      await updateDoc(doc(db, 'users', authorId), { role: next });
+    } catch (error) {
+      alert(firebaseErrorMessage(error, 'Could not change the role.'));
+    } finally {
+      setRoleBusy(false);
     }
   };
 
-  const handleFolderDelete = async (e: React.MouseEvent, folder: Folder) => {
-    e.stopPropagation();
-    if (confirm(`Move folder "${folder.name}" to Trash?`)) {
-      try {
-        await updateDoc(doc(db, 'folders', folder.id), {
-          isDeleted: true,
-          deletedAt: serverTimestamp()
-        });
-        setPublicFolders(prev => prev.filter(f => f.id !== folder.id));
-      } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.UPDATE, `folders/${folder.id}`);
-        } catch {
-          alert('Could not move this folder to Trash. You may not have permission.');
-        }
-      }
-    }
-  };
+  const className = formatClassName(authorProfile?.classYear, authorProfile?.classSection);
+  const statItems = [
+    { icon: <Eye className="w-3.5 h-3.5" />, label: 'Opens', value: stats.opensReceived, points: IMPACT_POINTS.open },
+    { icon: <Bookmark className="w-3.5 h-3.5" />, label: 'Saves', value: stats.savesReceived, points: IMPACT_POINTS.save },
+    { icon: <HeartHandshake className="w-3.5 h-3.5" />, label: 'Requests filled', value: stats.answersAccepted, points: IMPACT_POINTS.acceptedAnswer },
+    { icon: <BadgeCheck className="w-3.5 h-3.5" />, label: 'Verified', value: stats.verified, points: IMPACT_POINTS.verified },
+  ];
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-luxury-black/95 backdrop-blur-2xl p-4">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="glass-panel rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh] border-white/20 relative"
-          >
-            {/* Decorative background element */}
-            <div className="absolute -top-48 -right-48 w-96 h-96 bg-luxury-gold/10 rounded-full blur-[120px] pointer-events-none"></div>
-            <div className="absolute -bottom-48 -left-48 w-96 h-96 bg-white/5 rounded-full blur-[120px] pointer-events-none"></div>
+    <>
+      <AnimatePresence>
+        {isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-luxury-black/95 backdrop-blur-2xl p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="glass-panel rounded-[2rem] sm:rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] border-white/20 relative"
+            >
+              <div className="overflow-y-auto custom-scrollbar">
+                {/* Header */}
+                <div className="relative p-6 sm:p-10 border-b border-white/10 bg-white/[0.02]">
+                  <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 sm:top-8 sm:right-8 text-white/30 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full z-20"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
 
-            {/* Header */}
-            <div className="relative p-10 border-b border-white/10 bg-white/[0.02] z-10">
-              <button 
-                onClick={onClose} 
-                className="absolute top-8 right-8 text-white/20 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full z-20"
-              >
-                <X className="w-6 h-6" />
-              </button>
-
-              <div className="flex flex-col md:flex-row items-center gap-8">
-                <motion.div 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 }}
-                >
+                  <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-8">
                     <UserAvatar
                       name={authorName}
                       photoUrl={authorPhotoUrl}
-                      contributionCount={totalManuscriptsCount}
+                      contributionCount={stats.impact}
                       size="xl"
-                      className="mb-4 md:mb-0"
                       customColor={authorProfile?.customColor}
                     />
-                  </motion.div>
-                  <div className="text-center md:text-left">
-                    <motion.h2 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
-                      className="text-5xl font-serif text-white mb-2 tracking-tight"
-                    >
-                      {authorName}
-                    </motion.h2>
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
-                      className="flex flex-wrap items-center justify-center md:justify-start gap-4"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] uppercase tracking-[0.3em] text-luxury-gold font-semibold">Contributor</span>
+                    <div className="text-center md:text-left space-y-2">
+                      <h2 className="text-3xl sm:text-5xl font-serif text-white tracking-tight">{authorName}</h2>
+                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
                         <span className={`text-[9px] px-2 py-0.5 rounded border border-white/10 bg-white/5 font-bold tracking-widest ${rank.color}`}>
-                          {authorProfile?.customBadge || rank.label} ({rank.grade})
+                          {authorProfile?.customBadge || rank.label} · {rank.grade}
                         </span>
+                        {authorProfile?.role === 'teacher' && (
+                          <span className="flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border border-purple-400/30 bg-purple-400/10 text-purple-300 font-bold tracking-widest uppercase">
+                            <GraduationCap className="w-3 h-3" /> Teacher
+                          </span>
+                        )}
+                        <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">{stats.impact} impact · {stats.uploads} materials</span>
                       </div>
-                      <div className="w-1 h-1 bg-white/20 rounded-full hidden md:block"></div>
-                      <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">{totalManuscriptsCount} Manuscripts Shared</span>
-                    </motion.div>
+                      {authorProfile?.schoolName && (
+                        <p className="text-xs text-white/50 flex items-center justify-center md:justify-start gap-1.5">
+                          <School className="w-3.5 h-3.5 text-luxury-gold" />
+                          {className ? `${className} · ` : ''}{authorProfile.schoolName}
+                          {authorProfile.schoolCity ? `, ${authorProfile.schoolCity}` : ''}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2 justify-center md:justify-start pt-1">
+                        {isCurrentUser && myProfile && (
+                          <button
+                            onClick={() => setIsEditingClass(true)}
+                            className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[9px] uppercase tracking-widest text-white/60 hover:text-white"
+                          >
+                            Change school or class
+                          </button>
+                        )}
+                        {isAdmin && !isCurrentUser && authorProfile && authorProfile.role !== 'admin' && (
+                          <button
+                            onClick={toggleTeacher}
+                            disabled={roleBusy}
+                            className="px-3 py-1.5 rounded-full bg-purple-400/10 border border-purple-400/30 text-[9px] uppercase tracking-widest text-purple-200 hover:bg-purple-400/20 disabled:opacity-40"
+                          >
+                            {authorProfile.role === 'teacher' ? 'Remove teacher role' : 'Make teacher'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-              {canCustomize && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="mt-8 max-w-md mx-auto md:mx-0"
-                >
-                  <ProfileCustomization 
-                    currentUserId={authorId}
-                    customColor={authorProfile?.customColor}
-                    customBadge={authorProfile?.customBadge}
-                    unlockedBadges={authorProfile?.unlockedBadges}
-                    onUpdate={fetchProfile}
-                  />
-                </motion.div>
-              )}
-            </div>
-
-            {/* Badges Section */}
-            <div className="p-10 bg-white/[0.01] border-b border-white/5 relative z-10">
-              <h3 className="text-[10px] uppercase tracking-[0.3em] text-white/20 font-bold mb-6">Hall of Achievements</h3>
-              <AchievementBadges 
-                unlockedBadgeIds={authorProfile?.unlockedBadges || []} 
-                contributionCount={totalManuscriptsCount} 
-              />
-            </div>
-
-            {/* Materials List */}
-            <div className="flex-grow overflow-y-auto p-10 custom-scrollbar bg-luxury-black/20">
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-4">
-                  {currentFolderId && (
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => {
-                        const newPath = [...folderPath];
-                        const lastFolder = newPath.pop();
-                        setFolderPath(newPath);
-                        setCurrentFolderId(newPath.length > 0 ? newPath[newPath.length - 1].id : null);
-                      }}
-                      className="p-2 bg-white/5 border border-white/10 rounded-full text-white/40 hover:text-white"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </motion.button>
+                  {/* Impact breakdown */}
+                  <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {statItems.map(item => (
+                      <div key={item.label} className="rounded-2xl border border-white/5 bg-white/[0.02] p-3">
+                        <p className="flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-white/40">{item.icon}{item.label}</p>
+                        <p className="text-xl font-serif text-white mt-1">{item.value}</p>
+                        <p className="text-[9px] text-white/25">{item.points} impact each</p>
+                      </div>
+                    ))}
+                  </div>
+                  {nextRank && (
+                    <p className="mt-3 text-[10px] text-white/40">
+                      {nextRank.missing} more impact to reach {nextRank.rank.label}.
+                    </p>
                   )}
-                  <motion.h3 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.5 }}
-                    className="text-[10px] uppercase tracking-[0.3em] text-white/20 font-bold"
-                  >
-                    Archive {folderPath.length > 0 ? `> ${folderPath.map(f => f.name).join(' > ')}` : 'Portfolio'}
-                  </motion.h3>
-                </div>
-              </div>
-              
-              {isLoadingMaterials || isLoadingFolders ? (
-                <div className="flex justify-center py-20">
-                  <div className="w-8 h-8 border-2 border-luxury-gold/30 border-t-luxury-gold rounded-full animate-spin"></div>
-                </div>
-              ) : (publicFolders.length === 0 && personalMaterials.length === 0) ? (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  className="text-center py-20 border border-white/5 rounded-3xl"
-                >
-                  <p className="text-white/40 font-light italic">No public records found in this directory.</p>
-                </motion.div>
-              ) : (
-                <div className="space-y-8">
-                  {publicFolders.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      {publicFolders.map((folder, index) => (
-                        <motion.div
-                          key={folder.id}
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: 0.6 + index * 0.05 }}
-                          whileHover={{ scale: 1.02, y: -2 }}
-                          onClick={() => {
-                            setFolderPath([...folderPath, folder]);
-                            setCurrentFolderId(folder.id);
-                          }}
-                          className="glass-panel p-4 rounded-xl hover:bg-white/5 border-white/5 flex items-center gap-4 cursor-pointer group"
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <div className="flex items-center gap-4">
-                              <div className="p-3 bg-luxury-gold/5 rounded-lg group-hover:bg-luxury-gold/20 transition-colors">
-                                <FolderIcon className="w-5 h-5 text-luxury-gold" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-serif text-white group-hover:text-luxury-gold transition-colors">{folder.name}</p>
-                                <p className="text-[8px] uppercase tracking-widest text-white/20">Public Directory</p>
-                              </div>
-                            </div>
-                            {(auth.currentUser?.uid === folder.authorId || userRole === 'admin') && (
-                              <button
-                                onClick={(e) => handleFolderDelete(e, folder)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-400/10 rounded-lg text-white/20 hover:text-red-400"
-                                title="Delete Folder"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </motion.div>
-                      ))}
+
+                  {canCustomize && (
+                    <div className="mt-8 max-w-md mx-auto md:mx-0">
+                      <ProfileCustomization
+                        currentUserId={authorId}
+                        customColor={authorProfile?.customColor}
+                        customBadge={authorProfile?.customBadge}
+                        earnedBadges={earnedBadges}
+                      />
                     </div>
                   )}
+                </div>
 
-                  {personalMaterials.length > 0 && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {personalMaterials.map((material, index) => (
-                        <motion.div 
-                          key={material.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.7 + index * 0.05 }}
-                          whileHover={{ y: -5, scale: 1.02 }}
-                          onClick={() => onMaterialClick?.(material)}
-                          className="glass-panel p-6 rounded-2xl hover:bg-white/5 transition-all group border-white/5 relative overflow-hidden cursor-pointer"
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-br from-luxury-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                          
-                          <div className="flex items-start justify-between mb-4 relative z-10">
-                            <div className="w-10 h-10 border border-white/5 rounded-xl flex items-center justify-center bg-white/5 group-hover:border-luxury-gold/30 transition-colors">
-                              {getIcon(material.type)}
-                            </div>
-                            <div className="flex gap-2">
-                              {(auth.currentUser?.uid === material.authorId || userRole === 'admin') && (
-                              <>
+                {/* Badges */}
+                <div className="p-6 sm:p-10 bg-white/[0.01] border-b border-white/5">
+                  <h3 className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-bold mb-6">Badges</h3>
+                  <AchievementBadges stats={stats} />
+                </div>
+
+                {/* Materials */}
+                <div className="p-6 sm:p-10 bg-luxury-black/20">
+                  <div className="flex items-center gap-4 mb-6">
+                    {currentFolderId && (
+                      <button
+                        onClick={() => {
+                          const newPath = folderPath.slice(0, -1);
+                          setFolderPath(newPath);
+                          setCurrentFolderId(newPath.length > 0 ? newPath[newPath.length - 1].id : null);
+                        }}
+                        className="p-2 bg-white/5 border border-white/10 rounded-full text-white/40 hover:text-white"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                    )}
+                    <h3 className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-bold">
+                      Materials {folderPath.length > 0 ? `› ${folderPath.map(f => f.name).join(' › ')}` : ''}
+                    </h3>
+                  </div>
+
+                  {isLoadingFolders ? (
+                    <div className="flex justify-center py-16">
+                      <div className="w-8 h-8 border-2 border-luxury-gold/30 border-t-luxury-gold rounded-full animate-spin"></div>
+                    </div>
+                  ) : folders.length === 0 && authorMaterials.length === 0 ? (
+                    <div className="text-center py-16 border border-white/5 rounded-3xl">
+                      <p className="text-white/40 font-light">Nothing here yet.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {folders.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                          {folders.map(folder => (
+                            <div
+                              key={folder.id}
+                              onClick={() => {
+                                setFolderPath([...folderPath, folder]);
+                                setCurrentFolderId(folder.id);
+                              }}
+                              className="glass-panel p-4 rounded-xl hover:bg-white/5 border-white/5 flex items-center justify-between gap-3 cursor-pointer group"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="p-2.5 bg-luxury-gold/5 rounded-lg">
+                                  <FolderIcon className="w-5 h-5 text-luxury-gold" />
+                                </div>
+                                <p className="text-sm font-serif text-white truncate group-hover:text-luxury-gold transition-colors">{folder.name}</p>
+                              </div>
+                              {(isCurrentUser || isAdmin) && (
                                 <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onEditClick?.(material);
-                                  }}
-                                  className="text-white/20 hover:text-luxury-gold transition-colors p-2 hover:bg-white/5 rounded-lg"
-                                  title="Edit"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => handleDelete(e, material)}
-                                  className="text-white/20 hover:text-red-400 transition-colors p-2 hover:bg-red-400/10 rounded-lg"
-                                  title="Delete"
+                                  onClick={(e) => handleTrash(e, 'folders', folder.id, folder.name)}
+                                  className="sm:opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-400/10 rounded-lg text-white/30 hover:text-red-400"
+                                  title="Move to Trash"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
-                              </>
-                            )}
-                              <a 
-                                href={material.url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                download={material.type !== 'link' && material.type !== 'canva' ? `${material.title}.${material.type === 'pdf' ? 'pdf' : material.type === 'word' ? 'docx' : 'file'}` : undefined}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDownload(material);
-                                }}
-                                className="text-white/20 hover:text-luxury-gold transition-colors p-2 hover:bg-white/5 rounded-lg"
-                              >
-                                {material.type === 'link' || material.type === 'canva' ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-                              </a>
-                            </div>
-                          </div>
-                          <h4 className="text-lg font-serif text-white mb-2 line-clamp-1 group-hover:text-luxury-gold transition-colors relative z-10">
-                            {material.title}
-                          </h4>
-                          <div className="flex items-center justify-between mt-4 relative z-10">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[9px] uppercase tracking-widest text-white/20">
-                                {formatDistanceToNow(material.createdAt, { addSuffix: true })}
-                              </span>
-                              {material.type !== 'link' && material.type !== 'canva' && (
-                                <>
-                                  <span className="text-white/10 text-[9px]">•</span>
-                                  <span className="text-[9px] uppercase tracking-widest text-white/40 flex items-center gap-1">
-                                    <Download className="w-2.5 h-2.5" />
-                                    {material.downloadCount || 0}
-                                  </span>
-                                </>
                               )}
                             </div>
-                            <div className="flex gap-1">
-                              {material.tags?.slice(0, 2).map((tag, i) => (
-                                <span key={i} className="text-[7px] uppercase tracking-tighter px-1.5 py-0.5 bg-white/5 text-white/30 rounded-md border border-white/5">
-                                  {tag}
-                                </span>
-                              ))}
+                          ))}
+                        </div>
+                      )}
+
+                      {authorMaterials.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {authorMaterials.map(material => (
+                            <div
+                              key={material.id}
+                              onClick={() => onMaterialClick?.(material)}
+                              className="glass-panel p-5 rounded-2xl hover:bg-white/5 transition-all group border-white/5 cursor-pointer"
+                            >
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="w-10 h-10 border border-white/5 rounded-xl flex items-center justify-center bg-white/5">
+                                  {getIcon(material.type)}
+                                </div>
+                                <div className="flex gap-1">
+                                  {(isCurrentUser || isAdmin) && (
+                                    <>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); onEditClick?.(material); }}
+                                        className="text-white/30 hover:text-luxury-gold transition-colors p-2 hover:bg-white/5 rounded-lg"
+                                        title="Edit"
+                                      >
+                                        <Edit2 className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={(e) => handleTrash(e, 'materials', material.id, material.title)}
+                                        className="text-white/30 hover:text-red-400 transition-colors p-2 hover:bg-red-400/10 rounded-lg"
+                                        title="Move to Trash"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                  <a
+                                    href={material.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => { e.stopPropagation(); recordOpen(material); }}
+                                    className="text-white/30 hover:text-luxury-gold transition-colors p-2 hover:bg-white/5 rounded-lg"
+                                    title="Open"
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </a>
+                                </div>
+                              </div>
+                              <h4 className="text-lg font-serif text-white mb-2 line-clamp-1 group-hover:text-luxury-gold transition-colors">
+                                {material.title}
+                              </h4>
+                              <div className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-white/30 flex-wrap">
+                                <span>{formatDistanceToNow(material.createdAt, { addSuffix: true })}</span>
+                                {material.subject && <><span>•</span><span>{material.subject}</span></>}
+                                <span>•</span>
+                                <span className="flex items-center gap-1"><Eye className="w-2.5 h-2.5" />{material.downloadCount || 0}</span>
+                                {material.verifiedBy && <BadgeCheck className="w-3 h-3 text-purple-300" />}
+                              </div>
                             </div>
-                          </div>
-                        </motion.div>
-                      ))}
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
-          </motion.div>
-        </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {isEditingClass && myProfile && (
+        <OnboardingModal profile={myProfile} mode="edit" onClose={() => setIsEditingClass(false)} />
       )}
-    </AnimatePresence>
+    </>
   );
 }

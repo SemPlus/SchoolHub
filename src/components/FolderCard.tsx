@@ -108,7 +108,7 @@ export default function FolderCard({
                     onRestore?.(folder);
                   }}
                   className="p-2 hover:bg-white/10 rounded-lg text-luxury-gold opacity-100"
-                  title="Restore Folder"
+                  title="Restore"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
@@ -119,7 +119,7 @@ export default function FolderCard({
                     onMoveClick?.(folder);
                   }}
                   className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-luxury-gold"
-                  title="Move Folder"
+                  title="Move"
                 >
                   <Move className="w-4 h-4" />
                 </button>
@@ -133,7 +133,7 @@ export default function FolderCard({
                   "p-2 hover:bg-white/10 rounded-lg opacity-100",
                   isInTrash ? "text-red-500 hover:text-red-400" : "text-white/40 hover:text-red-400"
                 )}
-                title={isInTrash ? "Delete Permanently" : "Delete Folder"}
+                title={isInTrash ? "Delete forever" : "Move to Trash"}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -153,11 +153,11 @@ export default function FolderCard({
         )}
         {isInTrash && (
           <p className="text-[10px] font-bold text-red-400/80 mb-2">
-            Expires in {getDaysRemaining()} days
+            Deleted for good in {getDaysRemaining()} days
           </p>
         )}
         <p className="text-[10px] uppercase tracking-widest text-white/40 font-medium">
-          Directory
+          Folder
         </p>
       </div>
 

@@ -1,21 +1,30 @@
 import React, { useEffect, useState } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, signInWithGoogle, logOut, db } from './firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { BookOpen, LogOut, Plus, LogIn, Library, User as UserIcon, Trash2 } from 'lucide-react';
+import { signInWithGoogle, logOut } from './firebase';
+import { BookOpen, LogOut, LogIn, Library, User as UserIcon, Trash2, HandHelping } from 'lucide-react';
 import MaterialList from './components/MaterialList';
+import RequestBoard from './components/RequestBoard';
 import CursorGlow from './components/CursorGlow';
 import UserAvatar from './components/UserAvatar';
-import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
-import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import OnboardingModal from './components/OnboardingModal';
+import AuthorProfileModal from './components/AuthorProfileModal';
+import { motion, useScroll, useTransform } from 'motion/react';
+import { useAppData } from './context/AppData';
+import { isProfileComplete } from './lib/schoolYear';
+import { cn } from './lib/utils';
+
+type Tab = 'archive' | 'requests' | 'personal' | 'trash';
+
+const TITLES: Record<Tab, string> = {
+  archive: 'The Archive',
+  requests: 'Requests',
+  personal: 'My Space',
+  trash: 'Trash',
+};
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [userContributions, setUserContributions] = useState(0);
-  const [userCustomColor, setUserCustomColor] = useState<string | undefined>();
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const [activeTab, setActiveTab] = useState<'archive' | 'personal' | 'trash'>('archive');
+  const { user, isAuthReady, profile, isProfileLoaded, userRole, getStats } = useAppData();
+  const [activeTab, setActiveTab] = useState<Tab>('archive');
+  const [isOwnProfileOpen, setIsOwnProfileOpen] = useState(false);
 
   const { scrollY } = useScroll();
   const titleOpacity = useTransform(scrollY, [0, 200], [1, 0]);
@@ -24,233 +33,131 @@ export default function App() {
   const titleY = useTransform(scrollY, [0, 250], [0, -40]);
 
   useEffect(() => {
-    // Reset scroll when switching tabs so title appears
+    // Reset scroll when switching tabs so the title appears
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, [activeTab]);
 
   useEffect(() => {
-    // Listeners tied to the signed-in user. onAuthStateChanged ignores any
-    // value returned from its callback, so they are tracked here and torn
-    // down explicitly on sign-out, account switch and unmount.
-    let unsubProfile: (() => void) | null = null;
-    let unsubMaterials: (() => void) | null = null;
-    const cleanupUserListeners = () => {
-      unsubProfile?.();
-      unsubMaterials?.();
-      unsubProfile = null;
-      unsubMaterials = null;
-    };
-
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      cleanupUserListeners();
-      setUser(currentUser);
-      setIsAuthReady(true);
-
-      if (currentUser) {
-        // Create/Update user profile and subscribe to changes
-        const userRef = doc(db, 'users', currentUser.uid);
-
-        // Real-time user profile for customization
-        unsubProfile = onSnapshot(userRef, (doc) => {
-          if (doc.exists()) {
-            const data = doc.data();
-            setUserRole(data.role || 'user');
-            setUserCustomColor(data.customColor);
-          } else {
-            // Create user profile if it doesn't exist
-            const role = currentUser.email === 'sem.gk01@gmail.com' ? 'admin' : 'user';
-            const newUser = {
-              uid: currentUser.uid,
-              // The security rules require email to be a string.
-              email: currentUser.email ?? '',
-              displayName: currentUser.displayName,
-              photoURL: currentUser.photoURL,
-              role: role,
-              createdAt: serverTimestamp()
-            };
-            setDoc(userRef, newUser).catch(err => console.error("Error setting user profile:", err));
-            setUserRole(role);
-          }
-        }, (error) => {
-          console.error("Profile snapshot error:", error);
-        });
-
-        // Real-time material count for rank
-        const q = query(collection(db, 'materials'), where('authorId', '==', currentUser.uid));
-        unsubMaterials = onSnapshot(q, (snapshot) => {
-          setUserContributions(snapshot.size);
-        }, (error) => {
-          console.error("Material count snapshot error:", error);
-        });
-      } else {
-        setUserRole(null);
-        setUserContributions(0);
-        setUserCustomColor(undefined);
-        // Personal and Trash are only reachable while signed in.
-        setActiveTab('archive');
-      }
-    });
-    return () => {
-      unsubscribe();
-      cleanupUserListeners();
-    };
-  }, []);
+    // My Space and Trash are only reachable while signed in.
+    if (isAuthReady && !user && (activeTab === 'personal' || activeTab === 'trash')) setActiveTab('archive');
+    if (!user) setIsOwnProfileOpen(false);
+  }, [user, isAuthReady, activeTab]);
 
   if (!isAuthReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-luxury-black">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="relative"
-        >
-          <div className="absolute inset-0 bg-luxury-gold/20 rounded-full blur-3xl animate-pulse"></div>
-          <div className="w-16 h-16 border-t-2 border-luxury-gold rounded-full animate-spin relative z-10"></div>
-        </motion.div>
+        <div className="w-16 h-16 border-t-2 border-luxury-gold rounded-full animate-spin" />
       </div>
     );
   }
 
+  const tabs: { id: Tab; label: string; icon: React.ReactNode; signedInOnly: boolean }[] = [
+    { id: 'archive', label: 'Archive', icon: <Library className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: false },
+    { id: 'requests', label: 'Requests', icon: <HandHelping className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: false },
+    { id: 'personal', label: 'My Space', icon: <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: true },
+    { id: 'trash', label: 'Trash', icon: <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: true },
+  ];
+  const visibleTabs = tabs.filter(t => !t.signedInOnly || user);
+
+  const tabClass = (id: Tab) => cn(
+    'flex items-center justify-center gap-1.5 sm:gap-2 rounded-full transition-all uppercase font-medium',
+    activeTab === id
+      ? id === 'trash' ? 'bg-red-400 text-luxury-black shadow-lg shadow-red-400/20' : 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20'
+      : 'text-white/40 hover:text-white'
+  );
+
+  const needsOnboarding = !!user && isProfileLoaded && !!profile && !isProfileComplete(profile);
+  const myImpact = getStats(user?.uid).impact;
+
   return (
     <div className="min-h-screen bg-luxury-black font-sans text-white/90 selection:bg-luxury-gold/30 overflow-x-hidden">
       <CursorGlow />
-      {/* Navigation */}
-      <motion.nav 
+
+      <motion.nav
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ type: "spring", damping: 20, stiffness: 100 }}
-        className="sticky top-0 z-40 bg-luxury-black/60 backdrop-blur-2xl border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.1)]"
+        className="sticky top-0 z-40 bg-luxury-black/60 backdrop-blur-2xl border-b border-white/10"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20">
-            <motion.div 
-              whileHover={{ scale: 1.02 }}
-              className="flex items-center gap-4 cursor-pointer"
-            >
+            <button onClick={() => setActiveTab('archive')} className="flex items-center gap-3 sm:gap-4">
               <div className="w-10 h-10 border border-white/20 rounded-full flex items-center justify-center bg-white/5">
                 <BookOpen className="h-5 w-5 text-luxury-gold" />
               </div>
-              <span className="text-2xl font-serif tracking-widest uppercase text-white">
-                SchoolHub
-              </span>
-            </motion.div>
-            
-            <div className="flex items-center gap-6">
-              {user && (
-                <div className="hidden md:flex items-center bg-white/5 rounded-full p-1 border border-white/10">
-                  <button
-                    onClick={() => setActiveTab('archive')}
-                    className={`flex items-center gap-2 px-6 py-2 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'archive' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
-                  >
-                    <Library className="w-3.5 h-3.5" />
-                    Archive
+              <span className="text-xl sm:text-2xl font-serif tracking-widest uppercase text-white">SchoolHub</span>
+            </button>
+
+            <div className="flex items-center gap-4 sm:gap-6">
+              <div className="hidden md:flex items-center bg-white/5 rounded-full p-1 border border-white/10">
+                {visibleTabs.map(tab => (
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn(tabClass(tab.id), 'px-5 py-2 text-[10px] tracking-[0.2em]')}>
+                    {tab.icon}
+                    {tab.label}
                   </button>
-                  <button
-                    onClick={() => setActiveTab('personal')}
-                    className={`flex items-center gap-2 px-6 py-2 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'personal' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
-                  >
-                    <UserIcon className="w-3.5 h-3.5" />
-                    Personal
+                ))}
+              </div>
+
+              {user ? (
+                <div className="flex items-center gap-4">
+                  <button onClick={() => setIsOwnProfileOpen(true)} title="Your profile">
+                    <UserAvatar
+                      name={user.displayName || 'User'}
+                      photoUrl={user.photoURL || undefined}
+                      contributionCount={myImpact}
+                      customColor={profile?.customColor}
+                      size="md"
+                      isClickable
+                    />
                   </button>
-                  <button
-                    onClick={() => setActiveTab('trash')}
-                    className={`flex items-center gap-2 px-6 py-2 rounded-full transition-all text-[10px] uppercase tracking-[0.2em] font-medium ${activeTab === 'trash' ? 'bg-red-400 text-luxury-black shadow-lg shadow-red-400/20' : 'text-white/40 hover:text-white'}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Trash
+                  <button onClick={logOut} className="text-white/40 hover:text-white transition-colors" title="Sign out">
+                    <LogOut className="h-5 w-5" />
                   </button>
                 </div>
-              )}
-              
-              <div className="flex items-center gap-6">
-                {user ? (
-                <>
-                  <div className="flex items-center gap-4">
-                    <motion.div 
-                      whileHover={{ scale: 1.1 }}
-                      className="relative group cursor-pointer"
-                    >
-                      <UserAvatar
-                        name={user.displayName || 'User'}
-                        photoUrl={user.photoURL || undefined}
-                        contributionCount={userContributions}
-                        customColor={userCustomColor}
-                        size="md"
-                      />
-                    </motion.div>
-                    <motion.button
-                      whileHover={{ scale: 1.1, color: '#fff' }}
-                      onClick={logOut}
-                      className="text-white/40 transition-colors"
-                      title="Sign out"
-                    >
-                      <LogOut className="h-5 w-5" />
-                    </motion.button>
-                  </div>
-                </>
               ) : (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                <button
                   onClick={signInWithGoogle}
                   className="luxury-button bg-white text-luxury-black font-medium shadow-xl shadow-white/5"
                 >
-                  <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-2">
                     <LogIn className="h-4 w-4" />
                     Sign in
-                  </div>
-                </motion.button>
+                  </span>
+                </button>
               )}
             </div>
           </div>
         </div>
-      </div>
-    </motion.nav>
+      </motion.nav>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
-        <div className="relative h-[25vh] flex items-center justify-center pointer-events-none mb-0">
-          <motion.div 
-            style={{ 
-              opacity: titleOpacity,
-              scale: titleScale,
-              y: titleY,
-              filter: titleFilter
-            }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="fixed top-[12vh] left-0 right-0 z-0 text-center px-4"
+        <div className="relative h-[20vh] sm:h-[25vh] flex items-center justify-center pointer-events-none">
+          <motion.div
+            style={{ opacity: titleOpacity, scale: titleScale, y: titleY, filter: titleFilter }}
+            className="fixed top-[11vh] sm:top-[12vh] left-0 right-0 z-0 text-center px-4"
           >
             <div className="overflow-hidden mb-4">
-              <motion.h1 
-                className="text-6xl md:text-8xl font-serif font-light text-white tracking-tight flex justify-center flex-wrap"
-              >
-                {(activeTab === 'archive' ? "The Archive" : activeTab === 'personal' ? "Personal Space" : "The Depths").split("").map((char, index) => (
+              <h1 className="text-5xl sm:text-6xl md:text-8xl font-serif font-light text-white tracking-tight flex justify-center flex-wrap">
+                {TITLES[activeTab].split("").map((char, index) => (
                   <motion.span
                     key={`${activeTab}-${index}`}
                     initial={{ y: 100, opacity: 0, filter: "blur(10px)" }}
                     animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
-                    transition={{
-                      duration: 1.2,
-                      delay: 0.3 + index * 0.05,
-                      ease: [0.22, 1, 0.36, 1]
-                    }}
+                    transition={{ duration: 1.2, delay: 0.3 + index * 0.05, ease: [0.22, 1, 0.36, 1] }}
                     className={char === " " ? "mr-4" : ""}
                   >
                     {char}
                   </motion.span>
                 ))}
-              </motion.h1>
+              </h1>
             </div>
-            
-            <motion.div 
+            <motion.div
               initial={{ width: 0 }}
               animate={{ width: 120 }}
               transition={{ delay: 1.2, duration: 1.5, ease: "easeInOut" }}
               className="h-px bg-luxury-gold/50 mx-auto mb-6"
-            ></motion.div>
-            
-            <motion.p 
+            />
+            <motion.p
               initial={{ opacity: 0, letterSpacing: "0.5em" }}
               animate={{ opacity: 1, letterSpacing: "0.3em" }}
               transition={{ delay: 1.8, duration: 1.5 }}
@@ -261,38 +168,39 @@ export default function App() {
           </motion.div>
         </div>
 
-        {user && (
-          <div className="md:hidden flex justify-center mb-8 px-4 relative z-20">
-            <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/10 w-full max-w-sm">
-              <button
-                onClick={() => setActiveTab('archive')}
-                className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 rounded-full transition-all text-[9px] sm:text-[10px] uppercase tracking-[0.1em] sm:tracking-[0.2em] font-medium ${activeTab === 'archive' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
-              >
-                <Library className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>Archive</span>
+        {/* Phone tab bar */}
+        <div className="md:hidden flex justify-center mb-6 relative z-20">
+          <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/10 w-full max-w-md">
+            {visibleTabs.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn(tabClass(tab.id), 'flex-1 py-3 text-[9px] tracking-[0.08em]')}>
+                {tab.icon}
+                <span>{tab.label}</span>
               </button>
-              <button
-                onClick={() => setActiveTab('personal')}
-                className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 rounded-full transition-all text-[9px] sm:text-[10px] uppercase tracking-[0.1em] sm:tracking-[0.2em] font-medium ${activeTab === 'personal' ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20' : 'text-white/40 hover:text-white'}`}
-              >
-                <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>Personal</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('trash')}
-                className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 rounded-full transition-all text-[9px] sm:text-[10px] uppercase tracking-[0.1em] sm:tracking-[0.2em] font-medium ${activeTab === 'trash' ? 'bg-red-400 text-luxury-black shadow-lg shadow-red-400/20' : 'text-white/40 hover:text-white'}`}
-              >
-                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>Trash</span>
-              </button>
-            </div>
+            ))}
           </div>
-        )}
+        </div>
 
         <div className="relative z-10 bg-luxury-black pt-0 shadow-[0_-50px_100px_rgba(0,0,0,0.9)]">
-          <MaterialList userRole={userRole} view={activeTab} onViewChange={setActiveTab} />
+          {activeTab === 'requests' ? (
+            <RequestBoard />
+          ) : (
+            <MaterialList userRole={userRole} view={activeTab} onViewChange={(v) => setActiveTab(v)} />
+          )}
         </div>
       </main>
+
+      {isOwnProfileOpen && user && (
+        <AuthorProfileModal
+          isOpen
+          onClose={() => setIsOwnProfileOpen(false)}
+          authorId={user.uid}
+          authorName={user.displayName || 'You'}
+          authorPhotoUrl={user.photoURL || undefined}
+          userRole={userRole}
+        />
+      )}
+
+      {needsOnboarding && profile && <OnboardingModal profile={profile} mode="setup" />}
     </div>
   );
 }

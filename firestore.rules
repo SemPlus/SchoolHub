@@ -1,212 +1,418 @@
 rules_version = '2';
 
+// Everything in SchoolHub is public to read (materials, folders, requests and
+// single profiles). Writes are tightly scoped, and every number that feeds a
+// rank (opens, saves, accepted answers, verifications) can only change in
+// ways a single honest user could cause.
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: materials
-    // Document ID: auto-generated
-    // Fields:
-    //   - title: string (required, < 200 chars)
-    //   - description: string (optional, < 2000 chars)
-    //   - type: string (required, enum: 'pdf', 'word', 'canva', 'link', 'drive', 'other')
-    //   - url: string (required, < 1MB)
-    //   - authorId: string (required, immutable)
-    //   - authorName: string (required, < 100 chars)
-    //   - authorPhotoUrl: string (optional, < 1000 chars)
-    //   - tags: list (optional, < 20 items)
-    //   - downloadCount: int (required, >= 0)
-    //   - createdAt: timestamp (required, immutable)
-    //
-    // Collection: users
-    // Document ID: user UID
-    // Fields:
-    //   - uid: string (required, immutable)
-    //   - email: string (required)
-    //   - displayName: string (optional)
-    //   - photoURL: string (optional)
-    //   - role: string (required, enum: 'admin', 'user')
-    //   - createdAt: timestamp (required, immutable)
-    //
-    // ===============================================================
 
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-    
+    // =============================================================== helpers
+
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+
+    function userPath(id) {
+      return /databases/$(database)/documents/users/$(id);
     }
-    
-    function isDocOwner() {
-      return isAuthenticated() && request.auth.uid == resource.data.authorId;
+
+    function materialPath(id) {
+      return /databases/$(database)/documents/materials/$(id);
     }
 
     function isAdmin() {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
         request.auth.token.email_verified == true &&
-        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-          request.auth.token.email == "sem.gk01@gmail.com");
-    }
-    
-    function isValidUrl(url) {
-      return url is string &&
-        (url.matches("^https://.*") || url.matches("^http://.*") || url.matches("^data:.*"));
+        (request.auth.token.email == "sem.gk01@gmail.com" ||
+          (exists(userPath(request.auth.uid)) && get(userPath(request.auth.uid)).data.role == 'admin'));
     }
 
-    // ===============================================================
-    // Domain Validators
-    // ===============================================================
-    
+    function isTeacher() {
+      return isAuthenticated() &&
+        exists(userPath(request.auth.uid)) &&
+        get(userPath(request.auth.uid)).data.role == 'teacher';
+    }
+
+    function isValidUrl(url) {
+      return url is string && url.matches('^(https?|data):.*');
+    }
+
+    function optString(data, key, max) {
+      return !(key in data) || data[key] == null || (data[key] is string && data[key].size() <= max);
+    }
+
+    function optInt(data, key, min, max) {
+      return !(key in data) || data[key] == null || (data[key] is int && data[key] >= min && data[key] <= max);
+    }
+
+    function optTimestamp(data, key) {
+      return !(key in data) || data[key] == null || data[key] is timestamp;
+    }
+
+    function optBool(data, key) {
+      return !(key in data) || data[key] is bool;
+    }
+
+    function optSection(data) {
+      return !('classSection' in data) || data.classSection == null ||
+        (data.classSection is string && data.classSection.matches('^[A-Z]{1,3}$'));
+    }
+
+    // ============================================================ validators
+
     function isValidMaterialData(data) {
-      let allowedFields = ['id', 'title', 'description', 'type', 'url', 'authorId', 'authorName', 'authorPhotoUrl', 'tags', 'downloadCount', 'folderId', 'createdAt', 'updatedAt', 'isDeleted', 'deletedAt', 'schoolId', 'schoolName', 'classId', 'className', 'visibleInArchiveUntil'];
-      let requiredFields = ['title', 'type', 'url', 'authorId', 'authorName', 'downloadCount', 'createdAt'];
-      
-      return data.keys().hasAll(requiredFields) &&
-             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
-             (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 2000)) &&
-             data.type in ['pdf', 'word', 'canva', 'link', 'drive', 'other'] &&
-             isValidUrl(data.url) && data.url.size() <= 1000000 &&
-             data.authorId is string && data.authorId.size() > 0 &&
-             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
-             (!('authorPhotoUrl' in data) || data.authorPhotoUrl == null || (data.authorPhotoUrl is string && data.authorPhotoUrl.size() <= 1000)) &&
-             data.tags is list && data.tags.size() <= 20 &&
-             data.downloadCount is int && data.downloadCount >= 0 &&
-             (!('folderId' in data) || data.folderId == null || (data.folderId is string && data.folderId.size() <= 128)) &&
-             data.createdAt is timestamp &&
-             (!('updatedAt' in data) || data.updatedAt == null || data.updatedAt is timestamp) &&
-             (!('isDeleted' in data) || data.isDeleted is bool) &&
-             (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp) &&
-             (!('schoolId' in data) || data.schoolId == null || (data.schoolId is string && data.schoolId.size() <= 128)) &&
-             (!('schoolName' in data) || data.schoolName == null || (data.schoolName is string && data.schoolName.size() <= 200)) &&
-             (!('classId' in data) || data.classId == null || (data.classId is string && data.classId.size() <= 128)) &&
-             (!('className' in data) || data.className == null || (data.className is string && data.className.size() <= 200)) &&
-             (!('visibleInArchiveUntil' in data) || data.visibleInArchiveUntil == null || data.visibleInArchiveUntil is timestamp);
+      return data.keys().hasAll(['title', 'type', 'url', 'authorId', 'authorName', 'downloadCount', 'createdAt']) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+        optString(data, 'description', 2000) &&
+        data.type in ['pdf', 'word', 'canva', 'link', 'drive', 'other'] &&
+        isValidUrl(data.url) && data.url.size() <= 1000000 &&
+        data.authorId is string && data.authorId.size() > 0 &&
+        data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
+        optString(data, 'authorPhotoUrl', 1000) &&
+        (!('tags' in data) || (data.tags is list && data.tags.size() <= 20)) &&
+        data.downloadCount is int && data.downloadCount >= 0 &&
+        optInt(data, 'saveCount', 0, 100000000) &&
+        optString(data, 'folderId', 128) &&
+        data.createdAt is timestamp &&
+        optTimestamp(data, 'updatedAt') &&
+        optBool(data, 'isDeleted') &&
+        optTimestamp(data, 'deletedAt') &&
+        optString(data, 'schoolId', 16) &&
+        optString(data, 'schoolName', 200) &&
+        optString(data, 'schoolCity', 100) &&
+        optString(data, 'classId', 64) &&
+        optString(data, 'className', 10) &&
+        optInt(data, 'classYear', 1, 5) &&
+        optSection(data) &&
+        optString(data, 'subject', 40) &&
+        optTimestamp(data, 'examDate') &&
+        optString(data, 'verifiedBy', 128) &&
+        optString(data, 'verifiedByName', 100) &&
+        optTimestamp(data, 'verifiedAt') &&
+        (!('linkStatus' in data) || data.linkStatus == null || data.linkStatus in ['ok', 'broken', 'restricted']) &&
+        optTimestamp(data, 'linkCheckedAt') &&
+        optTimestamp(data, 'visibleInArchiveUntil');
     }
 
     function isValidFolderData(data) {
-      let allowedFields = ['id', 'name', 'authorId', 'authorName', 'parentId', 'isPublic', 'createdAt', 'updatedAt', 'isDeleted', 'deletedAt', 'schoolId', 'schoolName', 'classId', 'className'];
-      let requiredFields = ['name', 'authorId', 'authorName', 'isPublic', 'createdAt'];
-      
-      return data.keys().hasAll(requiredFields) &&
-             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
-             data.authorId is string && data.authorId.size() > 0 &&
-             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
-             (!('parentId' in data) || data.parentId == null || (data.parentId is string && data.parentId.size() <= 128)) &&
-             data.isPublic is bool &&
-             data.createdAt is timestamp &&
-             (!('updatedAt' in data) || data.updatedAt == null || data.updatedAt is timestamp) &&
-             (!('isDeleted' in data) || data.isDeleted is bool) &&
-             (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp) &&
-             (!('schoolId' in data) || data.schoolId == null || (data.schoolId is string && data.schoolId.size() <= 128)) &&
-             (!('schoolName' in data) || data.schoolName == null || (data.schoolName is string && data.schoolName.size() <= 200)) &&
-             (!('classId' in data) || data.classId == null || (data.classId is string && data.classId.size() <= 128)) &&
-             (!('className' in data) || data.className == null || (data.className is string && data.className.size() <= 200));
+      return data.keys().hasAll(['name', 'authorId', 'authorName', 'isPublic', 'createdAt']) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.authorId is string && data.authorId.size() > 0 &&
+        data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 100 &&
+        optString(data, 'parentId', 128) &&
+        data.isPublic is bool &&
+        data.createdAt is timestamp &&
+        optTimestamp(data, 'updatedAt') &&
+        optBool(data, 'isDeleted') &&
+        optTimestamp(data, 'deletedAt') &&
+        optString(data, 'schoolId', 16) &&
+        optString(data, 'schoolName', 200) &&
+        optString(data, 'classId', 64) &&
+        optString(data, 'className', 10);
     }
 
     function isValidUserData(data) {
-      let allowedFields = ['uid', 'email', 'displayName', 'photoURL', 'role', 'customColor', 'customBadge', 'unlockedBadges', 'createdAt'];
-      let requiredFields = ['uid', 'email', 'role', 'createdAt'];
-      
-      return data.keys().hasAll(requiredFields) &&
-             data.uid is string && data.uid == request.auth.uid &&
-             data.email is string &&
-             (!('displayName' in data) || data.displayName == null || (data.displayName is string && data.displayName.size() <= 100)) &&
-             (!('photoURL' in data) || data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 1000)) &&
-             (!('customColor' in data) || data.customColor == null || (data.customColor is string && data.customColor.size() <= 20)) &&
-             (!('customBadge' in data) || data.customBadge == null || (data.customBadge is string && data.customBadge.size() <= 20)) &&
-             (!('unlockedBadges' in data) || data.unlockedBadges is list) &&
-             data.role in ['admin', 'user'] &&
-             data.createdAt is timestamp;
+      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+        data.uid is string &&
+        (data.email == null || data.email is string) &&
+        optString(data, 'displayName', 100) &&
+        optString(data, 'photoURL', 1000) &&
+        optString(data, 'customColor', 20) &&
+        optString(data, 'customBadge', 40) &&
+        (!('unlockedBadges' in data) || data.unlockedBadges is list) &&
+        data.role in ['admin', 'teacher', 'user'] &&
+        data.createdAt is timestamp &&
+        optString(data, 'schoolId', 16) &&
+        optString(data, 'schoolName', 200) &&
+        optString(data, 'schoolCity', 100) &&
+        optInt(data, 'schoolGrade', 1, 2) &&
+        optInt(data, 'classYear', 1, 5) &&
+        optSection(data) &&
+        optInt(data, 'profileSchoolYear', 2000, 2100);
     }
 
-    // ===============================================================
-    // Rules
-    // ===============================================================
+    function isValidRequestData(data) {
+      return data.keys().hasAll(['title', 'authorId', 'authorName', 'status', 'createdAt']) &&
+        data.title is string && data.title.size() >= 3 && data.title.size() <= 120 &&
+        optString(data, 'details', 1000) &&
+        optString(data, 'subject', 40) &&
+        data.authorId is string &&
+        data.authorName is string && data.authorName.size() <= 100 &&
+        optString(data, 'schoolId', 16) &&
+        optString(data, 'schoolName', 200) &&
+        optInt(data, 'classYear', 1, 5) &&
+        optSection(data) &&
+        optString(data, 'className', 10) &&
+        data.status in ['open', 'fulfilled', 'closed'] &&
+        data.createdAt is timestamp;
+    }
+
+    // ============================================================= materials
 
     match /materials/{materialId} {
       allow read: if true;
-      
-      allow create: if isAuthenticated() && 
-                      isValidMaterialData(request.resource.data) && 
-                      request.resource.data.authorId == request.auth.uid &&
-                      request.resource.data.downloadCount == 0 &&
-                      request.resource.data.createdAt == request.time;
-      
-      allow update: if (
-        // Case 1: Only incrementing downloadCount (allowed for everyone)
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['downloadCount']) &&
-         request.resource.data.downloadCount == resource.data.downloadCount + 1)
-      ) || (
-        // Case 2: Owner or Admin updating the document (requires authentication)
-        isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin()) && (
-          (isValidMaterialData(request.resource.data) &&
-           request.resource.data.authorId == resource.data.authorId &&
-           request.resource.data.createdAt == resource.data.createdAt) ||
-          // Action: Trash/Restore
+
+      allow create: if isAuthenticated() &&
+        isValidMaterialData(request.resource.data) &&
+        request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.downloadCount == 0 &&
+        request.resource.data.get('saveCount', 0) == 0 &&
+        request.resource.data.get('verifiedBy', null) == null &&
+        request.resource.data.get('linkStatus', null) == null &&
+        request.resource.data.createdAt == request.time;
+
+      function materialChanged() {
+        return request.resource.data.diff(resource.data).affectedKeys();
+      }
+
+      function isAuthorOrAdmin() {
+        return isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
+      }
+
+      // Author edits. Counters cannot be touched; verification can only be
+      // cleared, and must be cleared when the link changes.
+      function isAuthorEdit() {
+        return isAuthorOrAdmin() &&
+          isValidMaterialData(request.resource.data) &&
+          request.resource.data.authorId == resource.data.authorId &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          !materialChanged().hasAny(['downloadCount', 'saveCount', 'linkCheckedAt']) &&
+          (!materialChanged().hasAny(['verifiedBy', 'verifiedByName', 'verifiedAt']) ||
+            request.resource.data.get('verifiedBy', null) == null) &&
+          (!materialChanged().hasAny(['url']) || request.resource.data.get('verifiedBy', null) == null) &&
+          (!materialChanged().hasAny(['linkStatus']) || request.resource.data.linkStatus == null);
+      }
+
+      function isTrashToggle() {
+        return isAuthorOrAdmin() &&
+          materialChanged().hasAny(['isDeleted', 'deletedAt']) &&
+          materialChanged().hasOnly(['isDeleted', 'deletedAt']) &&
+          request.resource.data.isDeleted is bool;
+      }
+
+      function openPath() {
+        let id = request.auth.uid + '_' + materialId;
+        return /databases/$(database)/documents/opens/$(id);
+      }
+
+      // +1 only together with creating this user's first open record.
+      function isOpenCount() {
+        return isAuthenticated() &&
+          request.auth.uid != resource.data.authorId &&
+          materialChanged().hasOnly(['downloadCount']) &&
+          request.resource.data.downloadCount == resource.data.downloadCount + 1 &&
+          !exists(openPath()) &&
+          existsAfter(openPath());
+      }
+
+      function savePath() {
+        let id = request.auth.uid + '_' + materialId;
+        return /databases/$(database)/documents/saves/$(id);
+      }
+
+      // +1 with creating a counted save, -1 with deleting one.
+      function isSaveCount() {
+        let before = resource.data.get('saveCount', 0);
+        let after = request.resource.data.get('saveCount', 0);
+        return isAuthenticated() &&
+          request.auth.uid != resource.data.authorId &&
+          materialChanged().hasOnly(['saveCount']) &&
+          ((after == before + 1 && !exists(savePath()) && existsAfter(savePath()) &&
+              getAfter(savePath()).data.get('counted', false) == true) ||
+           (after == before - 1 && before > 0 && exists(savePath()) && !existsAfter(savePath()) &&
+              get(savePath()).data.get('counted', false) == true));
+      }
+
+      // Teachers verify materials of their own school; admins any material.
+      // Nobody verifies their own upload.
+      function isVerification() {
+        return isAuthenticated() &&
+          request.auth.uid != resource.data.authorId &&
+          materialChanged().hasOnly(['verifiedBy', 'verifiedByName', 'verifiedAt']) &&
+          (isAdmin() ||
+            (isTeacher() && get(userPath(request.auth.uid)).data.get('schoolId', '') == resource.data.get('schoolId', 'none'))) &&
+          ((request.resource.data.verifiedBy == request.auth.uid &&
+              request.resource.data.verifiedByName is string &&
+              request.resource.data.verifiedByName.size() <= 100 &&
+              request.resource.data.verifiedAt == request.time) ||
+           (request.resource.data.verifiedBy == null &&
+              request.resource.data.verifiedByName == null &&
+              request.resource.data.verifiedAt == null));
+      }
+
+      allow update: if isAuthorEdit() || isTrashToggle() || isOpenCount() || isSaveCount() || isVerification();
+
+      allow delete: if isAuthorOrAdmin();
+    }
+
+    // ================================================================= opens
+
+    // One record per user and material: {uid}_{materialId}.
+    match /opens/{openId} {
+      allow get: if isAuthenticated() && openId.matches(request.auth.uid + '_.*');
+      allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasOnly(['userId', 'materialId', 'createdAt']) &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.materialId is string &&
+        openId == request.auth.uid + '_' + request.resource.data.materialId &&
+        request.resource.data.createdAt == request.time &&
+        getAfter(materialPath(request.resource.data.materialId)).data.downloadCount ==
+          get(materialPath(request.resource.data.materialId)).data.downloadCount + 1;
+
+      allow update, delete: if false;
+    }
+
+    // ================================================================= saves
+
+    match /saves/{saveId} {
+      allow get: if isAuthenticated() && (saveId.matches(request.auth.uid + '_.*') || isAdmin());
+      allow list: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasOnly(['userId', 'materialId', 'counted', 'createdAt']) &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.materialId is string &&
+        saveId == request.auth.uid + '_' + request.resource.data.materialId &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.counted ==
+          (get(materialPath(request.resource.data.materialId)).data.authorId != request.auth.uid) &&
+        (request.resource.data.counted == false ||
+          getAfter(materialPath(request.resource.data.materialId)).data.get('saveCount', 0) ==
+            get(materialPath(request.resource.data.materialId)).data.get('saveCount', 0) + 1);
+
+      allow delete: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin()) &&
+        (resource.data.get('counted', false) == false ||
+          !exists(materialPath(resource.data.materialId)) ||
+          getAfter(materialPath(resource.data.materialId)).data.get('saveCount', 0) ==
+            get(materialPath(resource.data.materialId)).data.get('saveCount', 0) - 1);
+    }
+
+    // =============================================================== folders
+
+    match /folders/{folderId} {
+      allow read: if true;
+
+      allow create: if isAuthenticated() &&
+        isValidFolderData(request.resource.data) &&
+        request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.createdAt == request.time;
+
+      allow update: if isAuthenticated() &&
+        (request.auth.uid == resource.data.authorId || isAdmin()) && (
+          (isValidFolderData(request.resource.data) &&
+            request.resource.data.authorId == resource.data.authorId &&
+            request.resource.data.createdAt == resource.data.createdAt) ||
           (request.resource.data.diff(resource.data).affectedKeys().hasAny(['isDeleted', 'deletedAt']) &&
-           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt']) &&
-           request.resource.data.isDeleted is bool)
-        )
-      );
-                    
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt']) &&
+            request.resource.data.isDeleted is bool)
+        );
+
       allow delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
     }
 
-    match /folders/{folderId} {
-      allow read: if resource.data.isPublic == true || (isAuthenticated() && request.auth.uid == resource.data.authorId) || isAdmin();
-      
-      allow create: if isAuthenticated() && 
-                      isValidFolderData(request.resource.data) && 
-                      request.resource.data.authorId == request.auth.uid &&
-                      request.resource.data.createdAt == request.time;
-      
-      allow update: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin()) && (
-        // Action: Generic Update (requires full validation)
-        (isValidFolderData(request.resource.data) &&
-         request.resource.data.authorId == resource.data.authorId &&
-         request.resource.data.createdAt == resource.data.createdAt) ||
-        // Action: Trash/Restore (be more lenient on structure if only toggling deletion)
-        (request.resource.data.diff(resource.data).affectedKeys().hasAny(['isDeleted', 'deletedAt']) &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt']) &&
-         request.resource.data.isDeleted is bool)
-      );
-      
-      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
-    }
+    // ================================================================= users
 
     match /users/{userId} {
       // Single profiles are public (author cards read them). Listing the whole
       // collection would expose every e-mail address, so only admins may list.
       allow get: if true;
       allow list: if isAdmin();
-      
-      allow create: if isAuthenticated() && 
-                      userId == request.auth.uid &&
-                      isValidUserData(request.resource.data) &&
-                      (request.resource.data.role == 'user' || isAdmin());
-                      
-      allow update: if isAuthenticated() && 
-                      userId == request.auth.uid &&
-                      isValidUserData(request.resource.data) &&
-                      (request.resource.data.role == resource.data.role || isAdmin());
-                      
+
+      allow create: if isAuthenticated() &&
+        userId == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid &&
+        isValidUserData(request.resource.data) &&
+        (request.resource.data.role == 'user' || (request.resource.data.role == 'admin' && isAdmin()));
+
+      allow update: if
+        // Own profile: anything valid except the role.
+        (isAuthenticated() &&
+          userId == request.auth.uid &&
+          request.resource.data.uid == request.auth.uid &&
+          isValidUserData(request.resource.data) &&
+          request.resource.data.role == resource.data.role) ||
+        // Admin grants or removes the teacher role, and nothing else.
+        (isAdmin() &&
+          userId != request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) &&
+          request.resource.data.role in ['user', 'teacher'] &&
+          resource.data.role in ['user', 'teacher']);
+
       allow delete: if isAdmin();
     }
 
-    match /saves/{saveId} {
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
-      allow create: if isAuthenticated() && 
-                      request.resource.data.userId == request.auth.uid &&
-                      request.resource.data.materialId is string &&
-                      request.resource.data.createdAt == request.time;
-      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+    // ============================================================== requests
+
+    match /requests/{requestId} {
+      allow read: if true;
+
+      allow create: if isAuthenticated() &&
+        isValidRequestData(request.resource.data) &&
+        request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.status == 'open' &&
+        request.resource.data.createdAt == request.time &&
+        !('acceptedUserId' in request.resource.data);
+
+      function requestChanged() {
+        return request.resource.data.diff(resource.data).affectedKeys();
+      }
+
+      function isRequester() {
+        return isAuthenticated() && request.auth.uid == resource.data.authorId;
+      }
+
+      function answerPath(id) {
+        return /databases/$(database)/documents/requests/$(requestId)/answers/$(id);
+      }
+
+      allow update: if isRequester() && isValidRequestData(request.resource.data) && (
+        // Close or reopen
+        (requestChanged().hasOnly(['status']) &&
+          ((resource.data.status == 'open' && request.resource.data.status == 'closed') ||
+           (resource.data.status == 'closed' && request.resource.data.status == 'open'))) ||
+        // Accept an existing answer from someone else
+        (resource.data.status == 'open' &&
+          request.resource.data.status == 'fulfilled' &&
+          requestChanged().hasOnly(['status', 'acceptedAnswerId', 'acceptedUserId', 'acceptedUserName', 'acceptedMaterialId', 'fulfilledAt']) &&
+          exists(answerPath(request.resource.data.acceptedAnswerId)) &&
+          get(answerPath(request.resource.data.acceptedAnswerId)).data.userId == request.resource.data.acceptedUserId &&
+          get(answerPath(request.resource.data.acceptedAnswerId)).data.materialId == request.resource.data.acceptedMaterialId &&
+          request.resource.data.acceptedUserId != request.auth.uid &&
+          request.resource.data.acceptedUserName is string &&
+          request.resource.data.acceptedUserName.size() <= 100 &&
+          request.resource.data.fulfilledAt == request.time)
+      );
+
+      // A fulfilled request is part of the helper's record, so only an admin
+      // can remove it.
+      allow delete: if (isRequester() && resource.data.status != 'fulfilled') || isAdmin();
+
+      // One answer per user: the document id is the answering user's uid.
+      match /answers/{answerId} {
+        allow read: if true;
+
+        allow create: if isAuthenticated() &&
+          answerId == request.auth.uid &&
+          request.resource.data.keys().hasOnly(['userId', 'userName', 'materialId', 'materialTitle', 'createdAt']) &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.userName is string && request.resource.data.userName.size() <= 100 &&
+          request.resource.data.materialId is string &&
+          request.resource.data.materialTitle is string && request.resource.data.materialTitle.size() <= 200 &&
+          request.resource.data.createdAt == request.time &&
+          get(materialPath(request.resource.data.materialId)).data.authorId == request.auth.uid &&
+          get(/databases/$(database)/documents/requests/$(requestId)).data.status == 'open' &&
+          get(/databases/$(database)/documents/requests/$(requestId)).data.authorId != request.auth.uid;
+
+        allow delete: if isAuthenticated() && (
+          request.auth.uid == resource.data.userId ||
+          request.auth.uid == get(/databases/$(database)/documents/requests/$(requestId)).data.authorId ||
+          isAdmin());
+      }
     }
   }
 }

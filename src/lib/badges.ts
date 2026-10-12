@@ -1,21 +1,24 @@
-import { 
-  Sparkles, 
-  BookOpen, 
-  Award, 
-  Crown, 
-  ShieldCheck, 
-  Star, 
-  Zap,
-  Flame,
-  Globe,
-  Feather
+import {
+  Feather,
+  Bookmark,
+  HeartHandshake,
+  BadgeCheck,
+  Eye,
+  Users,
+  Landmark,
 } from 'lucide-react';
-import { ReactNode } from 'react';
+import type { UserStats } from './stats';
+
+// Badges are computed from protected activity on every render instead of
+// being stored on the user profile, where users could write them themselves.
+
+export type BadgeMetric = keyof UserStats;
 
 export interface Badge {
   id: string;
   name: string;
   description: string;
+  metric: BadgeMetric;
   count: number;
   icon: any;
   color: string;
@@ -26,9 +29,10 @@ export interface Badge {
 
 export const BADGES: Badge[] = [
   {
-    id: 'first_manuscript',
-    name: 'Initiate Scholar',
-    description: 'Shared your first manuscript with the Archive.',
+    id: 'first_upload',
+    name: 'First Contribution',
+    description: 'Shared a first material with the archive.',
+    metric: 'uploads',
     count: 1,
     icon: Feather,
     color: 'text-gray-300',
@@ -37,55 +41,72 @@ export const BADGES: Badge[] = [
     glowClass: 'group-hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]'
   },
   {
-    id: 'contributor_5',
-    name: 'Adept Researcher',
-    description: 'Contributed 5 valuable assets to the collection.',
-    count: 5,
-    icon: BookOpen,
+    id: 'bookmarked',
+    name: 'Bookmarked',
+    description: 'Another student saved one of your materials.',
+    metric: 'savesReceived',
+    count: 1,
+    icon: Bookmark,
     color: 'text-emerald-400',
     bgClass: 'bg-emerald-400/5',
     borderClass: 'border-emerald-400/20',
     glowClass: 'group-hover:shadow-[0_0_15px_rgba(52,211,153,0.2)]'
   },
   {
-    id: 'contributor_10',
-    name: 'Archive Sentinel',
-    description: 'Shared 10 manuscripts, securing the history of the fleet.',
-    count: 10,
-    icon: ShieldCheck,
+    id: 'helping_hand',
+    name: 'Helping Hand',
+    description: 'One of your materials fulfilled a request.',
+    metric: 'answersAccepted',
+    count: 1,
+    icon: HeartHandshake,
     color: 'text-blue-400',
     bgClass: 'bg-blue-400/5',
     borderClass: 'border-blue-400/20',
     glowClass: 'group-hover:shadow-[0_0_15px_rgba(96,165,250,0.2)]'
   },
   {
-    id: 'contributor_25',
-    name: 'Master Scribe',
-    description: 'Recognized for 25 high-quality contributions.',
-    count: 25,
-    icon: Award,
+    id: 'teacher_approved',
+    name: 'Teacher Approved',
+    description: 'A teacher verified one of your materials.',
+    metric: 'verified',
+    count: 1,
+    icon: BadgeCheck,
     color: 'text-purple-400',
     bgClass: 'bg-purple-400/5',
     borderClass: 'border-purple-400/20',
     glowClass: 'group-hover:shadow-[0_0_15px_rgba(192,132,252,0.2)]'
   },
   {
-    id: 'contributor_50',
-    name: 'Celestial Curator',
-    description: '50 manuscripts archived. Your name is etched in light.',
+    id: 'widely_read',
+    name: 'Widely Read',
+    description: 'Your materials were opened by 50 other students.',
+    metric: 'opensReceived',
     count: 50,
-    icon: Crown,
+    icon: Eye,
     color: 'text-orange-400',
     bgClass: 'bg-orange-400/5',
     borderClass: 'border-orange-400/20',
     glowClass: 'group-hover:shadow-[0_0_15px_rgba(251,146,60,0.2)]'
   },
   {
-    id: 'contributor_100',
-    name: 'The Chronos Guardian',
-    description: '100+ contributions. You are the architect of time itself.',
-    count: 100,
-    icon: Sparkles,
+    id: 'go_to_helper',
+    name: 'Go-To Helper',
+    description: 'Fulfilled 10 requests from other students.',
+    metric: 'answersAccepted',
+    count: 10,
+    icon: Users,
+    color: 'text-sky-400',
+    bgClass: 'bg-sky-400/5',
+    borderClass: 'border-sky-400/20',
+    glowClass: 'group-hover:shadow-[0_0_15px_rgba(56,189,248,0.2)]'
+  },
+  {
+    id: 'pillar',
+    name: 'Pillar of the Archive',
+    description: 'Reached 300 impact by helping other students.',
+    metric: 'impact',
+    count: 300,
+    icon: Landmark,
     color: 'text-luxury-gold',
     bgClass: 'bg-luxury-gold/5',
     borderClass: 'border-luxury-gold/20',
@@ -93,6 +114,6 @@ export const BADGES: Badge[] = [
   }
 ];
 
-export function getUnlockedBadges(contributionCount: number): string[] {
-  return BADGES.filter(badge => contributionCount >= badge.count).map(badge => badge.id);
+export function getEarnedBadges(stats: UserStats): Badge[] {
+  return BADGES.filter(badge => (stats[badge.metric] || 0) >= badge.count);
 }

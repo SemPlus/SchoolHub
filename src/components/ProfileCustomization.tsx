@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Palette, Shield, Sparkles, Check, Crown } from 'lucide-react';
+import { Sparkles, Check } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
-import { BADGES } from '../lib/badges';
+import type { Badge } from '../lib/badges';
+import { firebaseErrorMessage } from '../lib/engagement';
 
 interface ProfileCustomizationProps {
   currentUserId: string;
   customColor?: string;
   customBadge?: string;
-  unlockedBadges?: string[];
-  onUpdate: () => void;
+  /** Badges this user has earned. Only these can be shown as a title. */
+  earnedBadges: Badge[];
 }
 
 const PRESET_COLORS = [
@@ -20,13 +20,14 @@ const PRESET_COLORS = [
   { name: 'Emerald', value: '#059669' },
   { name: 'Sapphire', value: '#2563EB' },
   { name: 'Amethyst', value: '#9333EA' },
-  { name: 'RoseGold', value: '#E11D48' },
+  { name: 'Rose', value: '#E11D48' },
 ];
 
-export default function ProfileCustomization({ currentUserId, customColor, customBadge, unlockedBadges = [], onUpdate }: ProfileCustomizationProps) {
+export default function ProfileCustomization({ currentUserId, customColor, customBadge, earnedBadges }: ProfileCustomizationProps) {
   const [selectedColor, setSelectedColor] = useState(customColor || '#D4AF37');
-  const [badgeText, setBadgeText] = useState(customBadge || '');
+  const [title, setTitle] = useState(customBadge || '');
   const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   // The profile may load after this panel mounts. Keep the form in sync with
   // the stored values so saving never overwrites them with the defaults.
@@ -35,107 +36,95 @@ export default function ProfileCustomization({ currentUserId, customColor, custo
   }, [customColor]);
 
   useEffect(() => {
-    setBadgeText(customBadge || '');
+    setTitle(customBadge || '');
   }, [customBadge]);
-
-  const earnedBadges = BADGES.filter(b => unlockedBadges.includes(b.id));
 
   const handleSave = async () => {
     if (!auth.currentUser || auth.currentUser.uid !== currentUserId) return;
-    
+    // Titles come from earned badges only, so nobody can display a rank or
+    // badge they do not have.
+    const validTitle = earnedBadges.some(b => b.name === title) ? title : '';
     setIsSaving(true);
+    setMessage(null);
     try {
-      const userRef = doc(db, 'users', currentUserId);
-      await updateDoc(userRef, {
+      await updateDoc(doc(db, 'users', currentUserId), {
         customColor: selectedColor,
-        customBadge: badgeText.trim(),
+        customBadge: validTitle,
       });
-      onUpdate();
+      setMessage('Saved.');
     } catch (error) {
-      console.error('Failed to update customization:', error);
+      setMessage(firebaseErrorMessage(error, 'Could not save.'));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleBadgeSelect = (name: string) => {
-    setBadgeText(name);
-  };
-
   return (
-    <div className="space-y-8 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
-      <div className="flex items-center gap-3 mb-2">
+    <div className="space-y-6 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
+      <div className="flex items-center gap-3">
         <Sparkles className="w-5 h-5 text-luxury-gold" />
-        <h4 className="text-xl font-serif text-white">Honorary Customization</h4>
+        <h4 className="text-xl font-serif text-white">Customize your profile</h4>
       </div>
 
-      <div className="space-y-4">
-        <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">Aura Signature (Color)</label>
+      <div className="space-y-3">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">Avatar colour</p>
         <div className="flex flex-wrap gap-3">
           {PRESET_COLORS.map((color) => (
             <button
               key={color.value}
               onClick={() => setSelectedColor(color.value)}
               className={cn(
-                "w-8 h-8 rounded-full border-2 transition-all relative group",
+                "w-8 h-8 rounded-full border-2 transition-all relative",
                 selectedColor === color.value ? "border-white scale-110 shadow-[0_0_15px_rgba(255,255,255,0.3)]" : "border-transparent hover:scale-105"
               )}
               style={{ backgroundColor: color.value }}
+              title={color.name}
             >
               {selectedColor === color.value && <Check className="w-4 h-4 text-white absolute inset-0 m-auto" />}
-              <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-luxury-black/90 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20">
-                {color.name}
-              </span>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="space-y-4">
-        <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">Honorary Designation (Badge)</label>
-        
-        {earnedBadges.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {earnedBadges.map((badge) => (
-              <button
-                key={badge.id}
-                onClick={() => handleBadgeSelect(badge.name)}
-                className={cn(
-                  "px-3 py-1.5 rounded-full text-[8px] uppercase tracking-widest font-bold transition-all border flex items-center gap-2",
-                  badgeText === badge.name 
-                    ? "bg-luxury-gold/20 border-luxury-gold text-luxury-gold shadow-[0_0_10px_rgba(212,175,55,0.2)]" 
-                    : "bg-white/5 border-white/10 text-white/40 hover:text-white"
-                )}
-              >
-                <badge.icon className="w-3 h-3" />
-                {badge.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="relative">
-          <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-          <input
-            type="text"
-            value={badgeText}
-            onChange={(e) => setBadgeText(e.target.value.slice(0, 20))}
-            placeholder="e.g. Master Scribe"
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-white/10 outline-none focus:border-luxury-gold/50 transition-all font-light"
-          />
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[8px] text-white/20 tracking-tighter">
-            {badgeText.length}/20
-          </span>
+      <div className="space-y-3">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">Title shown next to your name</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setTitle('')}
+            className={cn(
+              "px-3 py-1.5 rounded-full text-[9px] uppercase tracking-widest font-bold transition-all border",
+              title === '' ? "bg-luxury-gold/20 border-luxury-gold text-luxury-gold" : "bg-white/5 border-white/10 text-white/40 hover:text-white"
+            )}
+          >
+            Your rank
+          </button>
+          {earnedBadges.map((badge) => (
+            <button
+              key={badge.id}
+              onClick={() => setTitle(badge.name)}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-[9px] uppercase tracking-widest font-bold transition-all border flex items-center gap-2",
+                title === badge.name ? "bg-luxury-gold/20 border-luxury-gold text-luxury-gold" : "bg-white/5 border-white/10 text-white/40 hover:text-white"
+              )}
+            >
+              <badge.icon className="w-3 h-3" />
+              {badge.name}
+            </button>
+          ))}
         </div>
+        {earnedBadges.length === 0 && (
+          <p className="text-[10px] text-white/30">Earn badges to unlock more titles.</p>
+        )}
       </div>
 
       <button
         onClick={handleSave}
         disabled={isSaving}
-        className="w-full py-3 bg-white text-luxury-black rounded-full text-xs uppercase tracking-widest font-bold hover:bg-luxury-gold transition-all disabled:opacity-20 active:scale-[0.98]"
+        className="w-full py-3 bg-white text-luxury-black rounded-full text-xs uppercase tracking-widest font-bold hover:bg-luxury-gold transition-all disabled:opacity-20"
       >
-        {isSaving ? 'Sealing Signature...' : 'Apply Customization'}
+        {isSaving ? 'Saving…' : 'Save'}
       </button>
+      {message && <p className="text-xs text-white/50 text-center">{message}</p>}
     </div>
   );
 }

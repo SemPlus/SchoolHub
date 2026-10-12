@@ -1,36 +1,19 @@
 import React from 'react';
-import { X, ExternalLink, Download, FileText, File, Presentation, Link as LinkIcon, Calendar, User, Tag, Trash2, Bookmark, BookmarkCheck, Share2, Home, BookOpen } from 'lucide-react';
+import {
+  X, ExternalLink, Download, FileText, File, Presentation, Link as LinkIcon, Calendar, Tag, Trash2,
+  Bookmark, BookmarkCheck, Share2, BookOpen, BadgeCheck, AlertTriangle, CalendarClock, Eye,
+} from 'lucide-react';
+import { format } from 'date-fns';
 import { Material } from '../types';
-import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { getRank } from '../lib/ranks';
-import { doc, getDoc, deleteDoc, updateDoc, setDoc, query, where, collection, getDocs, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { User as UserType, OperationType } from '../types';
+import { User as UserType } from '../types';
 import { cn } from '../lib/utils';
-
-const handleFirestoreError = (error: any, operationType: OperationType, path: string | null) => {
-  const errInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-};
-
+import { firebaseErrorMessage, recordOpen, setVerified, toggleSave } from '../lib/engagement';
+import { useAppData } from '../context/AppData';
+import { linkStatusLabel } from './MaterialCard';
 import UserAvatar from './UserAvatar';
 
 interface MaterialDetailModalProps {
@@ -38,34 +21,47 @@ interface MaterialDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthorClick?: (id: string, name: string, photoUrl?: string) => void;
-  authorContributionCount?: number;
+  /** Impact score of the author. */
+  authorImpact?: number;
   userRole?: string | null;
+  isSaved?: boolean;
   isDeepLink?: boolean;
 }
 
-export default function MaterialDetailModal({ material, isOpen, onClose, onAuthorClick, authorContributionCount = 0, userRole, isDeepLink }: MaterialDetailModalProps) {
+export default function MaterialDetailModal({ material, isOpen, onClose, onAuthorClick, authorImpact = 0, userRole, isSaved = false }: MaterialDetailModalProps) {
+  const { profile } = useAppData();
   const [authorProfile, setAuthorProfile] = React.useState<UserType | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
-  const [isSaved, setIsSaved] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [isVerifying, setIsVerifying] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-      document.documentElement.style.overflow = 'unset';
-    }
+    const value = isOpen ? 'hidden' : '';
+    document.body.style.overflow = value;
+    document.documentElement.style.overflow = value;
     return () => {
-      document.body.style.overflow = 'unset';
-      document.documentElement.style.overflow = 'unset';
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     };
   }, [isOpen]);
 
+  React.useEffect(() => {
+    // Clear the previous author so their badge and colour are not shown on a
+    // different author's material while the new profile loads.
+    setAuthorProfile(null);
+    if (!isOpen || !material?.authorId) return;
+    let cancelled = false;
+    getDoc(doc(db, 'users', material.authorId))
+      .then(snapshot => {
+        if (!cancelled && snapshot.exists()) setAuthorProfile(snapshot.data() as UserType);
+      })
+      .catch(error => console.error('Error fetching author profile:', error));
+    return () => { cancelled = true; };
+  }, [isOpen, material?.authorId]);
+
   const handleClose = () => {
-    // Clear URL query param if present
+    // Drop a ?material= deep link from the URL.
     const url = new URL(window.location.href);
     if (url.searchParams.has('material')) {
       url.searchParams.delete('material');
@@ -74,122 +70,65 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
     onClose();
   };
 
+  if (!material) return null;
+
+  const uid = auth.currentUser?.uid;
+  const isOwner = uid === material.authorId;
+  const isAdmin = userRole === 'admin';
+  const canDelete = isOwner || isAdmin;
+  // Teachers verify materials from their own school, never their own uploads.
+  const canVerify = !!uid && !isOwner && (isAdmin || (userRole === 'teacher' && !!profile?.schoolId && profile.schoolId === material.schoolId));
+  const rank = getRank(authorImpact);
+  const isExternalLink = material.type === 'link' || material.type === 'canva';
+  const linkWarning = linkStatusLabel(material.linkStatus);
+
   const handleShare = async () => {
-    if (!material) return;
     try {
-      const shareUrl = `https://school-hub-iota.vercel.app/?material=${material.id}`;
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(`https://school-hub-iota.vercel.app/?material=${material.id}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy: ', err);
     }
   };
-  
-  const isOwner = auth.currentUser?.uid === material?.authorId;
-  const isAdmin = userRole === 'admin';
-  const canDelete = isOwner || isAdmin;
-
-  React.useEffect(() => {
-    // Never carry the saved flag over from a previously opened material.
-    setIsSaved(false);
-    if (isOpen && material?.id && auth.currentUser) {
-      const q = query(
-        collection(db, 'saves'),
-        where('userId', '==', auth.currentUser.uid),
-        where('materialId', '==', material.id)
-      );
-      
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        setIsSaved(!snapshot.empty);
-      }, (error) => {
-        console.error("Material save status snapshot error:", error);
-      });
-      
-      return () => unsubscribe();
-    }
-  }, [isOpen, material?.id]);
 
   const handleDelete = async () => {
-    if (!material) return;
-    if (confirm(`Move "${material.title}" to Trash?`)) {
-      setIsDeleting(true);
-      try {
-        await updateDoc(doc(db, 'materials', material.id), {
-          isDeleted: true,
-          deletedAt: serverTimestamp()
-        });
-        // handleClose also drops a ?material= deep-link from the URL.
-        handleClose();
-      } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.UPDATE, `materials/${material.id}`);
-        } catch {
-          alert('Could not move this material to Trash. You may not have permission.');
-        }
-      } finally {
-        setIsDeleting(false);
-      }
+    if (!confirm(`Move "${material.title}" to Trash?`)) return;
+    setIsDeleting(true);
+    try {
+      await updateDoc(doc(db, 'materials', material.id), {
+        isDeleted: true,
+        deletedAt: serverTimestamp()
+      });
+      handleClose();
+    } catch (error) {
+      alert(firebaseErrorMessage(error, 'Could not move this material to Trash.'));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  React.useEffect(() => {
-    // Clear the previous author so their custom badge and colour are not shown
-    // on a different author's material while the new profile loads.
-    setAuthorProfile(null);
-    if (isOpen && material?.authorId) {
-      let cancelled = false;
-      const fetchAuthor = async () => {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', material.authorId));
-          if (!cancelled && userDoc.exists()) {
-            setAuthorProfile(userDoc.data() as UserType);
-          }
-        } catch (error) {
-          console.error('Error fetching author profile:', error);
-        }
-      };
-      fetchAuthor();
-      return () => {
-        cancelled = true;
-      };
-    }
-  }, [isOpen, material?.authorId]);
-
-  const handleSave = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!auth.currentUser || !material) return;
-    
+  const handleSave = async () => {
     setIsSaving(true);
     try {
-      if (isSaved) {
-        const q = query(
-          collection(db, 'saves'),
-          where('userId', '==', auth.currentUser.uid),
-          where('materialId', '==', material.id)
-        );
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          await deleteDoc(doc(db, 'saves', snapshot.docs[0].id));
-        }
-      } else {
-        const saveId = `${auth.currentUser.uid}_${material.id}`;
-        await setDoc(doc(db, 'saves', saveId), {
-          userId: auth.currentUser.uid,
-          materialId: material.id,
-          createdAt: serverTimestamp()
-        });
-      }
+      await toggleSave(material, isSaved);
     } catch (error) {
-       console.error('Failed to toggle save:', error);
+      alert(firebaseErrorMessage(error, 'Could not update your saved materials.'));
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (!material) return null;
-
-  const rank = getRank(authorContributionCount);
+  const handleVerify = async () => {
+    setIsVerifying(true);
+    try {
+      await setVerified(material, !material.verifiedBy);
+    } catch (error) {
+      alert(firebaseErrorMessage(error, 'Could not change the verification.'));
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const getIcon = () => {
     switch (material.type) {
@@ -201,13 +140,22 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
     }
   };
 
-  const isExternalLink = material.type === 'link' || material.type === 'canva';
+  const infoRow = (icon: React.ReactNode, label: string, value: React.ReactNode) => (
+    <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/40 mb-0.5 font-semibold">{label}</p>
+        <div className="text-xs sm:text-sm font-medium text-white truncate max-w-[180px]">{value}</div>
+      </div>
+    </div>
+  );
 
   return (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          {/* Backdrop with touch block */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -216,176 +164,131 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
             className="absolute inset-0 bg-luxury-black/95 backdrop-blur-xl touch-none"
           />
 
-          {/* Modal Container */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 30 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="glass-panel w-full max-w-4xl relative overflow-hidden flex flex-col md:flex-row rounded-[2rem] sm:rounded-[2.5rem] border-white/10 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] z-10 max-h-[85vh] h-full md:h-auto md:max-h-[90vh]"
+            className="glass-panel w-full max-w-4xl relative overflow-hidden flex flex-col md:flex-row rounded-[2rem] sm:rounded-[2.5rem] border-white/10 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] z-10 max-h-[88vh] h-full md:h-auto md:max-h-[90vh]"
           >
-            {/* Background Decorative Glow */}
-            <div className="absolute -top-48 -right-48 w-96 h-96 bg-luxury-gold/5 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute -bottom-48 -left-48 w-96 h-96 bg-white/5 rounded-full blur-[120px] pointer-events-none" />
-
-            {/* Close Button */}
             <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20">
               <button
                 onClick={handleClose}
                 className="text-white/40 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full backdrop-blur-md border border-white/5"
+                title="Close"
               >
                 <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            {/* Left Section: Visual & Quick Info */}
+            {/* Left: quick info */}
             <div className="w-full md:w-1/3 p-4 sm:p-10 shrink-0 flex flex-col items-center bg-white/[0.02] border-b md:border-b-0 md:border-r border-white/5 z-10">
-              <motion.div
-                initial={{ rotate: -10, scale: 0.8, opacity: 0 }}
-                animate={{ rotate: 0, scale: 1, opacity: 1 }}
-                transition={{ delay: 0.2, duration: 0.5 }}
-                className="hidden md:flex w-24 h-24 sm:w-32 sm:h-32 border border-white/10 rounded-[2rem] items-center justify-center bg-white/5 mb-6 sm:mb-8 shadow-2xl"
-              >
+              <div className="hidden md:flex w-32 h-32 border border-white/10 rounded-[2rem] items-center justify-center bg-white/5 mb-8 shadow-2xl">
                 {getIcon()}
-              </motion.div>
+              </div>
 
-              <div className="flex flex-row md:flex-col items-center md:items-start justify-center gap-6 w-full overflow-x-auto pb-1 md:pb-0 scrollbar-none py-1 md:py-0">
-                {(material.schoolName || material.className) && (
-                  <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-luxury-gold/5 flex items-center justify-center border border-luxury-gold/10">
-                      <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-luxury-gold" />
-                    </div>
-                    <div>
-                      <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/40 mb-0.5 font-semibold">Affiliation</p>
-                      <p className="text-xs sm:text-sm font-medium text-white truncate max-w-[150px]">
-                        {[material.schoolName, material.className].filter(Boolean).join(' • ')}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-3 sm:gap-4 group cursor-pointer shrink-0" onClick={() => onAuthorClick?.(material.authorId, material.authorName, material.authorPhotoUrl)}>
+              <div className="flex flex-row md:flex-col items-center md:items-start justify-start gap-6 w-full overflow-x-auto pb-1 md:pb-0 scrollbar-none py-1 md:py-0">
+                <div
+                  className="flex items-center gap-3 sm:gap-4 group cursor-pointer shrink-0"
+                  onClick={() => onAuthorClick?.(material.authorId, material.authorName, material.authorPhotoUrl)}
+                >
                   <UserAvatar
                     name={material.authorName}
                     photoUrl={material.authorPhotoUrl}
-                    contributionCount={authorContributionCount}
+                    contributionCount={authorImpact}
                     size="md"
                     className="group-hover:scale-110 transition-transform"
                     customColor={authorProfile?.customColor}
                   />
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/40 font-semibold">Contributor</p>
+                      <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/40 font-semibold">Shared by</p>
                       <span className={`text-[7px] sm:text-[8px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 font-bold tracking-widest ${rank.color}`}>
                         {authorProfile?.customBadge || rank.label}
                       </span>
                     </div>
-                    <p className="text-xs sm:text-sm font-medium text-white group-hover:text-luxury-gold transition-colors truncate max-w-[100px] sm:max-w-none">{material.authorName}</p>
+                    <p className="text-xs sm:text-sm font-medium text-white group-hover:text-luxury-gold transition-colors truncate max-w-[120px] sm:max-w-none">{material.authorName}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
-                    <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-luxury-gold" />
-                  </div>
-                  <div>
-                    <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/40 mb-0.5 font-semibold">Recorded</p>
-                    <p className="text-xs sm:text-sm font-medium text-white">
-                      {material.createdAt ? new Date(material.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : '---'}
-                    </p>
-                  </div>
-                </div>
+                {(material.schoolName || material.className) && infoRow(
+                  <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-luxury-gold" />,
+                  'School & class',
+                  [material.className, material.schoolName].filter(Boolean).join(' · ')
+                )}
 
-                {!isExternalLink && (
-                  <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
-                      <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-luxury-gold" />
-                    </div>
-                    <div>
-                      <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/40 mb-0.5 font-semibold">Retrieved</p>
-                      <p className="text-xs sm:text-sm font-medium text-white">{material.downloadCount || 0}x</p>
-                    </div>
-                  </div>
+                {material.examDate && infoRow(
+                  <CalendarClock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-300" />,
+                  'Test date',
+                  format(material.examDate, 'EEEE d MMMM')
+                )}
+
+                {infoRow(
+                  <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-luxury-gold" />,
+                  'Added',
+                  format(material.createdAt, 'd MMM yyyy')
+                )}
+
+                {infoRow(
+                  <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-luxury-gold" />,
+                  'Opened / saved by',
+                  `${material.downloadCount || 0} / ${material.saveCount || 0} students`
                 )}
               </div>
             </div>
 
-            {/* Right Section: Split into Scrollable Content and Sticky Action Footer */}
+            {/* Right: details and actions */}
             <div className="flex-grow flex flex-col min-h-0 bg-transparent overflow-hidden">
-              {/* Scrollable details */}
               <div className="flex-grow p-5 sm:p-10 overflow-y-auto min-h-0 scrollbar-none">
-                <div className="mb-2">
-                  <motion.div
-                    initial={{ x: 20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <span className="text-[8px] sm:text-[10px] uppercase tracking-[0.4em] text-luxury-gold font-semibold mb-2 sm:mb-4 block">Archive Entry</span>
-                    <h2 className="text-2xl sm:text-3xl md:text-5xl font-serif text-white mb-4 sm:mb-6 leading-tight break-words">{material.title}</h2>
-                  </motion.div>
+                <span className="text-[8px] sm:text-[10px] uppercase tracking-[0.4em] text-luxury-gold font-semibold mb-2 sm:mb-4 block">
+                  {material.subject || 'Material'}
+                </span>
+                <h2 className="text-2xl sm:text-3xl md:text-5xl font-serif text-white mb-4 sm:mb-6 leading-tight break-words pr-10">{material.title}</h2>
 
-                  {material.tags && material.tags.length > 0 && (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.4 }}
-                      className="flex flex-wrap gap-1.5 sm:gap-2 mb-6 sm:mb-8"
-                    >
-                      {material.tags.map((tag, i) => (
-                        <span key={i} className="flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[8.5px] uppercase tracking-widest text-white/60">
-                          <Tag className="w-2.5 h-2.5 text-luxury-gold/50" />
-                          {tag}
-                        </span>
-                      ))}
-                    </motion.div>
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {material.verifiedBy && (
+                    <span className="flex items-center gap-1.5 px-3 py-1 bg-purple-400/10 border border-purple-400/30 rounded-full text-[9px] uppercase tracking-widest text-purple-300">
+                      <BadgeCheck className="w-3.5 h-3.5" />
+                      Verified by {material.verifiedByName || 'a teacher'}
+                    </span>
                   )}
-
-                  <motion.div 
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.5 }}
-                    className="mb-4"
-                  >
-                    <h4 className="text-[8px] sm:text-[10px] uppercase tracking-[0.2em] text-white/20 mb-3 sm:mb-4 font-bold">Manuscript Description</h4>
-                    <div className="p-4 sm:p-6 bg-white/[0.03] border border-white/5 rounded-2xl italic font-light leading-relaxed sm:leading-loose text-white/70">
-                      <p className="text-sm sm:text-lg">"{material.description || 'No description provided for this entry.'}"</p>
-                    </div>
-                  </motion.div>
+                  {linkWarning && (
+                    <span className="flex items-center gap-1.5 px-3 py-1 bg-amber-400/10 border border-amber-400/30 rounded-full text-[9px] uppercase tracking-widest text-amber-300">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      {linkWarning}
+                    </span>
+                  )}
+                  {material.tags?.map((tag, i) => (
+                    <span key={i} className="flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[9px] uppercase tracking-widest text-white/60">
+                      <Tag className="w-2.5 h-2.5 text-luxury-gold/50" />
+                      {tag}
+                    </span>
+                  ))}
                 </div>
+
+                <h4 className="text-[8px] sm:text-[10px] uppercase tracking-[0.2em] text-white/30 mb-3 font-bold">Description</h4>
+                <div className="p-4 sm:p-6 bg-white/[0.03] border border-white/5 rounded-2xl font-light leading-relaxed text-white/70">
+                  <p className="text-sm sm:text-base whitespace-pre-line">{material.description || 'No description.'}</p>
+                </div>
+
+                {linkWarning && (
+                  <p className="mt-4 text-xs text-amber-300/80">
+                    The weekly link check could not open this link{material.linkStatus === 'restricted' ? ' without signing in' : ''}. It may have been moved or made private.
+                  </p>
+                )}
               </div>
 
-              {/* Sticky footer actions - always visible without scroll */}
-              <motion.div 
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.55 }}
-                className="mt-auto p-4 sm:p-6 border-t border-white/5 bg-luxury-black/95 backdrop-blur-md flex flex-col sm:flex-row gap-4 shrink-0 z-10"
-              >
-                <div className="flex gap-2 justify-between sm:justify-start w-full sm:w-auto">
-                  <button
-                    onClick={handleClose}
-                    className="flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white rounded-full transition-all border border-white/10 backdrop-blur-md group"
-                    title="Return to Library"
-                  >
-                    <Home className="w-4 h-4 text-luxury-gold group-hover:scale-110 transition-transform" />
-                    <span className="text-[9px] uppercase tracking-widest font-bold">Home</span>
-                  </button>
-
+              <div className="mt-auto p-4 sm:p-6 border-t border-white/5 bg-luxury-black/95 backdrop-blur-md flex flex-col sm:flex-row gap-3 shrink-0 z-10">
+                <div className="flex gap-2 w-full sm:w-auto">
                   <button
                     onClick={handleShare}
                     className={cn(
-                      "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-full transition-all border backdrop-blur-md group",
+                      "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 rounded-full transition-all border",
                       copied ? "bg-luxury-gold/20 border-luxury-gold text-luxury-gold" : "bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10"
                     )}
-                    title="Copy Link"
                   >
-                    {copied ? (
-                      <span className="text-[9px] font-bold tracking-widest uppercase">Copied</span>
-                    ) : (
-                      <>
-                        <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                        <span className="text-[9px] uppercase tracking-widest font-bold">Share</span>
-                      </>
-                    )}
+                    <Share2 className="w-4 h-4" />
+                    <span className="text-[9px] uppercase tracking-widest font-bold">{copied ? 'Copied' : 'Share'}</span>
                   </button>
 
                   {auth.currentUser && (
@@ -393,63 +296,57 @@ export default function MaterialDetailModal({ material, isOpen, onClose, onAutho
                       onClick={handleSave}
                       disabled={isSaving}
                       className={cn(
-                        "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-full transition-all border backdrop-blur-md group",
+                        "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 rounded-full transition-all border",
                         isSaved ? "bg-luxury-gold/10 border-luxury-gold/50 text-luxury-gold" : "bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10"
                       )}
-                      title={isSaved ? "Unsave" : "Save"}
                     >
-                      {isSaving ? (
-                        <div className="w-4 h-4 border-2 border-luxury-gold/30 border-t-luxury-gold rounded-full animate-spin" />
-                      ) : isSaved ? (
-                        <>
-                          <BookmarkCheck className="w-4 h-4 text-luxury-gold group-hover:scale-110 transition-transform" />
-                          <span className="text-[9px] uppercase tracking-widest font-bold hidden sm:inline">Saved</span>
-                        </>
-                      ) : (
-                        <>
-                          <Bookmark className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                          <span className="text-[9px] uppercase tracking-widest font-bold hidden sm:inline">Save</span>
-                        </>
-                      )}
+                      {isSaving
+                        ? <div className="w-4 h-4 border-2 border-luxury-gold/30 border-t-luxury-gold rounded-full animate-spin" />
+                        : isSaved ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
+                      <span className="text-[9px] uppercase tracking-widest font-bold">{isSaved ? 'Saved' : 'Save'}</span>
                     </button>
                   )}
-                </div>
 
-                <div className="flex gap-4 flex-grow w-full">
+                  {canVerify && (
+                    <button
+                      onClick={handleVerify}
+                      disabled={isVerifying}
+                      className={cn(
+                        "flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 rounded-full transition-all border disabled:opacity-50",
+                        material.verifiedBy ? "bg-purple-400/15 border-purple-400/40 text-purple-200" : "bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10"
+                      )}
+                      title={material.verifiedBy ? 'Remove verification' : 'Mark as correct'}
+                    >
+                      <BadgeCheck className="w-4 h-4" />
+                      <span className="text-[9px] uppercase tracking-widest font-bold">{material.verifiedBy ? 'Unverify' : 'Verify'}</span>
+                    </button>
+                  )}
+
                   {canDelete && (
                     <button
                       onClick={handleDelete}
                       disabled={isDeleting}
-                      className="flex items-center justify-center gap-2 px-4 py-3 bg-red-400/10 text-red-400 font-medium hover:bg-red-400/20 transition-all rounded-full border border-red-400/20 disabled:opacity-50"
+                      className="flex items-center justify-center gap-2 px-4 py-3 bg-red-400/10 text-red-400 hover:bg-red-400/20 transition-all rounded-full border border-red-400/20 disabled:opacity-50"
+                      title="Move to Trash"
                     >
-                      {isDeleting ? (
-                        <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                      <span className="hidden sm:inline text-[9px] uppercase tracking-widest font-bold font-sans">Expunge</span>
+                      {isDeleting
+                        ? <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                        : <Trash2 className="w-4 h-4" />}
                     </button>
                   )}
-                  <a
-                    href={material.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-grow flex items-center justify-center gap-2 py-3 bg-white text-luxury-black hover:bg-luxury-gold transition-all rounded-full group shadow-lg shadow-white/5"
-                  >
-                    {isExternalLink ? (
-                      <>
-                        <span className="uppercase tracking-[0.2em] text-xs font-bold font-sans">Open Link</span>
-                        <ExternalLink className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-luxury-black" />
-                      </>
-                    ) : (
-                      <>
-                        <span className="uppercase tracking-[0.2em] text-xs font-bold font-sans">Open Entry</span>
-                        <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform text-luxury-black" />
-                      </>
-                    )}
-                  </a>
                 </div>
-              </motion.div>
+
+                <a
+                  href={material.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => recordOpen(material)}
+                  className="flex-grow flex items-center justify-center gap-2 py-3 bg-white text-luxury-black hover:bg-luxury-gold transition-all rounded-full shadow-lg shadow-white/5"
+                >
+                  <span className="uppercase tracking-[0.2em] text-xs font-bold">Open</span>
+                  {isExternalLink ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+                </a>
+              </div>
             </div>
           </motion.div>
         </div>
