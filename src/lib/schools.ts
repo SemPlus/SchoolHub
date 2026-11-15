@@ -94,3 +94,9 @@ export function describeSchool(school: Pick<SchoolOption, 'type' | 'city' | 'pro
   const place = school.province && school.province !== school.city ? `${school.city} (${school.province})` : school.city;
   return [school.type, place].filter(Boolean).join(' · ');
 }
+
+/** Look a school up by its official code, e.g. from a class poster link. */
+export async function findSchoolById(id: string): Promise<SchoolOption | null> {
+  const all = await loadSchools();
+  return all.find(entry => entry.school.id === id.toUpperCase())?.school ?? null;
+}

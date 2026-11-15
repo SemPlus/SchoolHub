@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link as LinkIcon, ChevronDown, Plus } from 'lucide-react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { MaterialType } from '../types';
+import { Material, MaterialType } from '../types';
 import Dropdown from './Dropdown';
 import Modal from './Modal';
 import DriveUploader from './DriveUploader';
 import CollectionPicker from './CollectionPicker';
 import ClassificationFields, { ClassificationValue } from './ClassificationFields';
 import KindLevelFields from './KindLevelFields';
+import TextbookPicker from './TextbookPicker';
 import { useAppData } from '../context/AppData';
 import { classIdFor, classLabelsOf, formatClassName, isTeacherAccount, parseClassLabel, SECTION_PATTERN } from '../lib/schoolYear';
 import { cn } from '../lib/utils';
@@ -21,6 +22,10 @@ interface UploadModalProps {
   defaultCollectionId?: string | null;
   /** Preselect a class label such as "3B" (the class a teacher is viewing). */
   defaultClassLabel?: string | null;
+  /** Uploading an improved version of this material. */
+  improves?: Material | null;
+  /** Preselect a subject. */
+  defaultSubject?: string | null;
 }
 
 export const TYPE_OPTIONS = [
@@ -48,7 +53,7 @@ function useTagSuggestions(): string[] {
 
 const LAST_SUBJECT_KEY = 'schoolhub.lastSubject';
 
-export default function UploadModal({ isOpen, onClose, currentFolderId, defaultCollectionId, defaultClassLabel }: UploadModalProps) {
+export default function UploadModal({ isOpen, onClose, currentFolderId, defaultCollectionId, defaultClassLabel, improves, defaultSubject }: UploadModalProps) {
   const { profile } = useAppData();
   const isTeacher = isTeacherAccount(profile);
   const tagSuggestions = useTagSuggestions();
@@ -60,6 +65,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
   const [materialType, setMaterialType] = useState<MaterialType>('link');
   const [kind, setKind] = useState('');
   const [level, setLevel] = useState('');
+  const [book, setBook] = useState<{ isbn: string; title: string } | null>(null);
   const [classification, setClassification] = useState<ClassificationValue>({ school: null, subject: '' });
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [mode, setMode] = useState<'file' | 'link'>('file');
@@ -76,9 +82,9 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
     let lastSubject = '';
     try { lastSubject = window.localStorage.getItem(LAST_SUBJECT_KEY) || ''; } catch { /* ignore */ }
     const teacherSubjects = profile?.teacherSubjects || [];
-    const subject = isTeacher
+    const subject = defaultSubject || (isTeacher
       ? (teacherSubjects.includes(lastSubject) ? lastSubject : teacherSubjects[0] || '')
-      : '';
+      : '');
     setClassification({
       school: profile?.schoolId
         ? { id: profile.schoolId, name: profile.schoolName || profile.schoolId, city: profile.schoolCity || '', grade: profile.schoolGrade }
@@ -89,6 +95,20 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
     });
     setCollectionId(defaultCollectionId || null);
     setError('');
+    // An improved version starts from the original's subject, class and kind.
+    if (improves) {
+      setClassification({
+        school: improves.schoolId ? { id: improves.schoolId, name: improves.schoolName || improves.schoolId, city: improves.schoolCity || '' } : null,
+        classYear: improves.classYear,
+        classSection: improves.classSection,
+        subject: improves.subject || '',
+      });
+      setKind(improves.kind || '');
+      setLevel(improves.level || '');
+      setTitle(`${improves.title} (improved)`.slice(0, 100));
+      setCollectionId(improves.collectionId || null);
+      setBook(improves.isbn ? { isbn: improves.isbn, title: improves.bookTitle || improves.isbn } : null);
+    }
   }, [isOpen]);
 
   const resetForm = () => {
@@ -99,6 +119,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
     setMaterialType('link');
     setKind('');
     setLevel('');
+    setBook(null);
     setMode('file');
     setShowMore(false);
     setUploaderKey(k => k + 1);
@@ -155,6 +176,9 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
         collectionId: collectionId || null,
         kind: kind || null,
         level: level || null,
+        improvesId: improves?.id || null,
+        isbn: book?.isbn || null,
+        bookTitle: book?.title || null,
         createdAt: serverTimestamp(),
         isDeleted: false,
         schoolId: school?.id || null,
@@ -185,7 +209,8 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Add material"
+      title={improves ? 'Improved version' : 'Add material'}
+      subtitle={improves ? `Of "${improves.title}" by ${improves.authorName}` : undefined}
       size="md"
       level={2}
       footer={
@@ -266,6 +291,16 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
           onChange={setClassification}
           quickClasses={isTeacher ? profile?.teacherClasses || [] : []}
           preferredSubjects={isTeacher ? profile?.teacherSubjects || [] : []}
+        />
+
+
+        <TextbookPicker
+          schoolId={classification.school?.id}
+          classYear={classification.classYear}
+          classSection={classification.classSection}
+          subject={classification.subject}
+          isbn={book?.isbn || ''}
+          onChange={setBook}
         />
 
         {/* 5. Collection */}

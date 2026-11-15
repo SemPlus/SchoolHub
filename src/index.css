@@ -74,3 +74,23 @@
 button, a {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Class poster: print only the poster. */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    position: fixed !important;
+    inset: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}

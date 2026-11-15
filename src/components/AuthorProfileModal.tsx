@@ -21,6 +21,7 @@ import OnboardingModal from './OnboardingModal';
 import Modal from './Modal';
 import PendingTeachers from './PendingTeachers';
 import SubjectBadge from './SubjectBadge';
+import ClassPosterModal from './ClassPosterModal';
 import { isTeacherAccount } from '../lib/schoolYear';
 import UserAvatar from './UserAvatar';
 
@@ -44,6 +45,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
   const [isLoadingFolders, setIsLoadingFolders] = React.useState(true);
   const [isEditingClass, setIsEditingClass] = React.useState(false);
   const [roleBusy, setRoleBusy] = React.useState(false);
+  const [isPosterOpen, setIsPosterOpen] = React.useState(false);
 
   const stats = getStats(authorId);
   const rank = getRank(stats.impact);
@@ -191,6 +193,14 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                             className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[9px] uppercase tracking-widest text-white/60 hover:text-white"
                           >
                             {authorIsTeacher ? 'Change school, classes or subjects' : 'Change school or class'}
+                          </button>
+                        )}
+                        {isCurrentUser && myProfile?.schoolId && !authorIsTeacher && className && (
+                          <button
+                            onClick={() => setIsPosterOpen(true)}
+                            className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[9px] uppercase tracking-widest text-white/60 hover:text-white"
+                          >
+                            Poster for {className}
                           </button>
                         )}
                         {isAdmin && !isCurrentUser && authorProfile && authorProfile.role !== 'admin' && (
@@ -365,6 +375,16 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                 </div>
               </div>
       </Modal>
+
+      {isPosterOpen && myProfile?.schoolId && className && (
+        <ClassPosterModal
+          isOpen
+          onClose={() => setIsPosterOpen(false)}
+          schoolId={myProfile.schoolId}
+          schoolName={myProfile.schoolName || myProfile.schoolId}
+          classLabel={className}
+        />
+      )}
 
       {isEditingClass && myProfile && (
         <OnboardingModal profile={myProfile} mode="edit" onClose={() => setIsEditingClass(false)} />

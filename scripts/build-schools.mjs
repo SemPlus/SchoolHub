@@ -74,7 +74,8 @@ function typeLabel(type) {
   return titleCase(type.replace(/^IST PROF /, 'ISTITUTO PROFESSIONALE ').replace(/^IST TEC(NICO)? /, 'ISTITUTO TECNICO '));
 }
 
-const files = process.argv.slice(2);
+const includeMiddle = process.argv.includes('--include-middle');
+const files = process.argv.slice(2).filter(a => !a.startsWith('--'));
 if (files.length === 0) {
   console.error('Pass the registry CSV files as arguments.');
   process.exit(1);
@@ -99,7 +100,9 @@ for (const file of files) {
   for (const r of rows) {
     if (r.length <= cType) continue;
     const grade = gradeOf(r[cType]);
-    if (grade === 0) continue;
+    // SchoolHub is for upper-secondary students. Pass --include-middle to also
+    // keep lower-secondary schools.
+    if (grade === 0 || (grade === 1 && !includeMiddle)) continue;
     const code = r[cCode].trim().toUpperCase();
     if (!/^[A-Z0-9]{10}$/.test(code) || schools.has(code)) continue;
     if (!schoolYear && cYear >= 0) schoolYear = r[cYear];

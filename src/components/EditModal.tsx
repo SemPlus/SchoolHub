@@ -8,6 +8,7 @@ import Modal from './Modal';
 import CollectionPicker from './CollectionPicker';
 import ClassificationFields, { ClassificationValue } from './ClassificationFields';
 import KindLevelFields from './KindLevelFields';
+import TextbookPicker from './TextbookPicker';
 import { TYPE_OPTIONS } from './UploadModal';
 import { useAppData } from '../context/AppData';
 import { classIdFor, formatClassName, isTeacherAccount, SECTION_PATTERN } from '../lib/schoolYear';
@@ -29,6 +30,7 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
   const [materialType, setMaterialType] = useState<MaterialType>('link');
   const [kind, setKind] = useState('');
   const [level, setLevel] = useState('');
+  const [book, setBook] = useState<{ isbn: string; title: string } | null>(null);
   const [classification, setClassification] = useState<ClassificationValue>({ school: null, subject: '' });
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -43,6 +45,7 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
     setMaterialType(material.type || 'link');
     setKind(material.kind || '');
     setLevel(material.level || '');
+    setBook(material.isbn ? { isbn: material.isbn, title: material.bookTitle || material.isbn } : null);
     setClassification({
       school: material.schoolId
         ? { id: material.schoolId, name: material.schoolName || material.schoolId, city: material.schoolCity || '' }
@@ -95,6 +98,8 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
         collectionId: collectionId || null,
         kind: kind || null,
         level: level || null,
+        isbn: book?.isbn || null,
+        bookTitle: book?.title || null,
         // A new link has not been checked, and a teacher's verification no
         // longer applies to it.
         ...(urlChanged ? { linkStatus: null, verifiedBy: null, verifiedByName: null, verifiedAt: null } : {}),
@@ -154,6 +159,16 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
           onChange={setClassification}
           quickClasses={isTeacher ? profile?.teacherClasses || [] : []}
           preferredSubjects={isTeacher ? profile?.teacherSubjects || [] : []}
+        />
+
+
+        <TextbookPicker
+          schoolId={classification.school?.id}
+          classYear={classification.classYear}
+          classSection={classification.classSection}
+          subject={classification.subject}
+          isbn={book?.isbn || ''}
+          onChange={setBook}
         />
 
         <CollectionPicker

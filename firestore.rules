@@ -106,7 +106,10 @@ service cloud.firestore {
         optTimestamp(data, 'visibleInArchiveUntil') &&
         optString(data, 'collectionId', 128) &&
         optString(data, 'kind', 30) &&
-        optString(data, 'level', 20);
+        optString(data, 'level', 20) &&
+        optString(data, 'improvesId', 128) &&
+        (!('isbn' in data) || data.isbn == null || (data.isbn is string && data.isbn.matches('^97[89][0-9]{10}$'))) &&
+        optString(data, 'bookTitle', 200);
     }
 
     function isValidFolderData(data) {
@@ -166,7 +169,10 @@ service cloud.firestore {
         optTimestamp(data, 'updatedAt') &&
         optBool(data, 'isDeleted') &&
         optBool(data, 'isHandIn') &&
-        optTimestamp(data, 'dueAt');
+        optTimestamp(data, 'dueAt') &&
+        optString(data, 'winnerMaterialId', 128) &&
+        optString(data, 'winnerAuthorId', 128) &&
+        optString(data, 'winnerAuthorName', 100);
     }
 
     // Hand-in deadlines are a teacher feature.
@@ -410,9 +416,41 @@ service cloud.firestore {
         isValidCollectionData(request.resource.data) &&
         request.resource.data.createdBy == resource.data.createdBy &&
         request.resource.data.createdAt == resource.data.createdAt &&
-        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dueAt']) || canSetDeadline(request.resource.data));
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dueAt']) || canSetDeadline(request.resource.data)) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['winnerMaterialId', 'winnerAuthorId', 'winnerAuthorName']) ||
+          request.resource.data.get('winnerMaterialId', null) == null ||
+          (get(materialPath(request.resource.data.winnerMaterialId)).data.get('collectionId', '') == collectionId &&
+           get(materialPath(request.resource.data.winnerMaterialId)).data.authorId == request.resource.data.winnerAuthorId));
 
       allow delete: if isAuthenticated() && (request.auth.uid == resource.data.createdBy || isAdmin());
+
+      // Best-work vote: one per person (id = their uid), for a work in this
+      // collection that is not their own, while no winner is announced.
+      match /votes/{userId} {
+        allow read: if true;
+
+        function isValidVote() {
+          let work = get(materialPath(request.resource.data.materialId)).data;
+          return request.resource.data.materialId is string &&
+            work.get('collectionId', '') == collectionId &&
+            work.authorId != request.auth.uid &&
+            get(collectionPath(collectionId)).data.get('winnerMaterialId', null) == null;
+        }
+
+        allow create: if isAuthenticated() &&
+          userId == request.auth.uid &&
+          request.resource.data.keys().hasOnly(['userId', 'materialId', 'createdAt']) &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.createdAt == request.time &&
+          isValidVote();
+
+        allow update: if isAuthenticated() &&
+          userId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['materialId']) &&
+          isValidVote();
+
+        allow delete: if isAuthenticated() && (userId == request.auth.uid || isAdmin());
+      }
     }
 
     // ================================================================= users
@@ -444,6 +482,15 @@ service cloud.firestore {
           resource.data.role in ['user', 'teacher']);
 
       allow delete: if isAdmin();
+
+      // Materials this user marked as studied. Private to the user.
+      match /studied/{materialId} {
+        allow read, delete: if isAuthenticated() && request.auth.uid == userId;
+        allow create, update: if isAuthenticated() &&
+          request.auth.uid == userId &&
+          request.resource.data.keys().hasOnly(['createdAt']) &&
+          request.resource.data.createdAt == request.time;
+      }
     }
 
     // ============================================================== requests

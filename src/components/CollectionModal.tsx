@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, ExternalLink, Info, Layers, Plus, Pencil, Trash2, Users, CalendarClock, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Info, Layers, Plus, Pencil, Trash2, Users, CalendarClock, Clock, Trophy } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { format, formatDistanceToNow } from 'date-fns';
 import { db, auth } from '../firebase';
@@ -13,6 +13,7 @@ import { cn } from '../lib/utils';
 import Modal from './Modal';
 import SubjectBadge from './SubjectBadge';
 import WorkFeedback from './WorkFeedback';
+import { announceWinner, castVote, leadingWork, useCollectionVotes, withdrawVote } from '../lib/useCollectionVotes';
 
 interface CollectionModalProps {
   collection: Collection | null;
@@ -32,6 +33,8 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
   const [busy, setBusy] = useState(false);
 
   const works = useMemo(() => (collection ? worksIn(collection.id, materials) : []), [collection, materials]);
+  const { counts, myVote } = useCollectionVotes(isOpen && collection ? collection.id : null);
+  const [voteBusy, setVoteBusy] = useState(false);
 
   useEffect(() => {
     setIndex(0);
@@ -63,6 +66,35 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
   const isPastDue = !!dueAt && dueAt.getTime() < Date.now();
   const lateCount = works.filter(w => isLate(w, collection)).length;
   const iHandedIn = !!user && works.some(w => w.authorId === user.uid);
+  const winner = collection.winnerMaterialId ? works.find(w => w.id === collection.winnerMaterialId) : undefined;
+  const votingOpen = !collection.winnerMaterialId && works.length >= 2;
+  const leader = leadingWork(works, counts);
+  const totalVotes = [...counts.values()].reduce((a, b) => a + b, 0);
+
+  const vote = async (work: Material) => {
+    setVoteBusy(true);
+    try {
+      if (myVote === work.id) await withdrawVote(collection.id);
+      else await castVote(collection.id, work, !!myVote);
+    } catch (error) {
+      alert(firebaseErrorMessage(error, 'Could not save your vote.'));
+    } finally {
+      setVoteBusy(false);
+    }
+  };
+
+  const announce = async () => {
+    if (!leader) return;
+    if (!confirm(`Announce "${leader.title}" by ${leader.authorName} as the best work? Voting closes.`)) return;
+    setVoteBusy(true);
+    try {
+      await announceWinner(collection, leader);
+    } catch (error) {
+      alert(firebaseErrorMessage(error, 'Could not announce the best work.'));
+    } finally {
+      setVoteBusy(false);
+    }
+  };
 
   const rename = async () => {
     const title = prompt('Rename collection', collection.title)?.trim();
@@ -143,6 +175,36 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
         </div>
       )}
 
+      {(winner || (canManage && votingOpen)) && (
+        <div className="px-5 sm:px-6 pt-4">
+          {winner ? (
+            <button
+              onClick={() => setIndex(works.indexOf(winner))}
+              className="w-full flex items-center gap-3 p-3 rounded-2xl border border-amber-300/30 bg-amber-300/5 text-left"
+            >
+              <Trophy className="w-5 h-5 text-amber-300 shrink-0" />
+              <span className="text-sm text-white min-w-0 truncate">
+                Best work: <span className="font-semibold">{winner.title}</span> <span className="text-white/50">by {winner.authorName}</span>
+              </span>
+            </button>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3 p-3 rounded-2xl border border-white/10 bg-white/[0.03]">
+              <Trophy className="w-5 h-5 text-amber-300 shrink-0" />
+              <span className="text-sm text-white/70 flex-1 min-w-[10rem]">
+                {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'} so far{leader ? ` · leading: ${leader.title}` : ''}
+              </span>
+              <button
+                onClick={announce}
+                disabled={voteBusy || !leader}
+                className="px-4 py-2 rounded-full bg-amber-300/20 text-amber-100 text-[10px] uppercase tracking-widest font-bold disabled:opacity-30"
+              >
+                Announce best work
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {works.length === 0 ? (
         <div className="px-6 py-16 text-center space-y-3">
           <Users className="w-12 h-12 text-white/10 mx-auto" />
@@ -167,6 +229,11 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   <p className="text-[9px] uppercase tracking-widest text-white/40 mb-1">{i + 1} / {works.length}</p>
                   <p className="text-sm text-white line-clamp-2">{work.title}</p>
                   <p className="text-[10px] text-white/40 truncate mt-1">{work.authorName}</p>
+                  {(work.id === collection.winnerMaterialId || (counts.get(work.id) || 0) > 0) && (
+                    <span className="inline-flex items-center gap-1 mt-1 mr-2 text-[9px] uppercase tracking-widest text-amber-300">
+                      <Trophy className="w-3 h-3" /> {work.id === collection.winnerMaterialId ? 'Best' : counts.get(work.id)}
+                    </span>
+                  )}
                   {isLate(work, collection) && (
                     <span className="inline-flex items-center gap-1 mt-1 text-[9px] uppercase tracking-widest text-red-300"><Clock className="w-3 h-3" /> Late</span>
                   )}
@@ -244,6 +311,20 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
+
+              {votingOpen && user && user.uid !== current.authorId && (
+                <button
+                  onClick={() => vote(current)}
+                  disabled={voteBusy}
+                  className={cn(
+                    'w-full flex items-center justify-center gap-2 py-3 rounded-full border text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-40',
+                    myVote === current.id ? 'border-amber-300 bg-amber-300/15 text-amber-200' : 'border-white/10 bg-white/5 text-white/70 hover:text-white'
+                  )}
+                >
+                  <Trophy className="w-4 h-4" />
+                  {myVote === current.id ? 'Your vote for best work (tap to remove)' : myVote ? 'Move my vote here' : 'Vote as best work'}
+                </button>
+              )}
 
               <WorkFeedback work={current} />
             </div>

@@ -1,4 +1,4 @@
-import type { Material, MaterialRequest } from '../types';
+import type { Collection, Material, MaterialRequest } from '../types';
 
 /**
  * Impact rewards help, not volume. Every input is protected by the security
@@ -10,6 +10,7 @@ export const IMPACT_POINTS = {
   save: 2,
   acceptedAnswer: 5,
   verified: 10,
+  bestWork: 15,
 } as const;
 
 export interface UserStats {
@@ -18,6 +19,8 @@ export interface UserStats {
   savesReceived: number;
   answersAccepted: number;
   verified: number;
+  /** Works voted best in a collection. */
+  bestWorks: number;
   impact: number;
 }
 
@@ -27,10 +30,11 @@ export const EMPTY_STATS: UserStats = {
   savesReceived: 0,
   answersAccepted: 0,
   verified: 0,
+  bestWorks: 0,
   impact: 0,
 };
 
-export function computeStats(materials: Material[], requests: MaterialRequest[]): Record<string, UserStats> {
+export function computeStats(materials: Material[], requests: MaterialRequest[], collections: Collection[] = []): Record<string, UserStats> {
   const stats: Record<string, UserStats> = {};
   const get = (uid: string) => (stats[uid] ??= { ...EMPTY_STATS });
 
@@ -49,12 +53,17 @@ export function computeStats(materials: Material[], requests: MaterialRequest[])
     }
   }
 
+  for (const c of collections) {
+    if (c.winnerAuthorId && c.winnerAuthorId !== c.createdBy) get(c.winnerAuthorId).bestWorks += 1;
+  }
+
   for (const s of Object.values(stats)) {
     s.impact =
       s.opensReceived * IMPACT_POINTS.open +
       s.savesReceived * IMPACT_POINTS.save +
       s.answersAccepted * IMPACT_POINTS.acceptedAnswer +
-      s.verified * IMPACT_POINTS.verified;
+      s.verified * IMPACT_POINTS.verified +
+      s.bestWorks * IMPACT_POINTS.bestWork;
   }
 
   return stats;

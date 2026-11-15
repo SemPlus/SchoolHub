@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -16,8 +16,10 @@ const config = {
 const app = initializeApp(config);
 
 // Use initializeFirestore with experimentalForceLongPolling to improve connectivity
+// The local cache keeps the archive and saved materials readable offline.
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 }, firebaseConfig.firestoreDatabaseId);
 
 import { doc, getDocFromCache, getDocFromServer } from 'firebase/firestore';

@@ -16,7 +16,10 @@ import SchoolPicker, { PickedSchool } from './SchoolPicker';
 import CollectionCard from './CollectionCard';
 import CollectionModal from './CollectionModal';
 import CreateCollectionModal from './CreateCollectionModal';
-import { Search, Filter, FolderPlus, ChevronRight, Home, ArrowLeft, BookOpen, Plus, Trash2, Move, Edit, Info, RotateCcw, X, SlidersHorizontal, Shapes, ArrowUpWideNarrow, Layers } from 'lucide-react';
+import StudyProgress from './StudyProgress';
+import { FinalExamPanel, HandInReminders, TeacherClassOverview } from './ArchivePanels';
+import ClassPosterModal from './ClassPosterModal';
+import { Search, Filter, FolderPlus, ChevronRight, Home, ArrowLeft, BookOpen, Plus, Trash2, Move, Edit, Info, RotateCcw, X, SlidersHorizontal, Shapes, ArrowUpWideNarrow, Layers, BookMarked } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { mapFolderDoc, mapMaterialDoc } from '../lib/mappers';
@@ -25,6 +28,7 @@ import { classLabelsOf, formatClassName, formatSchoolYear, isTeacherAccount, par
 import { subjectsInUse, subjectStyle } from '../lib/subjects';
 import { relevanceTier, worksIn } from '../lib/collections';
 import { kindsInUse } from '../lib/materialKinds';
+import { booksForClass, bookLabel, Textbook } from '../lib/textbooks';
 import { firebaseErrorMessage } from '../lib/engagement';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -86,12 +90,19 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   const [yearFilter, setYearFilter] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('');
   const [kindFilter, setKindFilter] = useState('');
+  // A textbook (ISBN) chosen from "Your textbooks": shows materials for that
+  // book from every school.
+  const [bookFilter, setBookFilter] = useState<string | null>(null);
+  const [myBooks, setMyBooks] = useState<Textbook[]>([]);
   // Teachers: put the subjects they teach first.
   const [subjectsFirst, setSubjectsFirst] = useState(true);
   // Collection window, and the collection to preselect when adding a work.
   const [openCollectionId, setOpenCollectionId] = useState<string | null>(null);
   const [uploadCollectionId, setUploadCollectionId] = useState<string | null>(null);
   const [isCreateCollectionOpen, setIsCreateCollectionOpen] = useState(false);
+  const [improveTarget, setImproveTarget] = useState<Material | null>(null);
+  const [uploadSubject, setUploadSubject] = useState<string | null>(null);
+  const [posterClass, setPosterClass] = useState<string | null>(null);
 
   // Multi-selection
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<Set<string>>(new Set());
@@ -259,9 +270,12 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       // Archive: inside a folder, only that folder's materials.
       if (currentFolderId !== null) return m.folderId === currentFolderId;
 
+      // A chosen textbook shows its materials from every school.
+      if (bookFilter) return m.isbn === bookFilter;
+
       return inScope(m);
     });
-  }, [allMaterials, currentView, currentFolderId, userSaves, uid, effectiveScope, profile?.schoolId, profile?.classYear, profile?.classSection, currentSchoolYear]);
+  }, [allMaterials, currentView, currentFolderId, userSaves, uid, effectiveScope, bookFilter, profile?.schoolId, profile?.classYear, profile?.classSection, currentSchoolYear]);
 
   /** Subjects that exist in this view, most recently used first. */
   const subjectsHere = useMemo(() => subjectsInUse(materials), [materials]);
@@ -278,6 +292,27 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   }, [subjectsHere, subjectFilter]);
 
   const liveCollectionIds = useMemo(() => new Set(collections.map(c => c.id)), [collections]);
+
+  // Books of the class being viewed (a teacher's chosen class, else the student's own).
+  const bookClassLabel = teacherViewClass || (hasClass ? formatClassName(profile?.classYear, profile?.classSection) : '');
+  useEffect(() => {
+    if (!profile?.schoolId || !bookClassLabel) {
+      setMyBooks([]);
+      return;
+    }
+    let cancelled = false;
+    booksForClass(profile.schoolId, bookClassLabel)
+      .then(list => { if (!cancelled) setMyBooks(list); })
+      .catch(() => { if (!cancelled) setMyBooks([]); });
+    return () => { cancelled = true; };
+  }, [profile?.schoolId, bookClassLabel]);
+
+  /** The class's books that already have materials somewhere in Italy. */
+  const myBooksWithMaterials = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const m of allMaterials) if (m.isbn && !m.isDeleted) counts.set(m.isbn, (counts.get(m.isbn) || 0) + 1);
+    return myBooks.filter(b => counts.has(b.isbn)).map(b => ({ book: b, count: counts.get(b.isbn)! }));
+  }, [myBooks, allMaterials]);
 
   /** "For you": my class first, then my grade and school; teachers' subjects first. */
   const forYouRank = (m: { schoolId?: string | null; classYear?: number | null; classSection?: string | null; subject?: string | null }) => {
@@ -318,7 +353,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       if (!matchesSearch) return false;
       // In the archive, works that belong to a collection are shown inside
       // its window instead of one by one (unless searching).
-      if (currentView === 'archive' && currentFolderId === null && !term && m.collectionId && liveCollectionIds.has(m.collectionId)) return false;
+      if (currentView === 'archive' && currentFolderId === null && !term && !bookFilter && m.collectionId && liveCollectionIds.has(m.collectionId)) return false;
       if (filterType !== 'all' && m.type !== filterType) return false;
       if (kindFilter && m.kind !== kindFilter) return false;
       if (schoolFilter && m.schoolId !== schoolFilter.id) return false;
@@ -342,7 +377,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       }
       return b.createdAt.getTime() - a.createdAt.getTime();
     });
-  }, [materials, searchTerm, filterType, kindFilter, sortBy, schoolFilter, yearFilter, subjectFilter, liveCollectionIds, currentView, currentFolderId, subjectsFirst, teacherViewClass, myClassLabels, profile]);
+  }, [materials, searchTerm, filterType, kindFilter, bookFilter, sortBy, schoolFilter, yearFilter, subjectFilter, liveCollectionIds, currentView, currentFolderId, subjectsFirst, teacherViewClass, myClassLabels, profile]);
 
   // Collections shown at the top of the archive, my class first.
   const visibleCollections = useMemo(() => {
@@ -751,8 +786,50 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
   const isEmpty = sortedFolders.length === 0 && sortedMaterials.length === 0 && visibleCollections.length === 0;
 
+  const finalExamClass = isTeacher
+    ? (teacherViewClass?.startsWith('5') ? teacherViewClass : null)
+    : (hasClass && profile?.classYear === 5 ? myClassName : null);
+  const archiveRoot = currentView === 'archive' && currentFolderId === null;
+
   return (
     <div className="space-y-8 sm:space-y-10">
+      {archiveRoot && (
+        <HandInReminders profile={profile} uid={uid} collections={collections} materials={allMaterials} onOpen={setOpenCollectionId} />
+      )}
+      {archiveRoot && isTeacher && teacherViewClass && (
+        <TeacherClassOverview
+          profile={profile}
+          classLabel={teacherViewClass}
+          uid={uid}
+          collections={collections}
+          materials={allMaterials}
+          onOpenCollection={setOpenCollectionId}
+          onFilterSubject={(s) => {
+            setUploadSubject(s);
+            setIsUploadModalOpen(true);
+          }}
+          onPoster={() => setPosterClass(teacherViewClass)}
+        />
+      )}
+      {archiveRoot && finalExamClass && (
+        <FinalExamPanel
+          profile={profile}
+          classLabel={finalExamClass}
+          materials={allMaterials}
+          onShowYear={() => {
+            setScope('school');
+            setYearFilter('5');
+            setShowFilters(true);
+          }}
+          onFilterSubject={(s) => {
+            setScope('school');
+            setYearFilter('5');
+            setSubjectFilter(s);
+          }}
+        />
+      )}
+      {currentView === 'personal' && currentFolderId === null && <StudyProgress />}
+
       {/* Toolbar */}
       <div className="flex flex-col gap-4 bg-white/[0.02] p-4 sm:p-6 md:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border border-white/5 backdrop-blur-xl relative z-40">
         {currentView === 'archive' && currentFolderId === null && usableScopeChips.length > 1 && (
@@ -881,12 +958,42 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                   >
                     <FolderPlus className="w-5 h-5" />
                   </button>
+                  <button
+                    onClick={() => onViewChange?.('trash')}
+                    className="p-3 bg-white/5 text-white/60 hover:text-red-300 hover:bg-white/10 rounded-2xl transition-all border border-white/5"
+                    title="Trash"
+                    aria-label="Trash"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
                 </div>
               )}
 
             </div>
           </div>
         </div>
+
+        {currentView === 'archive' && currentFolderId === null && myBooksWithMaterials.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1">
+            <span className="shrink-0 flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/40 pr-1">
+              <BookMarked className="w-3.5 h-3.5" /> {bookClassLabel}'s books
+            </span>
+            {myBooksWithMaterials.map(({ book, count }) => (
+              <button
+                key={book.isbn}
+                onClick={() => setBookFilter(bookFilter === book.isbn ? null : book.isbn)}
+                className={cn(
+                  'shrink-0 max-w-[16rem] px-3 py-1.5 rounded-full border text-[11px] transition-all flex items-center gap-1.5',
+                  bookFilter === book.isbn ? 'border-luxury-gold bg-luxury-gold/15 text-white' : 'border-white/10 text-white/60 hover:text-white'
+                )}
+                title={`${book.discipline} · ${book.publisher}`}
+              >
+                <span className="truncate">{bookLabel(book)}</span>
+                <span className="text-white/40 shrink-0">{count}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2 sm:gap-4">
           <Dropdown options={subjectOptions} value={subjectFilter} onChange={setSubjectFilter} icon={<Shapes className="w-4 h-4 text-white/40 shrink-0" />} label="Subject" className="col-span-2 sm:col-span-1" />
@@ -1156,6 +1263,12 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
           handleAuthorClick(id, name, photoUrl);
         }}
         onEditClick={handleEditClick}
+        onImprove={(m) => {
+          setIsDetailModalOpen(false);
+          setImproveTarget(m);
+          setIsUploadModalOpen(true);
+        }}
+        onOpenMaterial={handleCardClick}
         onCollectionClick={(collectionId) => {
           setIsDetailModalOpen(false);
           setOpenCollectionId(collectionId);
@@ -1163,6 +1276,16 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         level={openCollectionId || selectedProfile ? 2 : 1}
         userRole={userRole}
       />
+
+      {profile?.schoolId && posterClass && (
+        <ClassPosterModal
+          isOpen
+          onClose={() => setPosterClass(null)}
+          schoolId={profile.schoolId}
+          schoolName={profile.schoolName || profile.schoolId}
+          classLabel={posterClass}
+        />
+      )}
 
       <CreateCollectionModal
         isOpen={isCreateCollectionOpen}
@@ -1198,7 +1321,11 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         onClose={() => {
           setIsUploadModalOpen(false);
           setUploadCollectionId(null);
+          setImproveTarget(null);
+          setUploadSubject(null);
         }}
+        defaultSubject={uploadSubject}
+        improves={improveTarget}
         currentFolderId={currentView === 'personal' ? currentFolderId : null}
         defaultCollectionId={uploadCollectionId}
         defaultClassLabel={teacherViewClass}

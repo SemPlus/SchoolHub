@@ -19,15 +19,19 @@ import {
 import { firebaseErrorMessage } from '../lib/engagement';
 import { SUBJECTS, subjectStyle, withAlpha } from '../lib/subjects';
 import { cn } from '../lib/utils';
+import { clearJoinInvite, JoinInvite } from '../lib/join';
+import { findSchoolById } from '../lib/schools';
 
 interface OnboardingModalProps {
   profile: User;
   /** 'setup' cannot be dismissed; 'edit' is opened from the profile. */
   mode: 'setup' | 'edit';
   onClose?: () => void;
+  /** From a class poster: prefill the school and class. */
+  invite?: JoinInvite | null;
 }
 
-export default function OnboardingModal({ profile, mode, onClose }: OnboardingModalProps) {
+export default function OnboardingModal({ profile, mode, onClose, invite }: OnboardingModalProps) {
   const isNewSchoolYear = mode === 'setup' && !!profile.schoolId && (profile.profileSchoolYear ?? 0) < schoolYearStart();
 
   const [accountType, setAccountType] = useState<AccountType | null>(
@@ -49,6 +53,21 @@ export default function OnboardingModal({ profile, mode, onClose }: OnboardingMo
   const [error, setError] = useState<string | null>(null);
 
   const maxYear = maxClassYear(school?.grade);
+
+  // A poster invitation fills in the school and class for a new student.
+  useEffect(() => {
+    if (!invite || mode !== 'setup' || profile.schoolId) return;
+    const parsed = parseClassLabel(invite.classLabel);
+    findSchoolById(invite.schoolId).then(found => {
+      if (!found) return;
+      setSchool({ id: found.id, name: found.name, city: found.city, grade: found.grade, type: found.type, province: found.province });
+      setAccountType(current => current ?? 'student');
+      if (parsed) {
+        setClassYear(parsed.classYear);
+        setClassSection(parsed.classSection);
+      }
+    }).catch(() => undefined);
+  }, [invite?.schoolId, invite?.classLabel]);
 
   useEffect(() => {
     // A middle school only has years 1 to 3.
@@ -92,6 +111,7 @@ export default function OnboardingModal({ profile, mode, onClose }: OnboardingMo
         teacherSubjects: isTeacher ? teacherSubjects : [],
         profileSchoolYear: schoolYearStart(),
       });
+      clearJoinInvite();
       onClose?.();
     } catch (err) {
       setError(firebaseErrorMessage(err, 'Could not save your profile.'));

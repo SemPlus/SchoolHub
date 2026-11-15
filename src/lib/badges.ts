@@ -6,6 +6,7 @@ import {
   Eye,
   Users,
   Landmark,
+  Trophy,
 } from 'lucide-react';
 import type { UserStats } from './stats';
 
@@ -99,6 +100,18 @@ export const BADGES: Badge[] = [
     bgClass: 'bg-sky-400/5',
     borderClass: 'border-sky-400/20',
     glowClass: 'group-hover:shadow-[0_0_15px_rgba(56,189,248,0.2)]'
+  },
+  {
+    id: 'best_work',
+    name: 'Best of the Class',
+    description: 'Your work was voted the best in a collection.',
+    metric: 'bestWorks',
+    count: 1,
+    icon: Trophy,
+    color: 'text-amber-300',
+    bgClass: 'bg-amber-300/5',
+    borderClass: 'border-amber-300/20',
+    glowClass: 'group-hover:shadow-[0_0_15px_rgba(252,211,77,0.25)]'
   },
   {
     id: 'pillar',

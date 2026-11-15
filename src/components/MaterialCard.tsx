@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   FileText, File, Link as LinkIcon, ExternalLink, Download, Trash2, Presentation, Share2, Edit2, Move,
-  Bookmark, BookmarkCheck, ArrowLeft, BookOpen, BadgeCheck, AlertTriangle, Eye, History, Layers,
+  Bookmark, BookmarkCheck, ArrowLeft, BookOpen, BadgeCheck, AlertTriangle, Eye, History, Layers, CircleCheck, Circle, BookMarked,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Material } from '../types';
@@ -15,6 +15,7 @@ import UserAvatar from './UserAvatar';
 import SubjectBadge from './SubjectBadge';
 import { subjectStyle, visibleTags, withAlpha } from '../lib/subjects';
 import { kindById, levelById } from '../lib/materialKinds';
+import { useAppData } from '../context/AppData';
 
 interface MaterialCardProps {
   key?: React.Key;
@@ -62,6 +63,8 @@ export default function MaterialCard({
   const isAdmin = userRole === 'admin';
   const canEdit = isOwner || isAdmin;
   const isAuthenticated = !!auth.currentUser;
+  const { studied, toggleStudied } = useAppData();
+  const isStudied = studied.has(material.id);
   const rank = getRank(authorImpact);
   const isExternalLink = material.type === 'link' || material.type === 'canva';
   const linkWarning = linkStatusLabel(material.linkStatus);
@@ -316,6 +319,16 @@ export default function MaterialCard({
             {level.label}
           </span>
         )}
+        {material.bookTitle && (
+          <span className="flex items-center gap-1 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-white/60 font-medium max-w-full" title={material.isbn || undefined}>
+            <BookMarked className="w-3 h-3 shrink-0" /> <span className="truncate">{material.bookTitle}</span>
+          </span>
+        )}
+        {material.improvesId && (
+          <span className="flex items-center gap-1 bg-emerald-400/10 border border-emerald-400/30 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-emerald-300 font-medium">
+            Improved version
+          </span>
+        )}
         {material.collectionId && (
           <span className="flex items-center gap-1 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-white/60 font-medium">
             <Layers className="w-3 h-3" /> In a collection
@@ -386,6 +399,19 @@ export default function MaterialCard({
           </div>
         </div>
 
+        {!isInTrash && isAuthenticated && (
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleStudied(material.id).catch(err => alert(firebaseErrorMessage(err, 'Could not update.'))); }}
+            className={cn(
+              'shrink-0 p-2 rounded-full border transition-all',
+              isStudied ? 'border-emerald-400/50 bg-emerald-400/15 text-emerald-300' : 'border-white/10 text-white/35 hover:text-white'
+            )}
+            title={isStudied ? 'Studied (tap to undo)' : 'Mark as studied'}
+            aria-label={isStudied ? 'Studied' : 'Mark as studied'}
+          >
+            {isStudied ? <CircleCheck className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+          </button>
+        )}
         {!isInTrash && (
           <a
             href={material.url}

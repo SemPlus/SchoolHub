@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import type { Collection, Material, MaterialRequest, User } from '../types';
 import { mapCollectionDoc, mapMaterialDoc, mapRequestDoc } from '../lib/mappers';
@@ -23,6 +23,9 @@ interface AppDataValue {
   requests: MaterialRequest[];
   /** Shared themes and projects, excluding deleted ones. */
   collections: Collection[];
+  /** Materials the signed-in user marked as studied (private). */
+  studied: Set<string>;
+  toggleStudied: (materialId: string) => Promise<void>;
   statsByUser: Record<string, UserStats>;
   getStats: (uid: string | undefined | null) => UserStats;
 }
@@ -39,6 +42,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [materialsError, setMaterialsError] = useState<string | null>(null);
   const [requests, setRequests] = useState<MaterialRequest[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [studied, setStudied] = useState<Set<string>>(new Set());
 
   // Auth state and the signed-in user's profile.
   useEffect(() => {
@@ -114,6 +118,18 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  // Private study checklist: users/{uid}/studied/{materialId}.
+  useEffect(() => {
+    if (!user) {
+      setStudied(new Set());
+      return;
+    }
+    const unsubscribe = onSnapshot(collection(db, 'users', user.uid, 'studied'), (snapshot) => {
+      setStudied(new Set(snapshot.docs.map(d => d.id)));
+    }, (error) => console.error('Studied snapshot error:', error));
+    return () => unsubscribe();
+  }, [user?.uid]);
+
   // Collections are public; the archive groups works by them.
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'collections'), (snapshot) => {
@@ -126,7 +142,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const statsByUser = useMemo(() => computeStats(materials, requests), [materials, requests]);
+  const statsByUser = useMemo(() => computeStats(materials, requests, collections), [materials, requests, collections]);
 
   const value = useMemo<AppDataValue>(() => ({
     user,
@@ -139,9 +155,16 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     materialsError,
     requests,
     collections,
+    studied,
+    toggleStudied: async (materialId: string) => {
+      if (!user) return;
+      const ref = doc(db, 'users', user.uid, 'studied', materialId);
+      if (studied.has(materialId)) await deleteDoc(ref);
+      else await setDoc(ref, { createdAt: serverTimestamp() });
+    },
     statsByUser,
     getStats: (uid) => (uid && statsByUser[uid]) || EMPTY_STATS,
-  }), [user, isAuthReady, profile, isProfileLoaded, materials, isMaterialsLoading, materialsError, requests, collections, statsByUser]);
+  }), [user, isAuthReady, profile, isProfileLoaded, materials, isMaterialsLoading, materialsError, requests, collections, studied, statsByUser]);
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }

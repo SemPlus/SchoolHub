@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { signInWithGoogle, logOut } from './firebase';
-import { BookOpen, LogOut, LogIn, Library, User as UserIcon, Trash2, HandHelping } from 'lucide-react';
+import { BookOpen, LogOut, LogIn, Library, User as UserIcon, HandHelping, Trophy, LayoutDashboard } from 'lucide-react';
 import MaterialList from './components/MaterialList';
 import RequestBoard from './components/RequestBoard';
+import LeagueBoard from './components/LeagueBoard';
+import FounderDashboard from './components/FounderDashboard';
+import InstallButton from './components/InstallButton';
 import CursorGlow from './components/CursorGlow';
 import UserAvatar from './components/UserAvatar';
 import OnboardingModal from './components/OnboardingModal';
@@ -10,21 +13,33 @@ import AuthorProfileModal from './components/AuthorProfileModal';
 import { motion, useScroll, useTransform } from 'motion/react';
 import { useAppData } from './context/AppData';
 import { isProfileComplete } from './lib/schoolYear';
+import { readJoinInvite } from './lib/join';
+import { findSchoolById } from './lib/schools';
 import { cn } from './lib/utils';
 
-type Tab = 'archive' | 'requests' | 'personal' | 'trash';
+type Tab = 'archive' | 'requests' | 'league' | 'personal' | 'trash' | 'dashboard';
 
 const TITLES: Record<Tab, string> = {
   archive: 'The Archive',
   requests: 'Requests',
+  league: 'The League',
   personal: 'My Space',
   trash: 'Trash',
+  dashboard: 'Dashboard',
 };
 
 export default function App() {
   const { user, isAuthReady, profile, isProfileLoaded, userRole, getStats } = useAppData();
   const [activeTab, setActiveTab] = useState<Tab>('archive');
   const [isOwnProfileOpen, setIsOwnProfileOpen] = useState(false);
+  // Class poster invitation (?join=SCHOOL-3B), kept for this session.
+  const [invite] = useState(() => readJoinInvite());
+  const [inviteSchoolName, setInviteSchoolName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!invite) return;
+    findSchoolById(invite.schoolId).then(s => setInviteSchoolName(s?.name ?? null)).catch(() => undefined);
+  }, [invite?.schoolId]);
 
   const { scrollY } = useScroll();
   const titleOpacity = useTransform(scrollY, [0, 200], [1, 0]);
@@ -39,9 +54,10 @@ export default function App() {
 
   useEffect(() => {
     // My Space and Trash are only reachable while signed in.
-    if (isAuthReady && !user && (activeTab === 'personal' || activeTab === 'trash')) setActiveTab('archive');
+    if (isAuthReady && !user && (activeTab === 'personal' || activeTab === 'trash' || activeTab === 'dashboard')) setActiveTab('archive');
+    if (isAuthReady && user && activeTab === 'dashboard' && userRole !== 'admin') setActiveTab('archive');
     if (!user) setIsOwnProfileOpen(false);
-  }, [user, isAuthReady, activeTab]);
+  }, [user, isAuthReady, activeTab, userRole]);
 
   if (!isAuthReady) {
     return (
@@ -51,18 +67,21 @@ export default function App() {
     );
   }
 
-  const tabs: { id: Tab; label: string; icon: React.ReactNode; signedInOnly: boolean }[] = [
+  // Trash lives inside My Space (a button in its toolbar) to keep the tab bar short.
+  const tabs: { id: Tab; label: string; icon: React.ReactNode; signedInOnly: boolean; adminOnly?: boolean }[] = [
     { id: 'archive', label: 'Archive', icon: <Library className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: false },
     { id: 'requests', label: 'Requests', icon: <HandHelping className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: false },
+    { id: 'league', label: 'League', icon: <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: false },
     { id: 'personal', label: 'My Space', icon: <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: true },
-    { id: 'trash', label: 'Trash', icon: <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: true },
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: true, adminOnly: true },
   ];
-  const visibleTabs = tabs.filter(t => !t.signedInOnly || user);
+  const visibleTabs = tabs.filter(t => (!t.signedInOnly || user) && (!t.adminOnly || userRole === 'admin'));
+  const isTabActive = (id: Tab) => activeTab === id || (id === 'personal' && activeTab === 'trash');
 
   const tabClass = (id: Tab) => cn(
     'flex items-center justify-center gap-1.5 sm:gap-2 rounded-full transition-all uppercase font-medium',
-    activeTab === id
-      ? id === 'trash' ? 'bg-red-400 text-luxury-black shadow-lg shadow-red-400/20' : 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20'
+    isTabActive(id)
+      ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20'
       : 'text-white/40 hover:text-white'
   );
 
@@ -98,6 +117,7 @@ export default function App() {
                 ))}
               </div>
 
+              <InstallButton />
               {user ? (
                 <div className="flex items-center gap-4">
                   <button onClick={() => setIsOwnProfileOpen(true)} title="Your profile">
@@ -168,6 +188,18 @@ export default function App() {
           </motion.div>
         </div>
 
+        {invite && !user && (
+          <div className="relative z-20 mb-6 p-4 sm:p-5 rounded-2xl border border-luxury-gold/40 bg-luxury-gold/10 flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="flex-1 text-sm text-white">
+              You're invited to join <span className="font-semibold">{invite.classLabel}</span>
+              {inviteSchoolName ? <> at <span className="font-semibold">{inviteSchoolName}</span></> : null} on SchoolHub.
+            </p>
+            <button onClick={signInWithGoogle} className="px-5 py-3 rounded-full bg-white text-luxury-black text-xs font-bold uppercase tracking-widest">
+              Sign in to join
+            </button>
+          </div>
+        )}
+
         {/* Phone tab bar */}
         <div className="md:hidden flex justify-center mb-6 relative z-20">
           <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/10 w-full max-w-md">
@@ -183,6 +215,10 @@ export default function App() {
         <div className="relative z-10 bg-luxury-black pt-0 shadow-[0_-50px_100px_rgba(0,0,0,0.9)]">
           {activeTab === 'requests' ? (
             <RequestBoard />
+          ) : activeTab === 'league' ? (
+            <LeagueBoard />
+          ) : activeTab === 'dashboard' ? (
+            <FounderDashboard />
           ) : (
             <MaterialList userRole={userRole} view={activeTab} onViewChange={(v) => setActiveTab(v)} />
           )}
@@ -200,7 +236,7 @@ export default function App() {
         />
       )}
 
-      {needsOnboarding && profile && <OnboardingModal profile={profile} mode="setup" />}
+      {needsOnboarding && profile && <OnboardingModal profile={profile} mode="setup" invite={invite} />}
     </div>
   );
 }

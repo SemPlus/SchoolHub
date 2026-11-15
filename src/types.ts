@@ -57,6 +57,11 @@ export interface Material {
   kind?: string | null;
   /** revision | extra | catch-up */
   level?: string | null;
+  /** The material this one improves (a corrected or extended version). */
+  improvesId?: string | null;
+  /** Textbook this material goes with (ISBN-13) and its title. */
+  isbn?: string | null;
+  bookTitle?: string | null;
 }
 
 /**
@@ -82,6 +87,18 @@ export interface Collection {
   /** Hand-in mode: a teacher's collection with a deadline. */
   isHandIn?: boolean;
   dueAt?: Date | null;
+  /** "Best work" chosen by the class vote, announced by the creator. */
+  winnerMaterialId?: string | null;
+  winnerAuthorId?: string | null;
+  winnerAuthorName?: string | null;
+}
+
+/** One person's vote for the best work in a collection (id = their uid). */
+export interface CollectionVote {
+  id: string;
+  userId: string;
+  materialId: string;
+  createdAt: Date;
 }
 
 /** One person's stars and comment on a work. The document id is their uid. */
