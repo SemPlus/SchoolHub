@@ -18,6 +18,10 @@ import { useAppData } from '../context/AppData';
 import AchievementBadges from './AchievementBadges';
 import ProfileCustomization from './ProfileCustomization';
 import OnboardingModal from './OnboardingModal';
+import Modal from './Modal';
+import PendingTeachers from './PendingTeachers';
+import SubjectBadge from './SubjectBadge';
+import { isTeacherAccount } from '../lib/schoolYear';
 import UserAvatar from './UserAvatar';
 
 interface AuthorProfileModalProps {
@@ -108,7 +112,9 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
   const toggleTeacher = async () => {
     if (!authorProfile) return;
     const next = authorProfile.role === 'teacher' ? 'user' : 'teacher';
-    if (!confirm(next === 'teacher' ? `Make ${authorName} a teacher? Teachers can verify materials from their school.` : `Remove the teacher role from ${authorName}?`)) return;
+    if (!confirm(next === 'teacher'
+      ? `Confirm ${authorName} as a teacher? Confirmed teachers can verify materials from their school.`
+      : `Remove the teacher confirmation from ${authorName}?`)) return;
     setRoleBusy(true);
     try {
       await updateDoc(doc(db, 'users', authorId), { role: next });
@@ -127,27 +133,15 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
     { icon: <BadgeCheck className="w-3.5 h-3.5" />, label: 'Verified', value: stats.verified, points: IMPACT_POINTS.verified },
   ];
 
+  const authorIsTeacher = isTeacherAccount(authorProfile);
+  const teacherConfirmed = authorProfile?.role === 'teacher';
+
   return (
     <>
-      <AnimatePresence>
-        {isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-luxury-black/95 backdrop-blur-2xl p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="glass-panel rounded-[2rem] sm:rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] border-white/20 relative"
-            >
-              <div className="overflow-y-auto custom-scrollbar">
+      <Modal isOpen={isOpen} onClose={onClose} size="xl" bare>
+              <div>
                 {/* Header */}
                 <div className="relative p-6 sm:p-10 border-b border-white/10 bg-white/[0.02]">
-                  <button
-                    onClick={onClose}
-                    className="absolute top-4 right-4 sm:top-8 sm:right-8 text-white/30 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full z-20"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
 
                   <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-8">
                     <UserAvatar
@@ -163,9 +157,14 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                         <span className={`text-[9px] px-2 py-0.5 rounded border border-white/10 bg-white/5 font-bold tracking-widest ${rank.color}`}>
                           {authorProfile?.customBadge || rank.label} · {rank.grade}
                         </span>
-                        {authorProfile?.role === 'teacher' && (
-                          <span className="flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border border-purple-400/30 bg-purple-400/10 text-purple-300 font-bold tracking-widest uppercase">
-                            <GraduationCap className="w-3 h-3" /> Teacher
+                        {authorIsTeacher && (
+                          <span
+                            className={teacherConfirmed
+                              ? 'flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border border-purple-400/30 bg-purple-400/10 text-purple-300 font-bold tracking-widest uppercase'
+                              : 'flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border border-white/10 bg-white/5 text-white/50 font-bold tracking-widest uppercase'}
+                            title={teacherConfirmed ? 'Confirmed by the SchoolHub team' : 'Not confirmed yet'}
+                          >
+                            <GraduationCap className="w-3 h-3" /> {teacherConfirmed ? 'Teacher' : 'Teacher · unconfirmed'}
                           </span>
                         )}
                         <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">{stats.impact} impact · {stats.uploads} materials</span>
@@ -173,17 +172,25 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                       {authorProfile?.schoolName && (
                         <p className="text-xs text-white/50 flex items-center justify-center md:justify-start gap-1.5">
                           <School className="w-3.5 h-3.5 text-luxury-gold" />
-                          {className ? `${className} · ` : ''}{authorProfile.schoolName}
+                          {!authorIsTeacher && className ? `${className} · ` : ''}{authorProfile.schoolName}
                           {authorProfile.schoolCity ? `, ${authorProfile.schoolCity}` : ''}
                         </p>
                       )}
+                      {authorIsTeacher && (authorProfile?.teacherClasses?.length || authorProfile?.teacherSubjects?.length) ? (
+                        <div className="flex flex-wrap justify-center md:justify-start gap-1.5 pt-1">
+                          {(authorProfile?.teacherClasses || []).map(l => (
+                            <span key={l} className="px-2 py-0.5 rounded-full text-[9px] uppercase tracking-widest bg-luxury-gold/10 border border-luxury-gold/20 text-luxury-gold">{l}</span>
+                          ))}
+                          {(authorProfile?.teacherSubjects || []).map(s => <SubjectBadge key={s} subject={s} />)}
+                        </div>
+                      ) : null}
                       <div className="flex flex-wrap gap-2 justify-center md:justify-start pt-1">
                         {isCurrentUser && myProfile && (
                           <button
                             onClick={() => setIsEditingClass(true)}
                             className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[9px] uppercase tracking-widest text-white/60 hover:text-white"
                           >
-                            Change school or class
+                            {authorIsTeacher ? 'Change school, classes or subjects' : 'Change school or class'}
                           </button>
                         )}
                         {isAdmin && !isCurrentUser && authorProfile && authorProfile.role !== 'admin' && (
@@ -192,12 +199,14 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                             disabled={roleBusy}
                             className="px-3 py-1.5 rounded-full bg-purple-400/10 border border-purple-400/30 text-[9px] uppercase tracking-widest text-purple-200 hover:bg-purple-400/20 disabled:opacity-40"
                           >
-                            {authorProfile.role === 'teacher' ? 'Remove teacher role' : 'Make teacher'}
+                            {teacherConfirmed ? 'Remove teacher confirmation' : authorIsTeacher ? 'Confirm teacher' : 'Make teacher'}
                           </button>
                         )}
                       </div>
                     </div>
                   </div>
+
+                  {isAdmin && isCurrentUser && <PendingTeachers />}
 
                   {/* Impact breakdown */}
                   <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -355,10 +364,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                   )}
                 </div>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      </Modal>
 
       {isEditingClass && myProfile && (
         <OnboardingModal profile={myProfile} mode="edit" onClose={() => setIsEditingClass(false)} />

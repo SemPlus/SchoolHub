@@ -12,22 +12,27 @@ import MoveModal from './MoveModal';
 import UploadModal from './UploadModal';
 import Dropdown from './Dropdown';
 import ContextMenu from './ContextMenu';
-import ExamRadar from './ExamRadar';
 import SchoolPicker, { PickedSchool } from './SchoolPicker';
-import { Search, Filter, FolderPlus, ChevronRight, Home, ArrowLeft, BookOpen, Plus, Trash2, Move, Edit, Info, RotateCcw, X, SlidersHorizontal } from 'lucide-react';
+import CollectionCard from './CollectionCard';
+import CollectionModal from './CollectionModal';
+import { Search, Filter, FolderPlus, ChevronRight, Home, ArrowLeft, BookOpen, Plus, Trash2, Move, Edit, Info, RotateCcw, X, SlidersHorizontal, Shapes, ArrowUpWideNarrow } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { mapFolderDoc, mapMaterialDoc } from '../lib/mappers';
 import { useAppData } from '../context/AppData';
-import { formatClassName, formatSchoolYear, schoolYearStart } from '../lib/schoolYear';
-import { SUBJECTS } from '../lib/subjects';
+import { classLabelsOf, formatClassName, formatSchoolYear, isTeacherAccount, parseClassLabel, schoolYearStart } from '../lib/schoolYear';
+import { subjectsInUse, subjectStyle } from '../lib/subjects';
+import { relevanceTier, worksIn } from '../lib/collections';
 import { firebaseErrorMessage } from '../lib/engagement';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 type View = 'archive' | 'personal' | 'trash';
-/** How far the archive reaches, relative to the signed-in student's class. */
-type Scope = 'all' | 'school' | 'grade' | 'class';
+/**
+ * How far the archive reaches. Students: their class, grade or school.
+ * Teachers: one of their classes ("class:3B"), their school or everything.
+ */
+type Scope = 'all' | 'school' | 'grade' | 'class' | `class:${string}`;
 
 const SCOPE_STORAGE_KEY = 'schoolhub.archiveScope';
 
@@ -35,6 +40,7 @@ function readStoredScope(): Scope {
   try {
     const value = window.localStorage.getItem(SCOPE_STORAGE_KEY);
     if (value === 'all' || value === 'school' || value === 'grade' || value === 'class') return value;
+    if (value && /^class:[1-5][A-Z]{1,3}$/.test(value)) return value as Scope;
   } catch {
     // Storage can be unavailable (private mode); fall back to the default.
   }
@@ -57,7 +63,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   const [folderPath, setFolderPath] = useState<Folder[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [sortBy, setSortBy] = useState('newest');
+  const [sortBy, setSortBy] = useState('foryou');
   const [scope, setScope] = useState<Scope>(readStoredScope);
   const [selectedProfile, setSelectedProfile] = useState<{ id: string, name: string, photoUrl?: string } | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
@@ -77,6 +83,11 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   const [schoolFilter, setSchoolFilter] = useState<PickedSchool | null>(null);
   const [yearFilter, setYearFilter] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('');
+  // Teachers: put the subjects they teach first.
+  const [subjectsFirst, setSubjectsFirst] = useState(true);
+  // Collection window, and the collection to preselect when adding a work.
+  const [openCollectionId, setOpenCollectionId] = useState<string | null>(null);
+  const [uploadCollectionId, setUploadCollectionId] = useState<string | null>(null);
 
   // Multi-selection
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<Set<string>>(new Set());
@@ -84,7 +95,12 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   const [lastSelectedIndex, setLastSelectedIndex] = useState<{ index: number, type: 'material' | 'folder' } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, target: any, type: 'material' | 'folder' | 'background' } | null>(null);
 
-  const hasClass = !!profile?.schoolId && !!profile?.classYear && !!profile?.classSection;
+  const { collections } = useAppData();
+  const isTeacher = isTeacherAccount(profile);
+  const myClassLabels = useMemo(() => classLabelsOf(profile), [profile]);
+  const teacherSubjects = profile?.teacherSubjects || [];
+  // A student with a class (teachers use per-class scopes instead).
+  const hasClass = !isTeacher && !!profile?.schoolId && !!profile?.classYear && !!profile?.classSection;
   const currentSchoolYear = schoolYearStart();
 
   useEffect(() => {
@@ -94,8 +110,35 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   // A scope that needs a profile falls back to everything without one.
   const effectiveScope: Scope =
     (scope === 'class' || scope === 'grade') && !hasClass ? 'all'
+    : scope.startsWith('class:') && !(isTeacher && myClassLabels.includes(scope.slice(6))) ? 'all'
     : scope === 'school' && !profile?.schoolId ? 'all'
     : scope;
+  /** The class a teacher is looking at, e.g. "3B". */
+  const teacherViewClass = effectiveScope.startsWith('class:') ? effectiveScope.slice(6) : null;
+
+  /** Scope test shared by materials and collections. */
+  const inScope = (item: { schoolId?: string | null; classYear?: number | null; classSection?: string | null; createdAt: Date }) => {
+    switch (effectiveScope) {
+      case 'all':
+        return true;
+      case 'school':
+        return item.schoolId === profile!.schoolId;
+      case 'class':
+        return item.schoolId === profile!.schoolId &&
+          item.classYear === profile!.classYear &&
+          item.classSection === profile!.classSection &&
+          schoolYearStart(item.createdAt) === currentSchoolYear;
+      case 'grade':
+        // Same grade at the same school, this year and inherited from earlier years.
+        return item.schoolId === profile!.schoolId && item.classYear === profile!.classYear;
+      default: {
+        // A teacher's class, across school years so earlier work can be reused.
+        const parsed = parseClassLabel(effectiveScope.slice(6));
+        return !!parsed && item.schoolId === profile!.schoolId &&
+          item.classYear === parsed.classYear && item.classSection === parsed.classSection;
+      }
+    }
+  };
 
   // ---------------------------------------------------------------- data
 
@@ -212,22 +255,29 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       // Archive: inside a folder, only that folder's materials.
       if (currentFolderId !== null) return m.folderId === currentFolderId;
 
-      switch (effectiveScope) {
-        case 'class':
-          return m.schoolId === profile!.schoolId &&
-            m.classYear === profile!.classYear &&
-            m.classSection === profile!.classSection &&
-            schoolYearStart(m.createdAt) === currentSchoolYear;
-        case 'grade':
-          // Same grade at the same school, this year and inherited from earlier years.
-          return m.schoolId === profile!.schoolId && m.classYear === profile!.classYear;
-        case 'school':
-          return m.schoolId === profile!.schoolId;
-        default:
-          return true;
-      }
+      return inScope(m);
     });
   }, [allMaterials, currentView, currentFolderId, userSaves, uid, effectiveScope, profile?.schoolId, profile?.classYear, profile?.classSection, currentSchoolYear]);
+
+  /** Subjects that exist in this view, most recently used first. */
+  const subjectsHere = useMemo(() => subjectsInUse(materials), [materials]);
+
+  // A subject that disappears from the view (e.g. after changing scope) stops filtering.
+  useEffect(() => {
+    if (subjectFilter && !subjectsHere.includes(subjectFilter)) setSubjectFilter('');
+  }, [subjectsHere, subjectFilter]);
+
+  const liveCollectionIds = useMemo(() => new Set(collections.map(c => c.id)), [collections]);
+
+  /** "For you": my class first, then my grade and school; teachers' subjects first. */
+  const forYouRank = (m: { schoolId?: string | null; classYear?: number | null; classSection?: string | null; subject?: string | null }) => {
+    const labels = teacherViewClass ? [teacherViewClass] : myClassLabels;
+    const tier = relevanceTier(m, profile, labels);
+    const subjectBoost = isTeacher && subjectsFirst && teacherSubjects.length > 0
+      ? (m.subject && teacherSubjects.includes(m.subject) ? 0 : 1)
+      : 0;
+    return subjectBoost * 10 + tier;
+  };
 
   const sortedFolders = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -256,6 +306,9 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         (m.schoolName || '').toLowerCase().includes(term) ||
         m.tags.some(tag => tag.toLowerCase().includes(term));
       if (!matchesSearch) return false;
+      // In the archive, works that belong to a collection are shown inside
+      // its window instead of one by one (unless searching).
+      if (currentView === 'archive' && currentFolderId === null && !term && m.collectionId && liveCollectionIds.has(m.collectionId)) return false;
       if (filterType !== 'all' && m.type !== filterType) return false;
       if (schoolFilter && m.schoolId !== schoolFilter.id) return false;
       if (yearFilter && String(m.classYear || '') !== yearFilter) return false;
@@ -270,9 +323,39 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         const score = (m: Material) => (m.downloadCount || 0) + 2 * (m.saveCount || 0) + (m.verifiedBy ? 10 : 0);
         return score(b) - score(a);
       }
+      if (sortBy === 'subject') {
+        return (a.subject || '~').localeCompare(b.subject || '~') || b.createdAt.getTime() - a.createdAt.getTime();
+      }
+      if (sortBy === 'foryou') {
+        return forYouRank(a) - forYouRank(b) || b.createdAt.getTime() - a.createdAt.getTime();
+      }
       return b.createdAt.getTime() - a.createdAt.getTime();
     });
-  }, [materials, searchTerm, filterType, sortBy, schoolFilter, yearFilter, subjectFilter]);
+  }, [materials, searchTerm, filterType, sortBy, schoolFilter, yearFilter, subjectFilter, liveCollectionIds, currentView, currentFolderId, subjectsFirst, teacherViewClass, myClassLabels, profile]);
+
+  // Collections shown at the top of the archive, my class first.
+  const visibleCollections = useMemo(() => {
+    if (currentView !== 'archive' || currentFolderId !== null) return [];
+    const term = searchTerm.toLowerCase();
+    return collections
+      .filter(c => inScope(c))
+      .filter(c => !term || c.title.toLowerCase().includes(term) || (c.description || '').toLowerCase().includes(term))
+      .filter(c => !subjectFilter || c.subject === subjectFilter)
+      .filter(c => !schoolFilter || c.schoolId === schoolFilter.id)
+      .filter(c => !yearFilter || String(c.classYear || '') === yearFilter)
+      .map(c => {
+        const works = worksIn(c.id, allMaterials);
+        return {
+          collection: c,
+          works,
+          lastActivity: works.length ? works[works.length - 1].createdAt : c.createdAt,
+        };
+      })
+      .sort((a, b) =>
+        forYouRank(a.collection) - forYouRank(b.collection) ||
+        b.lastActivity.getTime() - a.lastActivity.getTime()
+      );
+  }, [collections, allMaterials, currentView, currentFolderId, searchTerm, subjectFilter, schoolFilter, yearFilter, effectiveScope, subjectsFirst, profile]);
 
   // ---------------------------------------------------------------- selection
 
@@ -504,7 +587,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.target instanceof HTMLElement && e.target.isContentEditable) return;
       // Grid shortcuts must not act behind an open dialog.
-      if (isDetailModalOpen || isEditModalOpen || isCreateFolderOpen || isUploadModalOpen || isMoveModalOpen || selectedProfile) return;
+      if (isDetailModalOpen || isEditModalOpen || isCreateFolderOpen || isUploadModalOpen || isMoveModalOpen || selectedProfile || openCollectionId) return;
 
       const hasSelection = selectedMaterialIds.size > 0 || selectedFolderIds.size > 0;
       if ((e.key === 'Delete' || e.key === 'Backspace') && hasSelection) {
@@ -604,7 +687,9 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   ];
 
   const sortOptions = [
+    { value: 'foryou', label: isTeacher ? 'My classes first' : 'My class first' },
     { value: 'newest', label: 'Newest' },
+    { value: 'subject', label: 'By subject' },
     { value: 'popular', label: 'Most helpful' },
     { value: 'oldest', label: 'Oldest' },
     { value: 'az', label: 'A–Z' },
@@ -613,16 +698,30 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
   const maxYear = schoolFilter?.grade === 1 ? 3 : 5;
   const yearOptions = [{ value: '', label: 'Any year' }, ...Array.from({ length: maxYear }, (_, i) => ({ value: String(i + 1), label: `Year ${i + 1}` }))];
-  const subjectOptions = [{ value: '', label: 'Any subject' }, ...SUBJECTS.map(s => ({ value: s, label: s }))];
-  const activeFilterCount = [schoolFilter, yearFilter, subjectFilter].filter(Boolean).length;
+  const subjectOptions = [
+    { value: '', label: 'All subjects' },
+    ...subjectsHere.map(s => ({ value: s, label: s, color: subjectStyle(s).color })),
+  ];
+  const activeFilterCount = [schoolFilter, yearFilter].filter(Boolean).length;
 
   const myClassName = formatClassName(profile?.classYear, profile?.classSection);
-  const scopeChips: { value: Scope; label: string; disabled: boolean }[] = [
-    { value: 'all', label: 'Everything', disabled: false },
-    { value: 'school', label: 'My school', disabled: !profile?.schoolId },
-    { value: 'grade', label: profile?.classYear ? `Year ${profile.classYear}` : 'My year', disabled: !hasClass },
-    { value: 'class', label: myClassName ? `My class · ${myClassName}` : 'My class', disabled: !hasClass },
-  ];
+  const scopeChips: { value: Scope; label: string; disabled: boolean }[] = isTeacher
+    ? [
+        ...myClassLabels.map(label => ({ value: `class:${label}` as Scope, label, disabled: !profile?.schoolId })),
+        { value: 'school', label: 'My school', disabled: !profile?.schoolId },
+        { value: 'all', label: 'Everything', disabled: false },
+      ]
+    : [
+        { value: 'class', label: myClassName ? `My class · ${myClassName}` : 'My class', disabled: !hasClass },
+        { value: 'grade', label: profile?.classYear ? `Year ${profile.classYear}` : 'My year', disabled: !hasClass },
+        { value: 'school', label: 'My school', disabled: !profile?.schoolId },
+        { value: 'all', label: 'Everything', disabled: false },
+      ];
+
+  // Chips that cannot apply (e.g. "My class" while signed out) are hidden, not greyed out.
+  const usableScopeChips = scopeChips.filter(chip => !chip.disabled);
+
+  const openCollection = openCollectionId ? collections.find(c => c.id === openCollectionId) || null : null;
 
   if (isMaterialsLoading && allMaterials.length === 0 && folders.length === 0) {
     return (
@@ -635,19 +734,15 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     );
   }
 
-  const isEmpty = sortedFolders.length === 0 && sortedMaterials.length === 0;
+  const isEmpty = sortedFolders.length === 0 && sortedMaterials.length === 0 && visibleCollections.length === 0;
 
   return (
     <div className="space-y-8 sm:space-y-10">
-      {currentView === 'archive' && currentFolderId === null && hasClass && (
-        <ExamRadar materials={allMaterials} profile={profile} onOpenMaterial={handleCardClick} />
-      )}
-
       {/* Toolbar */}
       <div className="flex flex-col gap-4 bg-white/[0.02] p-4 sm:p-6 md:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border border-white/5 backdrop-blur-xl relative z-40">
-        {currentView === 'archive' && currentFolderId === null && (
+        {currentView === 'archive' && currentFolderId === null && usableScopeChips.length > 1 && (
           <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1">
-            {scopeChips.map(chip => (
+            {usableScopeChips.map(chip => (
               <button
                 key={chip.value}
                 disabled={chip.disabled}
@@ -660,6 +755,18 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                 {chip.label}
               </button>
             ))}
+            {isTeacher && teacherSubjects.length > 0 && (
+              <button
+                onClick={() => setSubjectsFirst(v => !v)}
+                className={cn(
+                  'shrink-0 px-4 py-2 rounded-full text-[10px] uppercase tracking-widest font-semibold border transition-all flex items-center gap-1.5',
+                  subjectsFirst ? 'border-luxury-gold/60 text-luxury-gold bg-luxury-gold/10' : 'border-white/10 text-white/40'
+                )}
+                title="Show the subjects you teach first"
+              >
+                <ArrowUpWideNarrow className="w-3.5 h-3.5" /> My subjects first
+              </button>
+            )}
           </div>
         )}
 
@@ -705,8 +812,8 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            <div className="relative group w-full md:w-auto md:min-w-[260px] flex-grow">
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <div className="relative group flex-1 min-w-0 md:min-w-[260px]">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-luxury-gold transition-colors" />
               <input
                 type="text"
@@ -717,7 +824,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={cn(
@@ -751,12 +858,14 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                 </div>
               )}
 
-              <div className="flex items-center gap-3 ml-auto md:ml-0">
-                <Dropdown options={sortOptions} value={sortBy} onChange={setSortBy} />
-                <Dropdown options={filterOptions} value={filterType} onChange={setFilterType} icon={<Filter className="w-4 h-4 text-white/40" />} />
-              </div>
             </div>
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2 sm:gap-4">
+          <Dropdown options={subjectOptions} value={subjectFilter} onChange={setSubjectFilter} icon={<Shapes className="w-4 h-4 text-white/40 shrink-0" />} label="Subject" className="col-span-2 sm:col-span-1" />
+          <Dropdown options={sortOptions} value={sortBy} onChange={setSortBy} label="Sort" />
+          <Dropdown options={filterOptions} value={filterType} onChange={setFilterType} icon={<Filter className="w-4 h-4 text-white/40 shrink-0" />} label="Type" />
         </div>
       </div>
 
@@ -768,7 +877,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             exit={{ opacity: 0, y: -10 }}
             className="relative z-30"
           >
-            <div className="bg-white/[0.02] border border-white/5 p-4 sm:p-6 rounded-[2rem] grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-4 md:items-end">
+            <div className="bg-white/[0.02] border border-white/5 p-4 sm:p-6 rounded-[2rem] grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-4 md:items-end">
               <div className="space-y-2">
                 <p className="text-[9px] uppercase tracking-widest text-white/40 ml-1">School</p>
                 <SchoolPicker value={schoolFilter} onChange={setSchoolFilter} clearable placeholder="Any school – search to filter" />
@@ -777,13 +886,9 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                 <p className="text-[9px] uppercase tracking-widest text-white/40 ml-1">Year</p>
                 <Dropdown options={yearOptions} value={yearFilter} onChange={setYearFilter} className="w-full" />
               </div>
-              <div className="space-y-2">
-                <p className="text-[9px] uppercase tracking-widest text-white/40 ml-1">Subject</p>
-                <Dropdown options={subjectOptions} value={subjectFilter} onChange={setSubjectFilter} className="w-full" />
-              </div>
               {activeFilterCount > 0 && (
                 <button
-                  onClick={() => { setSchoolFilter(null); setYearFilter(''); setSubjectFilter(''); }}
+                  onClick={() => { setSchoolFilter(null); setYearFilter(''); }}
                   className="text-[10px] text-luxury-gold uppercase tracking-widest hover:underline px-2 py-3"
                 >
                   Clear all
@@ -864,6 +969,24 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 min-h-[300px]"
       >
         <AnimatePresence mode="popLayout">
+          {visibleCollections.map(({ collection: c, works, lastActivity }) => (
+            <motion.div
+              layout
+              key={`collection-${c.id}`}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <CollectionCard
+                collection={c}
+                workCount={works.length}
+                authorNames={works.map(w => w.authorName)}
+                lastActivity={lastActivity}
+                onOpen={() => setOpenCollectionId(c.id)}
+              />
+            </motion.div>
+          ))}
+
           {sortedFolders.map((folder, index) => (
             <motion.div
               layout
@@ -1002,7 +1125,24 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
           setIsDetailModalOpen(false);
           handleAuthorClick(id, name, photoUrl);
         }}
+        onEditClick={handleEditClick}
+        onCollectionClick={(collectionId) => {
+          setIsDetailModalOpen(false);
+          setOpenCollectionId(collectionId);
+        }}
+        level={openCollectionId || selectedProfile ? 2 : 1}
         userRole={userRole}
+      />
+
+      <CollectionModal
+        collection={openCollection}
+        isOpen={!!openCollection}
+        onClose={() => setOpenCollectionId(null)}
+        onShowDetails={handleCardClick}
+        onAddWork={(c) => {
+          setUploadCollectionId(c.id);
+          setIsUploadModalOpen(true);
+        }}
       />
 
       <EditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} material={materialToEdit} />
@@ -1016,7 +1156,16 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         onSuccess={clearSelection}
       />
 
-      <UploadModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} currentFolderId={currentFolderId} />
+      <UploadModal
+        isOpen={isUploadModalOpen}
+        onClose={() => {
+          setIsUploadModalOpen(false);
+          setUploadCollectionId(null);
+        }}
+        currentFolderId={currentView === 'personal' ? currentFolderId : null}
+        defaultCollectionId={uploadCollectionId}
+        defaultClassLabel={teacherViewClass}
+      />
     </div>
   );
 }

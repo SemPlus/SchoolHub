@@ -35,13 +35,34 @@ export function sanitizeSection(value: string): string {
 }
 
 /** True when the profile has a school and a class for the current school year. */
+/** Teacher account, either chosen at sign-up or granted earlier by the founder. */
+export function isTeacherAccount(profile: User | null | undefined): boolean {
+  return profile?.accountType === 'teacher' || (!profile?.accountType && profile?.role === 'teacher');
+}
+
+/** "3B" -> { classYear: 3, classSection: "B" } */
+export function parseClassLabel(label: string): { classYear: number; classSection: string } | null {
+  const match = /^([1-5])([A-Z]{1,3})$/.exec(label);
+  return match ? { classYear: Number(match[1]), classSection: match[2] } : null;
+}
+
+/** Classes the user belongs to or teaches, as labels such as "3B". */
+export function classLabelsOf(profile: User | null | undefined): string[] {
+  if (!profile) return [];
+  if (isTeacherAccount(profile)) return (profile.teacherClasses || []).filter(l => parseClassLabel(l));
+  const own = formatClassName(profile.classYear, profile.classSection);
+  return own ? [own] : [];
+}
+
+/** True when the profile has what the app needs for the current school year. */
 export function isProfileComplete(profile: User | null): boolean {
   if (!profile) return false;
   if (!profile.schoolId) return false;
-  // Teachers teach many classes, so they only need a school.
-  if (profile.role === 'teacher') return true;
-  if (!profile.classYear || !profile.classSection) return false;
-  return (profile.profileSchoolYear ?? 0) >= schoolYearStart();
+  if ((profile.profileSchoolYear ?? 0) < schoolYearStart()) return false;
+  if (isTeacherAccount(profile)) {
+    return (profile.teacherClasses?.length ?? 0) > 0 && (profile.teacherSubjects?.length ?? 0) > 0;
+  }
+  return !!profile.classYear && !!profile.classSection;
 }
 
 /**

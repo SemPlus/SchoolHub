@@ -1,20 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { motion } from 'motion/react';
-import { GraduationCap, X } from 'lucide-react';
+import { GraduationCap, Backpack, Presentation, Plus, X, Check } from 'lucide-react';
 import { db } from '../firebase';
-import type { User } from '../types';
+import type { AccountType, User } from '../types';
+import Modal from './Modal';
 import SchoolPicker, { PickedSchool } from './SchoolPicker';
 import ClassPicker from './ClassPicker';
 import {
   formatClassName,
   formatSchoolYear,
+  isTeacherAccount,
   maxClassYear,
+  parseClassLabel,
   schoolYearStart,
   SECTION_PATTERN,
   suggestedClassYear,
 } from '../lib/schoolYear';
 import { firebaseErrorMessage } from '../lib/engagement';
+import { SUBJECTS, subjectStyle, withAlpha } from '../lib/subjects';
+import { cn } from '../lib/utils';
 
 interface OnboardingModalProps {
   profile: User;
@@ -24,14 +28,23 @@ interface OnboardingModalProps {
 }
 
 export default function OnboardingModal({ profile, mode, onClose }: OnboardingModalProps) {
-  const isTeacher = profile.role === 'teacher';
   const isNewSchoolYear = mode === 'setup' && !!profile.schoolId && (profile.profileSchoolYear ?? 0) < schoolYearStart();
 
+  const [accountType, setAccountType] = useState<AccountType | null>(
+    profile.accountType ?? (isTeacherAccount(profile) ? 'teacher' : profile.schoolId ? 'student' : null)
+  );
   const [school, setSchool] = useState<PickedSchool | null>(
     profile.schoolId ? { id: profile.schoolId, name: profile.schoolName || profile.schoolId, city: profile.schoolCity || '', grade: profile.schoolGrade } : null
   );
+  // Student class
   const [classYear, setClassYear] = useState<number | undefined>(isNewSchoolYear ? suggestedClassYear(profile) : profile.classYear);
   const [classSection, setClassSection] = useState<string>(profile.classSection || '');
+  // Teacher classes and subjects
+  const [teacherClasses, setTeacherClasses] = useState<string[]>(profile.teacherClasses || []);
+  const [draftYear, setDraftYear] = useState<number | undefined>();
+  const [draftSection, setDraftSection] = useState('');
+  const [teacherSubjects, setTeacherSubjects] = useState<string[]>(profile.teacherSubjects || []);
+
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,107 +53,201 @@ export default function OnboardingModal({ profile, mode, onClose }: OnboardingMo
   useEffect(() => {
     // A middle school only has years 1 to 3.
     if (classYear && classYear > maxYear) setClassYear(undefined);
+    setTeacherClasses(list => list.filter(l => (parseClassLabel(l)?.classYear ?? 9) <= maxYear));
   }, [maxYear]);
 
-  const hasClass = !!classYear && SECTION_PATTERN.test(classSection);
-  const canSave = !!school && (isTeacher || hasClass);
+  const hasStudentClass = !!classYear && SECTION_PATTERN.test(classSection);
+  const draftLabel = draftYear && SECTION_PATTERN.test(draftSection) ? formatClassName(draftYear, draftSection) : '';
+  const canSave = !!school && (
+    accountType === 'student' ? hasStudentClass
+    : accountType === 'teacher' ? teacherClasses.length > 0 && teacherSubjects.length > 0
+    : false
+  );
+
+  const addDraftClass = () => {
+    if (!draftLabel || teacherClasses.includes(draftLabel)) return;
+    setTeacherClasses([...teacherClasses, draftLabel].sort());
+    setDraftSection('');
+  };
+
+  const toggleSubject = (subject: string) => {
+    setTeacherSubjects(list => list.includes(subject) ? list.filter(s => s !== subject) : [...list, subject]);
+  };
 
   const handleSave = async () => {
-    if (!school || !canSave) return;
+    if (!school || !canSave || !accountType) return;
     setIsSaving(true);
     setError(null);
     try {
+      const isTeacher = accountType === 'teacher';
       await updateDoc(doc(db, 'users', profile.uid), {
+        accountType,
         schoolId: school.id,
         schoolName: school.name,
         schoolCity: school.city,
         schoolGrade: school.grade ?? profile.schoolGrade ?? 2,
-        classYear: hasClass ? classYear : null,
-        classSection: hasClass ? classSection : null,
+        classYear: !isTeacher && hasStudentClass ? classYear : null,
+        classSection: !isTeacher && hasStudentClass ? classSection : null,
+        teacherClasses: isTeacher ? teacherClasses : [],
+        teacherSubjects: isTeacher ? teacherSubjects : [],
         profileSchoolYear: schoolYearStart(),
       });
       onClose?.();
     } catch (err) {
-      setError(firebaseErrorMessage(err, 'Could not save your school and class.'));
+      setError(firebaseErrorMessage(err, 'Could not save your profile.'));
     } finally {
       setIsSaving(false);
     }
   };
 
+  const label = 'text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium';
+
+  const continueText = !canSave
+    ? 'Continue'
+    : accountType === 'teacher'
+      ? `Continue as teacher · ${teacherClasses.length} ${teacherClasses.length === 1 ? 'class' : 'classes'}`
+      : `Continue as ${formatClassName(classYear, classSection)} · ${school?.name}`;
+
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-luxury-black/95 backdrop-blur-xl">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="glass-panel w-full max-w-lg rounded-[2rem] border-white/10 shadow-2xl flex flex-col max-h-[92vh]"
-      >
-        <div className="p-6 sm:p-8 border-b border-white/5 flex items-start justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-luxury-gold/10 rounded-2xl">
-              <GraduationCap className="w-6 h-6 text-luxury-gold" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-serif text-white">
-                {isNewSchoolYear ? `Welcome to ${formatSchoolYear(schoolYearStart())}` : mode === 'edit' ? 'School and class' : 'Your school and class'}
-              </h2>
-              <p className="text-xs text-white/50 mt-1 leading-relaxed">
-                {isNewSchoolYear
-                  ? 'A new school year has started. Check your class so you see the right materials.'
-                  : 'This shows you what your class needs and tags your uploads correctly.'}
-              </p>
-            </div>
-          </div>
-          {mode === 'edit' && onClose && (
-            <button onClick={onClose} className="text-white/30 hover:text-white p-2 rounded-full hover:bg-white/5">
-              <X className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-
-        <div className="p-6 sm:p-8 space-y-8 overflow-y-auto custom-scrollbar">
-          <div className="space-y-2">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">School</p>
-            <SchoolPicker value={school} onChange={setSchool} />
-            <p className="text-[10px] text-white/25">From the official Ministry of Education school registry.</p>
-          </div>
-
-          <div className="space-y-2">
-            <ClassPicker
-              classYear={classYear}
-              classSection={classSection}
-              maxYear={maxYear}
-              disabled={!school}
-              onChange={({ classYear: y, classSection: s }) => {
-                setClassYear(y);
-                setClassSection(s || '');
-              }}
-            />
-            {isTeacher && (
-              <p className="text-[10px] text-white/30">As a teacher, the class is optional.</p>
-            )}
-          </div>
-
-          {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-              <p className="text-xs text-red-400">{error}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="p-6 sm:p-8 border-t border-white/5">
+    <Modal
+      isOpen
+      onClose={onClose}
+      dismissible={mode === 'edit'}
+      level={3}
+      size="md"
+      icon={<GraduationCap className="w-5 h-5 text-luxury-gold" />}
+      title={isNewSchoolYear ? `Welcome to ${formatSchoolYear(schoolYearStart())}` : mode === 'edit' ? 'School and classes' : 'Welcome to SchoolHub'}
+      subtitle={isNewSchoolYear ? 'A new school year has started: check your classes' : 'This shows you what your class needs first'}
+      footer={
+        <div className="space-y-3">
+          {error && <p className="text-xs text-red-400">{error}</p>}
           <button
             onClick={handleSave}
             disabled={!canSave || isSaving}
-            className="w-full luxury-button bg-white text-luxury-black font-semibold py-4 rounded-full disabled:opacity-20 transition-all"
+            className="w-full bg-white text-luxury-black font-bold py-4 rounded-full disabled:opacity-20 transition-all truncate px-4"
           >
-            {isSaving
-              ? 'Saving…'
-              : hasClass && school
-                ? `Continue as ${formatClassName(classYear, classSection)} · ${school.name}`
-                : 'Continue'}
+            {isSaving ? 'Saving…' : continueText}
           </button>
         </div>
-      </motion.div>
-    </div>
+      }
+    >
+      <div className="space-y-8">
+        {/* 1. Student or teacher */}
+        <div className="space-y-3">
+          <p className={label}>I am a</p>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              { type: 'student' as const, title: 'Student', icon: Backpack, hint: 'One class' },
+              { type: 'teacher' as const, title: 'Teacher', icon: Presentation, hint: 'Several classes' },
+            ]).map(option => (
+              <button
+                key={option.type}
+                type="button"
+                onClick={() => setAccountType(option.type)}
+                className={cn(
+                  'flex flex-col items-center gap-2 p-5 rounded-2xl border transition-all',
+                  accountType === option.type ? 'border-luxury-gold bg-luxury-gold/10 text-white' : 'border-white/10 text-white/60 hover:bg-white/5'
+                )}
+              >
+                <option.icon className={cn('w-7 h-7', accountType === option.type ? 'text-luxury-gold' : 'text-white/40')} />
+                <span className="text-sm font-semibold">{option.title}</span>
+                <span className="text-[10px] text-white/40">{option.hint}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {accountType && (
+          <>
+            {/* 2. School */}
+            <div className="space-y-2">
+              <p className={label}>School</p>
+              <SchoolPicker value={school} onChange={setSchool} />
+              <p className="text-[10px] text-white/25">From the official Ministry of Education school registry.</p>
+            </div>
+
+            {/* 3a. Student class */}
+            {accountType === 'student' && (
+              <ClassPicker
+                classYear={classYear}
+                classSection={classSection}
+                maxYear={maxYear}
+                disabled={!school}
+                onChange={({ classYear: y, classSection: s }) => {
+                  setClassYear(y);
+                  setClassSection(s || '');
+                }}
+              />
+            )}
+
+            {/* 3b. Teacher classes and subjects */}
+            {accountType === 'teacher' && (
+              <>
+                <div className={cn('space-y-4', !school && 'opacity-40 pointer-events-none')}>
+                  <p className={label}>Classes you teach</p>
+                  {teacherClasses.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {teacherClasses.map(l => (
+                        <span key={l} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl bg-luxury-gold/10 border border-luxury-gold/30 text-sm text-white">
+                          {l}
+                          <button type="button" onClick={() => setTeacherClasses(teacherClasses.filter(x => x !== l))} className="p-0.5 text-white/40 hover:text-white" aria-label={`Remove ${l}`}>
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <ClassPicker
+                    classYear={draftYear}
+                    classSection={draftSection}
+                    maxYear={maxYear}
+                    onChange={({ classYear: y, classSection: s }) => {
+                      setDraftYear(y);
+                      setDraftSection(s || '');
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={addDraftClass}
+                    disabled={!draftLabel || teacherClasses.includes(draftLabel)}
+                    className="w-full py-3 rounded-xl border border-dashed border-white/20 text-sm text-white/70 hover:text-white flex items-center justify-center gap-2 disabled:opacity-30"
+                  >
+                    <Plus className="w-4 h-4" /> {draftLabel ? `Add class ${draftLabel}` : 'Pick a year and section, then add'}
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <p className={label}>Subjects you teach</p>
+                  <div className="flex flex-wrap gap-2">
+                    {SUBJECTS.map(s => {
+                      const { color, icon: Icon } = subjectStyle(s);
+                      const active = teacherSubjects.includes(s);
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => toggleSubject(s)}
+                          className="px-3 py-2 rounded-xl border text-xs flex items-center gap-1.5 transition-all"
+                          style={active
+                            ? { borderColor: color, backgroundColor: withAlpha(color, 0.15), color }
+                            : { borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.55)' }}
+                        >
+                          {active ? <Check className="w-3.5 h-3.5" /> : <Icon className="w-3.5 h-3.5" />}
+                          {s}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-white/35 leading-relaxed">
+                  Teacher accounts can add materials for any of these classes right away. Verifying other people's materials unlocks once the SchoolHub team confirms you are a teacher.
+                </p>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }

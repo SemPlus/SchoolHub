@@ -22,6 +22,16 @@ service cloud.firestore {
       return /databases/$(database)/documents/materials/$(id);
     }
 
+    function collectionPath(id) {
+      return /databases/$(database)/documents/collections/$(id);
+    }
+
+    // A material may point at a collection only if that collection exists.
+    function isValidCollectionLink(data) {
+      return !('collectionId' in data) || data.collectionId == null ||
+        (data.collectionId is string && data.collectionId.size() <= 128 && exists(collectionPath(data.collectionId)));
+    }
+
     function isAdmin() {
       return isAuthenticated() &&
         request.auth.token.email_verified == true &&
@@ -93,7 +103,8 @@ service cloud.firestore {
         optTimestamp(data, 'verifiedAt') &&
         (!('linkStatus' in data) || data.linkStatus == null || data.linkStatus in ['ok', 'broken', 'restricted']) &&
         optTimestamp(data, 'linkCheckedAt') &&
-        optTimestamp(data, 'visibleInArchiveUntil');
+        optTimestamp(data, 'visibleInArchiveUntil') &&
+        optString(data, 'collectionId', 128);
     }
 
     function isValidFolderData(data) {
@@ -130,7 +141,28 @@ service cloud.firestore {
         optInt(data, 'schoolGrade', 1, 2) &&
         optInt(data, 'classYear', 1, 5) &&
         optSection(data) &&
-        optInt(data, 'profileSchoolYear', 2000, 2100);
+        optInt(data, 'profileSchoolYear', 2000, 2100) &&
+        (!('accountType' in data) || data.accountType == null || data.accountType in ['student', 'teacher']) &&
+        (!('teacherClasses' in data) || data.teacherClasses == null || (data.teacherClasses is list && data.teacherClasses.size() <= 30)) &&
+        (!('teacherSubjects' in data) || data.teacherSubjects == null || (data.teacherSubjects is list && data.teacherSubjects.size() <= 30));
+    }
+
+    function isValidCollectionData(data) {
+      return data.keys().hasAll(['title', 'createdBy', 'createdByName', 'createdAt']) &&
+        data.title is string && data.title.size() >= 2 && data.title.size() <= 120 &&
+        optString(data, 'description', 1000) &&
+        optString(data, 'subject', 40) &&
+        optString(data, 'schoolId', 16) &&
+        optString(data, 'schoolName', 200) &&
+        optInt(data, 'classYear', 1, 5) &&
+        optSection(data) &&
+        optString(data, 'className', 10) &&
+        optString(data, 'classId', 64) &&
+        data.createdBy is string &&
+        data.createdByName is string && data.createdByName.size() <= 100 &&
+        data.createdAt is timestamp &&
+        optTimestamp(data, 'updatedAt') &&
+        optBool(data, 'isDeleted');
     }
 
     function isValidRequestData(data) {
@@ -161,6 +193,7 @@ service cloud.firestore {
         request.resource.data.get('saveCount', 0) == 0 &&
         request.resource.data.get('verifiedBy', null) == null &&
         request.resource.data.get('linkStatus', null) == null &&
+        isValidCollectionLink(request.resource.data) &&
         request.resource.data.createdAt == request.time;
 
       function materialChanged() {
@@ -182,7 +215,8 @@ service cloud.firestore {
           (!materialChanged().hasAny(['verifiedBy', 'verifiedByName', 'verifiedAt']) ||
             request.resource.data.get('verifiedBy', null) == null) &&
           (!materialChanged().hasAny(['url']) || request.resource.data.get('verifiedBy', null) == null) &&
-          (!materialChanged().hasAny(['linkStatus']) || request.resource.data.linkStatus == null);
+          (!materialChanged().hasAny(['linkStatus']) || request.resource.data.linkStatus == null) &&
+          (!materialChanged().hasAny(['collectionId']) || isValidCollectionLink(request.resource.data));
       }
 
       function isTrashToggle() {
@@ -313,6 +347,28 @@ service cloud.firestore {
         );
 
       allow delete: if isAuthenticated() && (request.auth.uid == resource.data.authorId || isAdmin());
+    }
+
+    // ============================================================ collections
+
+    // Shared themes or projects. Anyone signed in can start one and add their
+    // own works to it; the creator (or the founder) can rename or delete it.
+    match /collections/{collectionId} {
+      allow read: if true;
+
+      allow create: if isAuthenticated() &&
+        isValidCollectionData(request.resource.data) &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.get('isDeleted', false) == false;
+
+      allow update: if isAuthenticated() &&
+        (request.auth.uid == resource.data.createdBy || isAdmin()) &&
+        isValidCollectionData(request.resource.data) &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.createdBy || isAdmin());
     }
 
     // ================================================================= users

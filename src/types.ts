@@ -51,6 +51,30 @@ export interface Material {
   linkCheckedAt?: Date | null;
   /** Legacy field from the removed archive-expiry feature. Ignored. */
   visibleInArchiveUntil?: Date | null;
+  /** The collection (shared theme or project) this material belongs to. */
+  collectionId?: string | null;
+}
+
+/**
+ * A shared theme, project or exam that groups works by different people,
+ * e.g. every group's presentation on the Renaissance for 4B.
+ */
+export interface Collection {
+  id: string;
+  title: string;
+  description?: string;
+  subject?: string;
+  schoolId?: string;
+  schoolName?: string;
+  classYear?: number;
+  classSection?: string;
+  className?: string;
+  classId?: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: Date;
+  updatedAt?: Date | null;
+  isDeleted?: boolean;
 }
 
 export interface Folder {
@@ -70,7 +94,13 @@ export interface Folder {
   className?: string;
 }
 
+/**
+ * Permission level. 'teacher' is granted by the founder and allows verifying
+ * materials; it is separate from the self-chosen account type.
+ */
 export type UserRole = 'admin' | 'teacher' | 'user';
+
+export type AccountType = 'student' | 'teacher';
 
 export interface User {
   uid: string;
@@ -91,6 +121,11 @@ export interface User {
   classSection?: string;
   /** Start year of the school year the class was confirmed for, e.g. 2026 for 2026/27. */
   profileSchoolYear?: number;
+  /** Chosen at sign-up. Teachers pick several classes and their subjects. */
+  accountType?: AccountType;
+  /** Teacher classes as labels such as "3B". */
+  teacherClasses?: string[];
+  teacherSubjects?: string[];
   createdAt: any;
 }
 

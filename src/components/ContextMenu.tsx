@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
+import { createPortal } from 'react-dom';
 import { Trash2, Move, Edit, Share2, Info, CheckCircle, RotateCcw } from 'lucide-react';
 
 interface ContextMenuProps {
@@ -43,14 +44,15 @@ export default function ContextMenu({ x, y, onClose, items }: ContextMenuProps) 
     }
   }, [x, y]);
 
-  return (
+  // Rendered into <body> so no page layer can cover it.
+  return createPortal(
     <motion.div
       ref={menuRef}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       style={{ left: adjustedPos.x, top: adjustedPos.y }}
-      className="fixed z-[200] min-w-[200px] bg-luxury-black/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl p-2"
+      className="fixed z-[230] min-w-[200px] bg-luxury-black/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl p-2"
     >
       {items.map((item, index) => (
         <button
@@ -70,6 +72,7 @@ export default function ContextMenu({ x, y, onClose, items }: ContextMenuProps) 
           <span className="font-bold">{item.label}</span>
         </button>
       ))}
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }

@@ -1,99 +1,92 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Link as LinkIcon } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, getDocs, query, limit } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link as LinkIcon, ChevronDown, Plus } from 'lucide-react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { MaterialType } from '../types';
-import { motion, AnimatePresence } from 'motion/react';
 import Dropdown from './Dropdown';
-import ClassificationFields, { ClassificationValue, fromDateInputValue } from './ClassificationFields';
+import Modal from './Modal';
+import DriveUploader from './DriveUploader';
+import CollectionPicker from './CollectionPicker';
+import ClassificationFields, { ClassificationValue } from './ClassificationFields';
 import { useAppData } from '../context/AppData';
-import { classIdFor, formatClassName, SECTION_PATTERN } from '../lib/schoolYear';
+import { classIdFor, classLabelsOf, formatClassName, isTeacherAccount, parseClassLabel, SECTION_PATTERN } from '../lib/schoolYear';
+import { cn } from '../lib/utils';
 
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentFolderId?: string | null;
+  /** Preselect a collection, e.g. when adding a work from a collection window. */
+  defaultCollectionId?: string | null;
+  /** Preselect a class label such as "3B" (the class a teacher is viewing). */
+  defaultClassLabel?: string | null;
 }
 
-const typeOptions = [
+export const TYPE_OPTIONS = [
   { value: 'link', label: 'Link' },
   { value: 'pdf', label: 'PDF' },
-  { value: 'word', label: 'Word document' },
+  { value: 'word', label: 'Document' },
   { value: 'canva', label: 'Presentation' },
   { value: 'other', label: 'Other' },
 ];
 
-export default function UploadModal({ isOpen, onClose, currentFolderId }: UploadModalProps) {
+/** Tags already offered across the archive, most used first. */
+function useTagSuggestions(): string[] {
+  const { materials } = useAppData();
+  return useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const m of materials) {
+      for (const tag of m.tags || []) {
+        const clean = tag.trim();
+        if (clean) counts.set(clean, (counts.get(clean) || 0) + 1);
+      }
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t).slice(0, 200);
+  }, [materials]);
+}
+
+const LAST_SUBJECT_KEY = 'schoolhub.lastSubject';
+
+export default function UploadModal({ isOpen, onClose, currentFolderId, defaultCollectionId, defaultClassLabel }: UploadModalProps) {
   const { profile } = useAppData();
+  const isTeacher = isTeacherAccount(profile);
+  const tagSuggestions = useTagSuggestions();
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [materialType, setMaterialType] = useState<MaterialType>('link');
-  const [classification, setClassification] = useState<ClassificationValue>({ school: null, subject: '', examDate: '' });
+  const [classification, setClassification] = useState<ClassificationValue>({ school: null, subject: '' });
+  const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'file' | 'link'>('file');
+  const [showMore, setShowMore] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
-
-  // Tag suggestions
-  const [existingTags, setExistingTags] = useState<string[]>([]);
-  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
-  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
-  const tagInputRef = useRef<HTMLInputElement>(null);
+  const [uploaderKey, setUploaderKey] = useState(0);
 
   useEffect(() => {
     if (!isOpen) return;
-    fetchExistingTags();
-    // Default to the uploader's own school and class.
+    // Sensible defaults so most people only pick a file and press Add.
+    const classLabel = defaultClassLabel || classLabelsOf(profile)[0] || '';
+    const parsed = parseClassLabel(classLabel);
+    let lastSubject = '';
+    try { lastSubject = window.localStorage.getItem(LAST_SUBJECT_KEY) || ''; } catch { /* ignore */ }
+    const teacherSubjects = profile?.teacherSubjects || [];
+    const subject = isTeacher
+      ? (teacherSubjects.includes(lastSubject) ? lastSubject : teacherSubjects[0] || '')
+      : '';
     setClassification({
       school: profile?.schoolId
         ? { id: profile.schoolId, name: profile.schoolName || profile.schoolId, city: profile.schoolCity || '', grade: profile.schoolGrade }
         : null,
-      classYear: profile?.classYear,
-      classSection: profile?.classSection,
-      subject: '',
-      examDate: '',
+      classYear: parsed?.classYear,
+      classSection: parsed?.classSection,
+      subject,
     });
+    setCollectionId(defaultCollectionId || null);
+    setError('');
   }, [isOpen]);
-
-  const fetchExistingTags = async () => {
-    try {
-      const querySnapshot = await getDocs(query(collection(db, 'materials'), limit(100)));
-      const allTags = new Set<string>();
-      querySnapshot.forEach((d) => {
-        const data = d.data();
-        if (Array.isArray(data.tags)) data.tags.forEach((tag: string) => allTags.add(tag));
-      });
-      setExistingTags(Array.from(allTags));
-    } catch (err) {
-      console.error('Error fetching tags:', err);
-    }
-  };
-
-  const handleTagChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setTags(value);
-    const lastTag = value.split(',').pop()?.trim().toLowerCase() || '';
-    if (lastTag.length > 0) {
-      const suggestions = existingTags.filter(tag =>
-        tag.toLowerCase().includes(lastTag) &&
-        !value.toLowerCase().includes(tag.toLowerCase())
-      ).slice(0, 5);
-      setTagSuggestions(suggestions);
-      setShowTagSuggestions(suggestions.length > 0);
-    } else {
-      setShowTagSuggestions(false);
-    }
-  };
-
-  const selectTagSuggestion = (suggestion: string) => {
-    const parts = tags.split(',');
-    parts.pop();
-    setTags([...parts.map(p => p.trim()), suggestion].filter(p => p !== '').join(', ') + ', ');
-    setShowTagSuggestions(false);
-    tagInputRef.current?.focus();
-  };
-
-  if (!isOpen) return null;
 
   const resetForm = () => {
     setTitle('');
@@ -101,34 +94,51 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
     setTags('');
     setLinkUrl('');
     setMaterialType('link');
+    setMode('file');
+    setShowMore(false);
+    setUploaderKey(k => k + 1);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
 
+  const addTag = (tag: string) => {
+    const parts = tags.split(',').map(t => t.trim()).filter(Boolean);
+    if (!parts.some(p => p.toLowerCase() === tag.toLowerCase())) parts.push(tag);
+    setTags(parts.join(', '));
+  };
+
+  const handleSubmit = async () => {
+    setError('');
     if (!auth.currentUser) {
       setError('You must be signed in to add materials.');
       return;
     }
-    if (!title.trim()) {
-      setError('Title is required.');
-      return;
-    }
     if (!/^https?:\/\//i.test(linkUrl.trim())) {
-      setError('Please enter a valid URL starting with http:// or https://');
+      setError(mode === 'file' ? 'Upload a file first, or paste a link.' : 'Paste a link that starts with https://');
       return;
     }
-
-    const { school, classYear, classSection, subject, examDate } = classification;
+    if (!title.trim()) {
+      setError('Give it a title.');
+      return;
+    }
+    const { school, classYear, classSection, subject } = classification;
+    if (!subject) {
+      setError('Choose a subject.');
+      return;
+    }
     const hasClass = !!school && !!classYear && !!classSection && SECTION_PATTERN.test(classSection);
+    // The subject has its own field, so a tag that repeats it is dropped.
+    const tagList = tags.split(',').map(t => t.trim()).filter(t => t && t.toLowerCase() !== subject.toLowerCase());
 
     setIsUploading(true);
     try {
       await addDoc(collection(db, 'materials'), {
         title: title.trim(),
         description: description.trim() || null,
-        tags: tags.split(',').map(t => t.trim()).filter(t => t !== ''),
+        tags: tagList,
         type: materialType,
         url: linkUrl.trim(),
         authorId: auth.currentUser.uid,
@@ -137,6 +147,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
         downloadCount: 0,
         saveCount: 0,
         folderId: currentFolderId || null,
+        collectionId: collectionId || null,
         createdAt: serverTimestamp(),
         isDeleted: false,
         schoolId: school?.id || null,
@@ -146,11 +157,10 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
         classSection: hasClass ? classSection : null,
         className: hasClass ? formatClassName(classYear, classSection) : null,
         classId: hasClass ? classIdFor(school?.id, classYear, classSection) : null,
-        subject: subject || null,
-        examDate: fromDateInputValue(examDate),
+        subject,
       });
-      resetForm();
-      onClose();
+      try { window.localStorage.setItem(LAST_SUBJECT_KEY, subject); } catch { /* ignore */ }
+      handleClose();
     } catch (err: any) {
       console.error('Upload error:', err);
       const code: string = err?.code || 'unknown';
@@ -162,135 +172,160 @@ export default function UploadModal({ isOpen, onClose, currentFolderId }: Upload
     }
   };
 
+  const currentTags = tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-luxury-black/90 backdrop-blur-xl p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="glass-panel rounded-[2rem] sm:rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] border-white/20 relative"
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title="Add material"
+      size="md"
+      level={2}
+      footer={
+        <div className="space-y-3">
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isUploading}
+            className="w-full bg-white text-luxury-black font-bold py-4 rounded-full hover:bg-luxury-gold disabled:opacity-30 transition-all"
           >
-            <div className="flex items-center justify-between p-6 sm:p-8 border-b border-white/10 relative z-10">
-              <h2 className="text-3xl font-serif text-white tracking-tight">Add material</h2>
-              <button onClick={onClose} className="text-white/20 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 sm:p-8 overflow-y-auto custom-scrollbar relative z-10">
-              {error && (
-                <div className="mb-6 p-4 bg-red-400/10 text-red-400 text-xs rounded-2xl border border-red-400/20 font-light tracking-wide">
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-8">
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Title</label>
-                  <input
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                    placeholder="e.g. Chapter 5 summary"
-                    required
-                    maxLength={100}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Link (URL)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
-                      <LinkIcon className="h-4 w-4 text-white/20" />
-                    </div>
-                    <input
-                      type="url"
-                      value={linkUrl}
-                      onChange={(e) => setLinkUrl(e.target.value)}
-                      className="w-full pl-8 pr-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                      placeholder="https://..."
-                      required
-                    />
-                  </div>
-                  <p className="text-[9px] text-white/25 ml-1">For Google Drive files, set sharing to "Anyone with the link".</p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Type</label>
-                  <Dropdown
-                    options={typeOptions}
-                    value={materialType}
-                    onChange={(val) => setMaterialType(val as MaterialType)}
-                    className="w-full"
-                  />
-                </div>
-
-                <ClassificationFields value={classification} onChange={setClassification} />
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Description</label>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10 resize-none h-24"
-                    placeholder="What is in it, and who is it for?"
-                    maxLength={1000}
-                  />
-                </div>
-
-                <div className="space-y-2 relative">
-                  <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Tags</label>
-                  <input
-                    ref={tagInputRef}
-                    type="text"
-                    value={tags}
-                    onChange={handleTagChange}
-                    onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
-                    className="w-full px-0 py-3 bg-transparent border-b border-white/10 focus:border-luxury-gold outline-none transition-all font-light tracking-wide text-sm placeholder:text-white/10"
-                    placeholder="e.g. Exam, Notes, Exercises (comma separated)"
-                    maxLength={100}
-                  />
-                  <AnimatePresence>
-                    {showTagSuggestions && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="absolute z-50 left-0 right-0 mt-1 bg-luxury-black border border-white/10 rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl"
-                      >
-                        {tagSuggestions.map((suggestion, index) => (
-                          <button
-                            key={index}
-                            type="button"
-                            onClick={() => selectTagSuggestion(suggestion)}
-                            className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-luxury-gold hover:bg-white/5 transition-colors uppercase tracking-widest"
-                          >
-                            {suggestion}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                <div className="pt-4">
-                  <button
-                    type="submit"
-                    disabled={isUploading}
-                    className="w-full luxury-button bg-white text-luxury-black font-semibold py-4 rounded-full shadow-2xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-20 transition-all"
-                  >
-                    {isUploading ? 'Saving…' : 'Add material'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </motion.div>
+            {isUploading ? 'Saving…' : 'Add material'}
+          </button>
         </div>
-      )}
-    </AnimatePresence>
+      }
+    >
+      <div className="space-y-8">
+        {/* 1. The file or link */}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-white/5 border border-white/10">
+            {(['file', 'link'] as const).map(m => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className={cn('py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all', mode === m ? 'bg-white text-luxury-black' : 'text-white/50')}
+              >
+                {m === 'file' ? 'Upload a file' : 'Paste a link'}
+              </button>
+            ))}
+          </div>
+
+          {mode === 'file' ? (
+            <DriveUploader
+              key={uploaderKey}
+              onReset={() => setLinkUrl('')}
+              onUploaded={(file) => {
+                setLinkUrl(file.url);
+                setMaterialType(file.materialType);
+                if (!title.trim()) setTitle(file.title);
+              }}
+            />
+          ) : (
+            <div className="relative">
+              <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+              <input
+                type="url"
+                inputMode="url"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-11 pr-4 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30"
+                placeholder="https://…"
+              />
+              <p className="text-[10px] text-white/30 mt-2 ml-1">For Google Drive files, set sharing to "Anyone with the link".</p>
+            </div>
+          )}
+        </div>
+
+        {/* 2. Title */}
+        <div className="space-y-2">
+          <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Title</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30"
+            placeholder="e.g. Chapter 5 summary"
+            maxLength={100}
+          />
+        </div>
+
+        {/* 3. Subject and class */}
+        <ClassificationFields
+          value={classification}
+          onChange={setClassification}
+          quickClasses={isTeacher ? profile?.teacherClasses || [] : []}
+          preferredSubjects={isTeacher ? profile?.teacherSubjects || [] : []}
+        />
+
+        {/* 4. Collection */}
+        <CollectionPicker
+          value={collectionId}
+          onChange={setCollectionId}
+          school={classification.school}
+          classYear={classification.classYear}
+          classSection={classification.classSection}
+          subject={classification.subject}
+        />
+
+        {/* 5. Optional details */}
+        <div className="border-t border-white/5 pt-4">
+          <button
+            type="button"
+            onClick={() => setShowMore(v => !v)}
+            className="w-full flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40 hover:text-white py-2"
+          >
+            More options (description, tags, type)
+            <ChevronDown className={cn('w-4 h-4 transition-transform', showMore && 'rotate-180')} />
+          </button>
+          {showMore && (
+            <div className="space-y-6 pt-4">
+              <div className="space-y-2">
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30 resize-none h-24"
+                  placeholder="What is in it, and who is it for?"
+                  maxLength={1000}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Tags (comma separated)</label>
+                <input
+                  type="text"
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30"
+                  placeholder="Not the subject: that has its own field"
+                  maxLength={200}
+                />
+                {tagSuggestions.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {tagSuggestions
+                      .filter(t => !currentTags.includes(t.toLowerCase()) && t.toLowerCase() !== classification.subject.toLowerCase())
+                      .slice(0, 8)
+                      .map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => addTag(t)}
+                          className="px-2.5 py-1 rounded-full border border-white/10 text-[10px] text-white/50 hover:text-white flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" /> {t}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Type</label>
+                <Dropdown options={TYPE_OPTIONS} value={materialType} onChange={(val) => setMaterialType(val as MaterialType)} className="w-full" label="Type" />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }

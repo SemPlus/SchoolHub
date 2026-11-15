@@ -1,9 +1,9 @@
 import React from 'react';
 import {
   FileText, File, Link as LinkIcon, ExternalLink, Download, Trash2, Presentation, Share2, Edit2, Move,
-  Bookmark, BookmarkCheck, ArrowLeft, BookOpen, BadgeCheck, AlertTriangle, CalendarClock, Eye, History,
+  Bookmark, BookmarkCheck, ArrowLeft, BookOpen, BadgeCheck, AlertTriangle, Eye, History, Layers,
 } from 'lucide-react';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { Material } from '../types';
 import { auth, db } from '../firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -12,6 +12,8 @@ import { getRank } from '../lib/ranks';
 import { cn } from '../lib/utils';
 import { firebaseErrorMessage, recordOpen, toggleSave } from '../lib/engagement';
 import UserAvatar from './UserAvatar';
+import SubjectBadge from './SubjectBadge';
+import { subjectStyle, visibleTags, withAlpha } from '../lib/subjects';
 
 interface MaterialCardProps {
   key?: React.Key;
@@ -171,7 +173,9 @@ export default function MaterialCard({
   };
 
   const actionButton = "transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md opacity-100 sm:opacity-0 sm:group-hover:opacity-100";
-  const showUpcomingTest = material.examDate && material.examDate.getTime() >= new Date().setHours(0, 0, 0, 0);
+  const subject = material.subject ? subjectStyle(material.subject) : null;
+  const SubjectIcon = subject?.icon;
+  const tags = visibleTags(material);
 
   return (
     <motion.div
@@ -179,13 +183,14 @@ export default function MaterialCard({
       onClick={handleContainerClick}
       draggable={canEdit && !isInTrash}
       onDragStart={onDragStart}
-      whileHover={{ y: -8, scale: 1.02 }}
+      whileHover={{ y: -4 }}
       className={cn(
         "glass-panel rounded-[2rem] p-6 sm:p-8 hover:bg-white/[0.08] group flex flex-col h-full relative overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] hover:border-white/30 transition-all duration-500 cursor-pointer select-none",
         isSelected && "ring-2 ring-luxury-gold bg-luxury-gold/5 border-luxury-gold/20"
       )}
     >
-      <div className="absolute inset-x-0 top-0 h-1 bg-luxury-gold opacity-0 transition-opacity" style={{ opacity: isSelected ? 1 : 0 }} />
+      {/* Subject colour stripe; gold while selected */}
+      <div className="absolute inset-x-0 top-0 h-1" style={{ background: isSelected ? '#D4AF37' : subject ? subject.color : 'transparent' }} />
       <motion.div
         className="pointer-events-none absolute -inset-px rounded-[2rem] opacity-0 transition duration-500 group-hover:opacity-100"
         style={{ background }}
@@ -193,8 +198,12 @@ export default function MaterialCard({
       <div className="absolute -top-12 -right-12 w-24 h-24 bg-luxury-gold/5 rounded-full blur-2xl group-hover:bg-luxury-gold/20 transition-all duration-500 group-hover:scale-150"></div>
 
       <div className="flex items-start justify-between mb-6 relative z-10">
-        <div className="w-12 h-12 border border-white/10 rounded-2xl flex items-center justify-center bg-white/5 group-hover:border-luxury-gold/30 transition-colors backdrop-blur-sm shrink-0">
-          {getIcon()}
+        <div
+          className="w-12 h-12 border rounded-2xl flex items-center justify-center shrink-0"
+          style={subject ? { borderColor: withAlpha(subject.color, 0.35), backgroundColor: withAlpha(subject.color, 0.12) } : { borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)' }}
+          title={material.subject || undefined}
+        >
+          {SubjectIcon ? <SubjectIcon className="w-6 h-6" style={{ color: subject!.color }} /> : getIcon()}
         </div>
         <div className="flex flex-wrap justify-end gap-1">
           {isInTrash && (
@@ -281,12 +290,6 @@ export default function MaterialCard({
             Verified{material.verifiedByName ? ` by ${material.verifiedByName}` : ''}
           </span>
         )}
-        {showUpcomingTest && (
-          <span className="flex items-center gap-1 bg-red-400/10 border border-red-400/30 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-red-300 font-medium">
-            <CalendarClock className="w-3 h-3" />
-            Test {format(material.examDate!, 'EEE d MMM')}
-          </span>
-        )}
         {inheritedLabel && (
           <span className="flex items-center gap-1 bg-sky-400/10 border border-sky-400/30 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-sky-300 font-medium">
             <History className="w-3 h-3" />
@@ -299,9 +302,10 @@ export default function MaterialCard({
             <span className="truncate">{[material.className, material.schoolName].filter(Boolean).join(' · ')}</span>
           </span>
         )}
-        {material.subject && (
-          <span className="px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest border border-white/10 bg-white/5 text-white/60">
-            {material.subject}
+        <SubjectBadge subject={material.subject} />
+        {material.collectionId && (
+          <span className="flex items-center gap-1 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-white/60 font-medium">
+            <Layers className="w-3 h-3" /> In a collection
           </span>
         )}
         {linkWarning && (
@@ -312,9 +316,9 @@ export default function MaterialCard({
         )}
       </div>
 
-      {material.tags && material.tags.length > 0 && (
+      {tags.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-4 relative z-10">
-          {material.tags.map((tag, index) => (
+          {tags.map((tag, index) => (
             <span
               key={index}
               className="text-[8px] uppercase tracking-widest px-2 py-0.5 border border-white/5 bg-white/5 text-white/40 rounded-full"

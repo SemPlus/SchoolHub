@@ -2,11 +2,12 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import type { Material, MaterialRequest, User } from '../types';
-import { mapMaterialDoc, mapRequestDoc } from '../lib/mappers';
+import type { Collection, Material, MaterialRequest, User } from '../types';
+import { mapCollectionDoc, mapMaterialDoc, mapRequestDoc } from '../lib/mappers';
 import { computeStats, EMPTY_STATS, UserStats } from '../lib/stats';
 
-const ADMIN_EMAIL = 'sem.gk01@gmail.com';
+// The founder's account always has full admin rights, whatever its stored role.
+export const ADMIN_EMAIL = 'sem.gk01@gmail.com';
 
 interface AppDataValue {
   user: FirebaseUser | null;
@@ -20,6 +21,8 @@ interface AppDataValue {
   isMaterialsLoading: boolean;
   materialsError: string | null;
   requests: MaterialRequest[];
+  /** Shared themes and projects, excluding deleted ones. */
+  collections: Collection[];
   statsByUser: Record<string, UserStats>;
   getStats: (uid: string | undefined | null) => UserStats;
 }
@@ -35,6 +38,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [isMaterialsLoading, setIsMaterialsLoading] = useState(true);
   const [materialsError, setMaterialsError] = useState<string | null>(null);
   const [requests, setRequests] = useState<MaterialRequest[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
 
   // Auth state and the signed-in user's profile.
   useEffect(() => {
@@ -110,6 +114,18 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  // Collections are public; the archive groups works by them.
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'collections'), (snapshot) => {
+      const list = snapshot.docs.map(d => mapCollectionDoc(d.id, d.data())).filter(c => !c.isDeleted);
+      list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      setCollections(list);
+    }, (error) => {
+      console.error('Collections snapshot error:', error);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const statsByUser = useMemo(() => computeStats(materials, requests), [materials, requests]);
 
   const value = useMemo<AppDataValue>(() => ({
@@ -117,14 +133,15 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     isAuthReady,
     profile,
     isProfileLoaded,
-    userRole: user ? (profile?.role ?? (user.email === ADMIN_EMAIL ? 'admin' : 'user')) : null,
+    userRole: !user ? null : user.email === ADMIN_EMAIL ? 'admin' : (profile?.role ?? 'user'),
     materials,
     isMaterialsLoading,
     materialsError,
     requests,
+    collections,
     statsByUser,
     getStats: (uid) => (uid && statsByUser[uid]) || EMPTY_STATS,
-  }), [user, isAuthReady, profile, isProfileLoaded, materials, isMaterialsLoading, materialsError, requests, statsByUser]);
+  }), [user, isAuthReady, profile, isProfileLoaded, materials, isMaterialsLoading, materialsError, requests, collections, statsByUser]);
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }

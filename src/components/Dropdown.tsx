@@ -1,10 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { ChevronDown, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '../lib/utils';
 
-interface DropdownOption {
+export interface DropdownOption {
   value: string;
   label: string;
+  /** Optional colour dot, e.g. a subject colour. */
+  color?: string;
 }
 
 interface DropdownProps {
@@ -13,64 +16,100 @@ interface DropdownProps {
   onChange: (value: string) => void;
   className?: string;
   icon?: React.ReactNode;
+  /** Accessible name for the button. */
+  label?: string;
 }
 
-export default function Dropdown({ options, value, onChange, className = '', icon }: DropdownProps) {
+const MENU_WIDTH = 220;
+
+export default function Dropdown({ options, value, onChange, className = '', icon, label }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [alignRight, setAlignRight] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const selectedOption = options.find(opt => opt.value === value) || options[0];
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+    if (!isOpen) return;
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setIsOpen(false);
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [isOpen]);
+
+  // Open toward the side with room, so the menu never runs off the screen.
+  useLayoutEffect(() => {
+    if (!isOpen || !dropdownRef.current) return;
+    const rect = dropdownRef.current.getBoundingClientRect();
+    const width = Math.max(rect.width, MENU_WIDTH);
+    setAlignRight(rect.left + width > window.innerWidth - 8);
+    setOpenUp(rect.bottom + 300 > window.innerHeight && rect.top > 320);
+  }, [isOpen]);
 
   return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
+    <div className={cn('relative', className)} ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-between gap-4 py-2 px-2 text-sm font-light tracking-wide cursor-pointer border-b border-white/10 hover:border-luxury-gold transition-all min-w-[140px] text-left"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-label={label}
+        className="w-full flex items-center justify-between gap-3 py-2 px-2 text-sm font-light tracking-wide cursor-pointer border-b border-white/10 hover:border-luxury-gold transition-all min-w-0 text-left"
       >
-        <div className="flex items-center gap-2 truncate">
+        <span className="flex items-center gap-2 min-w-0">
           {icon}
-          <span className="truncate">{selectedOption.label}</span>
-        </div>
-        <ChevronDown className={`w-4 h-4 text-white/20 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+          {selectedOption?.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: selectedOption.color }} />}
+          <span className="truncate">{selectedOption?.label}</span>
+        </span>
+        <ChevronDown className={cn('w-4 h-4 text-white/30 shrink-0 transition-transform duration-300', isOpen && 'rotate-180')} />
       </button>
 
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            initial={{ opacity: 0, y: openUp ? -6 : 6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute top-full right-0 mt-2 w-full min-w-[180px] bg-luxury-black border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden backdrop-blur-xl"
+            exit={{ opacity: 0, y: openUp ? -6 : 6, scale: 0.97 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            role="listbox"
+            className={cn(
+              'absolute z-[150] min-w-full w-max max-w-[min(18rem,calc(100vw-1.5rem))] max-h-72 overflow-y-auto custom-scrollbar',
+              'bg-[#101010] border border-white/10 rounded-2xl shadow-2xl py-2',
+              alignRight ? 'right-0' : 'left-0',
+              openUp ? 'bottom-full mb-2' : 'top-full mt-2'
+            )}
           >
-            <div className="py-2">
-              {options.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.value);
-                    setIsOpen(false);
-                  }}
-                  className={`w-full text-left px-4 py-3 text-xs uppercase tracking-widest transition-colors hover:bg-white/5 ${
-                    value === option.value ? 'text-luxury-gold bg-white/5' : 'text-white/60'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            {options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={value === option.value}
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  'w-full flex items-center gap-2.5 text-left px-4 py-3 text-xs uppercase tracking-widest transition-colors hover:bg-white/5',
+                  value === option.value ? 'text-luxury-gold bg-white/5' : 'text-white/60'
+                )}
+              >
+                {option.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: option.color }} />}
+                <span className="flex-1 truncate">{option.label}</span>
+                {value === option.value && <Check className="w-3.5 h-3.5 shrink-0" />}
+              </button>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
