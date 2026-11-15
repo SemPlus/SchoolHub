@@ -10,7 +10,6 @@ import { t } from './i18n';
 // Drive. What that file is depends on what was picked:
 //   only photos            -> Google Slides, one photo per slide
 //   only text documents    -> one Google Doc, each file on a new page
-//   only spreadsheets      -> one Google Sheet, one tab per file
 //   anything else / a mix  -> one PDF, in the chosen order
 // The student can always ask for one PDF instead.
 //
@@ -19,7 +18,7 @@ import { t } from './i18n';
 export const MAX_MERGE_FILES = 20;
 
 export type FileKind = 'image' | 'document' | 'sheet' | 'presentation' | 'pdf' | 'unsupported';
-export type MergeTarget = 'slides' | 'doc' | 'sheet' | 'pdf';
+export type MergeTarget = 'slides' | 'doc' | 'pdf';
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
@@ -44,7 +43,6 @@ export function mergeTargetFor(files: File[], forcePdf: boolean): MergeTarget {
   if (kinds.size === 1) {
     if (kinds.has('image')) return 'slides';
     if (kinds.has('document')) return 'doc';
-    if (kinds.has('sheet')) return 'sheet';
   }
   return 'pdf';
 }
@@ -52,14 +50,12 @@ export function mergeTargetFor(files: File[], forcePdf: boolean): MergeTarget {
 export const TARGET_LABEL: Record<MergeTarget, string> = {
   slides: 'Google Slides presentation',
   doc: 'Google Docs document',
-  sheet: 'Google Sheets spreadsheet',
   pdf: 'PDF in Google Drive',
 };
 
 const TARGET_TYPE: Record<MergeTarget, MaterialType> = {
   slides: 'canva',
   doc: 'word',
-  sheet: 'other',
   pdf: 'pdf',
 };
 
@@ -249,76 +245,6 @@ export async function buildDocHtml(
   return new Blob([page], { type: 'text/html' });
 }
 
-// ------------------------------------------------------------------ Sheet
-
-async function sheetsFetch(token: string, url: string, init: RequestInit = {}): Promise<any> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init.headers || {}) },
-  });
-  if (!response.ok) {
-    let message = '';
-    try { message = (await response.json())?.error?.message || ''; } catch { /* not JSON */ }
-    if (/has not been used|is disabled/i.test(message)) {
-      throw new DriveError(t("Combining spreadsheets is not switched on for SchoolHub yet. Please tell the SchoolHub team, or tick \"Make it one PDF instead\"."));
-    }
-    throw new DriveError(message || t("Google Sheets error ({0}).", response.status));
-  }
-  return response.json();
-}
-
-function uniqueSheetName(wanted: string, taken: Set<string>): string {
-  const base = wanted.replace(/[[\]*?/\\:]/g, ' ').trim().slice(0, 90) || 'Sheet';
-  let name = base;
-  for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${base} (${n})`;
-  taken.add(name.toLowerCase());
-  return name;
-}
-
-async function buildSheet(session: DriveSession, files: File[], title: string, onFile: (index: number) => void): Promise<{ id: string; webViewLink?: string }> {
-  const api = 'https://sheets.googleapis.com/v4/spreadsheets';
-  const taken = new Set<string>();
-
-  // The first file becomes the final spreadsheet; the others are copied in.
-  onFile(0);
-  const base = await uploadBlob(session.token, session.folderId, files[0], {
-    name: title, contentType: files[0].type || 'application/octet-stream', convertTo: GOOGLE_SHEET,
-  });
-  try {
-    const renames: any[] = [];
-    const baseInfo = await sheetsFetch(session.token, `${api}/${base.id}?fields=sheets.properties(sheetId,title)`);
-    const baseSheets: any[] = baseInfo.sheets || [];
-    const firstTitle = titleFromFileName(files[0].name);
-    for (const sheet of baseSheets) {
-      const name = uniqueSheetName(baseSheets.length === 1 ? firstTitle : `${firstTitle} · ${sheet.properties.title}`, taken);
-      renames.push({ updateSheetProperties: { properties: { sheetId: sheet.properties.sheetId, title: name }, fields: 'title' } });
-    }
-
-    for (let i = 1; i < files.length; i++) {
-      onFile(i);
-      const tempId = await tempConvert(session, files[i], GOOGLE_SHEET);
-      const info = await sheetsFetch(session.token, `${api}/${tempId}?fields=sheets.properties(sheetId,title)`);
-      const sheets: any[] = info.sheets || [];
-      const fileTitle = titleFromFileName(files[i].name);
-      for (const sheet of sheets) {
-        const copied = await sheetsFetch(session.token, `${api}/${tempId}/sheets/${sheet.properties.sheetId}:copyTo`, {
-          method: 'POST',
-          body: JSON.stringify({ destinationSpreadsheetId: base.id }),
-        });
-        const name = uniqueSheetName(sheets.length === 1 ? fileTitle : `${fileTitle} · ${sheet.properties.title}`, taken);
-        renames.push({ updateSheetProperties: { properties: { sheetId: copied.sheetId, title: name }, fields: 'title' } });
-      }
-    }
-    if (renames.length) {
-      await sheetsFetch(session.token, `${api}/${base.id}:batchUpdate`, { method: 'POST', body: JSON.stringify({ requests: renames }) });
-    }
-    return base;
-  } catch (error) {
-    await deleteDriveFile(session.token, base.id);
-    throw error;
-  }
-}
-
 // ------------------------------------------------------------------ main
 
 /**
@@ -349,9 +275,7 @@ export async function uploadMergedToDrive(
     let uploaded: { id: string; webViewLink?: string };
     const onUpload = (fraction: number) => report({ stage: 'uploading', fraction });
 
-    if (target === 'sheet') {
-      uploaded = await buildSheet(session, files, title, onFile);
-    } else if (target === 'slides') {
+    if (target === 'slides') {
       const pptx = await buildSlides(files, onFile);
       report({ stage: 'uploading', fraction: 0 });
       uploaded = await uploadBlob(token, folderId, pptx, { name: title, contentType: PPTX_MIME, convertTo: GOOGLE_SLIDES, onProgress: onUpload });

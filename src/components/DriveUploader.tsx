@@ -318,7 +318,6 @@ export default function DriveUploader({ onUploaded, onReset }: DriveUploaderProp
               <p className="text-[10px] text-white/35 px-1">
                 {target === 'slides' ? t("Each photo becomes one slide, in this order.")
                   : target === 'doc' ? t("Each file starts on a new page, in this order.")
-                  : target === 'sheet' ? t("Each file becomes its own tab, in this order.")
                   : t("All pages are joined into one PDF, in this order.")}
                 <span className="hidden sm:inline"> {t("Drag to reorder.")}</span>
               </p>
