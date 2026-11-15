@@ -12,6 +12,8 @@ interface UserAvatarProps {
   isClickable?: boolean;
   onClick?: (e: React.MouseEvent) => void;
   customColor?: string;
+  /** Small rank badge on the avatar (hidden on material cards). */
+  showRank?: boolean;
 }
 
 export default function UserAvatar({ 
@@ -22,7 +24,8 @@ export default function UserAvatar({
   className,
   isClickable,
   onClick,
-  customColor
+  customColor,
+  showRank = true
 }: UserAvatarProps) {
   const rank = getRank(contributionCount);
   
@@ -106,14 +109,14 @@ export default function UserAvatar({
       </div>
 
       {/* Level Indicator Badge */}
-      <div className={cn(
+      {showRank && <div className={cn(
         "absolute -bottom-1 -right-1 flex items-center justify-center rounded-full border border-white/10 bg-luxury-black/90 px-1 py-0.5",
         rank.color
       )}>
         <span className="text-[6px] font-black tracking-tighter uppercase whitespace-nowrap">
           {rank.grade}
         </span>
-      </div>
+      </div>}
     </motion.div>
   );
 }

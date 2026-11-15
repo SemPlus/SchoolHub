@@ -177,7 +177,7 @@ export default function MaterialCard({
     }
   };
 
-  const actionButton = "transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md opacity-100 sm:opacity-0 sm:group-hover:opacity-100";
+  const actionButton = "transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100";
   const subject = material.subject ? subjectStyle(material.subject) : null;
   const SubjectIcon = subject?.icon;
   const tags = visibleTags(material);
@@ -192,7 +192,7 @@ export default function MaterialCard({
       onDragStart={onDragStart}
       whileHover={{ y: -4 }}
       className={cn(
-        "glass-panel rounded-[2rem] p-6 sm:p-8 hover:bg-white/[0.08] group flex flex-col h-full relative overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] hover:border-white/30 transition-all duration-500 cursor-pointer select-none",
+        "glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-8 hover:bg-white/[0.08] group flex flex-col h-full relative overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] hover:border-white/30 transition-all duration-500 cursor-pointer select-none",
         isSelected && "ring-2 ring-luxury-gold bg-luxury-gold/5 border-luxury-gold/20"
       )}
     >
@@ -204,13 +204,13 @@ export default function MaterialCard({
       />
       <div className="absolute -top-12 -right-12 w-24 h-24 bg-luxury-gold/5 rounded-full blur-2xl group-hover:bg-luxury-gold/20 transition-all duration-500 group-hover:scale-150"></div>
 
-      <div className="flex items-start justify-between mb-6 relative z-10">
+      <div className="flex items-start justify-between mb-3 sm:mb-6 relative z-10">
         <div
-          className="w-12 h-12 border rounded-2xl flex items-center justify-center shrink-0"
+          className="w-10 h-10 sm:w-12 sm:h-12 border rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0"
           style={subject ? { borderColor: withAlpha(subject.color, 0.35), backgroundColor: withAlpha(subject.color, 0.12) } : { borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)' }}
           title={material.subject || undefined}
         >
-          {SubjectIcon ? <SubjectIcon className="w-6 h-6" style={{ color: subject!.color }} /> : getIcon()}
+          {SubjectIcon ? <SubjectIcon className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: subject!.color }} /> : getIcon()}
         </div>
         <div className="flex flex-wrap justify-end gap-1">
           {isInTrash && (
@@ -233,7 +233,7 @@ export default function MaterialCard({
                 <button
                   onClick={handleSave}
                   disabled={isSaving}
-                  className={cn(actionButton, isSaved ? "text-luxury-gold bg-luxury-gold/10 sm:opacity-100" : "text-white/40 hover:text-luxury-gold hover:bg-white/10")}
+                  className={cn(actionButton, isSaved ? "text-luxury-gold bg-luxury-gold/10 pointer-fine:opacity-100" : "text-white/40 hover:text-luxury-gold hover:bg-white/10")}
                   title={isSaved ? t("Remove from saved") : t("Save")}
                 >
                   {isSaving ? (
@@ -285,11 +285,11 @@ export default function MaterialCard({
         </div>
       </div>
 
-      <h3 className="font-serif text-2xl text-white mb-2 line-clamp-2 leading-tight group-hover:text-luxury-gold transition-colors relative z-10">
+      <h3 className="font-serif text-xl sm:text-2xl text-white mb-2 line-clamp-2 leading-tight group-hover:text-luxury-gold transition-colors relative z-10">
         {material.title}
       </h3>
 
-      <div className="flex flex-wrap gap-2 mb-4 relative z-10">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4 relative z-10">
         {material.verifiedBy && (
           <span className="flex items-center gap-1 bg-purple-400/10 border border-purple-400/30 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-purple-300 font-medium">
             <BadgeCheck className="w-3 h-3" />
@@ -354,12 +354,12 @@ export default function MaterialCard({
       )}
 
       {material.description && (
-        <p className="text-white/50 text-sm font-light leading-relaxed line-clamp-3 mb-6 flex-grow relative z-10">
+        <p className="text-white/50 text-sm font-light leading-relaxed line-clamp-2 sm:line-clamp-3 mb-4 sm:mb-6 flex-grow relative z-10">
           {material.description}
         </p>
       )}
 
-      <div className="mt-auto pt-6 border-t border-white/5 flex items-center justify-between gap-3 relative z-10">
+      <div className="mt-auto pt-4 sm:pt-6 border-t border-white/5 flex flex-wrap items-center justify-between gap-x-3 gap-y-3 relative z-10">
         <div className="flex items-center gap-3 min-w-0">
           <UserAvatar
             name={material.authorName}
@@ -368,6 +368,7 @@ export default function MaterialCard({
             size="md"
             isClickable
             onClick={handleAuthorClickInternal}
+            showRank={false}
           />
           <div className="flex flex-col min-w-0">
             <button
@@ -377,37 +378,37 @@ export default function MaterialCard({
               {material.authorName}
             </button>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <span className={`text-[8px] font-bold ${rank.color} uppercase tracking-tighter`}>{t(rank.label)}</span>
-              <span className="text-white/10">•</span>
               <span className="text-[10px] uppercase tracking-widest text-white/30">
                 {formatDistanceToNow(material.createdAt, { addSuffix: true })}
               </span>
               <span className="text-white/10">•</span>
               <span className="text-[10px] uppercase tracking-widest text-white/40 flex items-center gap-1" title={t("Opened by other students")}>
                 <Eye className="w-2.5 h-2.5" />
-                {material.downloadCount || 0}
+                {(material.downloadCount || 0) === 1 ? t('1 open') : t('{0} opens', material.downloadCount || 0)}
               </span>
               {(material.saveCount || 0) > 0 && (
                 <span className="text-[10px] uppercase tracking-widest text-white/40 flex items-center gap-1" title={t("Saved by other students")}>
                   <Bookmark className="w-2.5 h-2.5" />
-                  {material.saveCount}
+                  {material.saveCount === 1 ? t('1 save') : t('{0} saves', material.saveCount)}
                 </span>
               )}
             </div>
           </div>
         </div>
 
+        <div className="flex items-center gap-2 ml-auto shrink-0">
         {!isInTrash && isAuthenticated && (
           <button
             onClick={(e) => { e.stopPropagation(); toggleStudied(material.id).catch(err => alert(firebaseErrorMessage(err, t("Could not update.")))); }}
             className={cn(
-              'shrink-0 p-2 rounded-full border transition-all',
+              'shrink-0 flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full border text-[10px] font-semibold uppercase tracking-widest transition-all',
               isStudied ? 'border-emerald-400/50 bg-emerald-400/15 text-emerald-300' : 'border-white/10 text-white/35 hover:text-white'
             )}
             title={isStudied ? t("Studied (tap to undo)") : t("Mark as studied")}
             aria-label={isStudied ? t("Studied") : t("Mark as studied")}
           >
             {isStudied ? <CircleCheck className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+            <span>{isStudied ? t("Studied") : t("Studied?")}</span>
           </button>
         )}
         {!isInTrash && (
@@ -418,10 +419,11 @@ export default function MaterialCard({
             onClick={handleOpen}
             className="shrink-0 flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold text-luxury-black bg-white px-4 py-2 rounded-full hover:bg-luxury-gold transition-all shadow-lg shadow-white/5"
           >
-            <span>{t("Open")}</span>
+            <span>{t("Open file")}</span>
             {isExternalLink ? <ExternalLink className="w-3 h-3" /> : <Download className="w-3 h-3" />}
           </a>
         )}
+        </div>
       </div>
     </motion.div>
   );

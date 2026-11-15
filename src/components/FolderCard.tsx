@@ -101,7 +101,7 @@ export default function FolderCard({
           </div>
           
           {canModify && (
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex gap-1 opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 transition-opacity">
               {isInTrash ? (
                 <button
                   onClick={(e) => {

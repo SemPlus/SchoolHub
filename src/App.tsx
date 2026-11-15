@@ -107,15 +107,15 @@ export default function App() {
         className="sticky top-0 z-40 bg-luxury-black/60 backdrop-blur-2xl border-b border-white/10"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-20">
-            <button onClick={() => setActiveTab('archive')} className="flex items-center gap-3 sm:gap-4">
+          <div className="flex justify-between items-center gap-3 h-16 sm:h-20">
+            <button onClick={() => setActiveTab('archive')} className="flex items-center gap-3 sm:gap-4 shrink-0" aria-label="SchoolHub">
               <div className="w-10 h-10 border border-white/20 rounded-full flex items-center justify-center bg-white/5">
                 <BookOpen className="h-5 w-5 text-luxury-gold" />
               </div>
-              <span className="text-xl sm:text-2xl font-serif tracking-widest uppercase text-white">{t("SchoolHub")}</span>
+              <span className="hidden sm:inline text-2xl font-serif tracking-widest uppercase text-white">{t("SchoolHub")}</span>
             </button>
 
-            <div className="flex items-center gap-4 sm:gap-6">
+            <div className="flex items-center gap-2 sm:gap-6 min-w-0">
               <div className="hidden md:flex items-center bg-white/5 rounded-full p-1 border border-white/10">
                 {visibleTabs.map(tab => (
                   <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn(tabClass(tab.id), 'px-5 py-2 text-[10px] tracking-[0.2em]')}>
@@ -135,7 +135,7 @@ export default function App() {
               </button>
               <InstallButton />
               {user ? (
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
                   <button onClick={() => setIsOwnProfileOpen(true)} title={t("Your profile")}>
                     <UserAvatar
                       name={user.displayName || 'User'}
@@ -153,7 +153,7 @@ export default function App() {
               ) : (
                 <button
                   onClick={signInWithGoogle}
-                  className="luxury-button bg-white text-luxury-black font-medium shadow-xl shadow-white/5"
+                  className="luxury-button bg-white text-luxury-black font-medium shadow-xl shadow-white/5 !px-4 sm:!px-6 !text-xs sm:!text-sm whitespace-nowrap shrink-0"
                 >
                   <span className="flex items-center gap-2">
                     <LogIn className="h-4 w-4" />
@@ -166,13 +166,13 @@ export default function App() {
       </motion.nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
-        <div className="relative h-[20vh] sm:h-[25vh] flex items-center justify-center pointer-events-none">
+        <div className="relative h-[13vh] sm:h-[25vh] flex items-center justify-center pointer-events-none">
           <motion.div
             style={{ opacity: titleOpacity, scale: titleScale, y: titleY, filter: titleFilter }}
-            className="fixed top-[11vh] sm:top-[12vh] left-0 right-0 z-0 text-center px-4"
+            className="fixed top-[8.5vh] sm:top-[12vh] left-0 right-0 z-0 text-center px-4"
           >
-            <div className="overflow-hidden mb-4">
-              <h1 className="text-5xl sm:text-6xl md:text-8xl font-serif font-light text-white tracking-tight flex justify-center flex-wrap">
+            <div className="overflow-hidden mb-2 sm:mb-4">
+              <h1 className="text-4xl sm:text-6xl md:text-8xl font-serif font-light text-white tracking-tight flex justify-center flex-wrap">
                 {t(TITLES[activeTab]).split("").map((char, index) => (
                   <motion.span
                     key={`${activeTab}-${index}`}
@@ -190,13 +190,13 @@ export default function App() {
               initial={{ width: 0 }}
               animate={{ width: 120 }}
               transition={{ delay: 1.2, duration: 1.5, ease: "easeInOut" }}
-              className="h-px bg-luxury-gold/50 mx-auto mb-6"
+              className="hidden sm:block h-px bg-luxury-gold/50 mx-auto mb-6"
             />
             <motion.p
               initial={{ opacity: 0, letterSpacing: "0.5em" }}
               animate={{ opacity: 1, letterSpacing: "0.3em" }}
               transition={{ delay: 1.8, duration: 1.5 }}
-              className="text-luxury-gold font-light max-w-lg mx-auto uppercase text-[10px]"
+              className="hidden sm:block text-luxury-gold font-light max-w-lg mx-auto uppercase text-[10px]"
             >
               {t("By Samuel K.")}</motion.p>
           </motion.div>
@@ -209,6 +209,15 @@ export default function App() {
               {inviteSchoolName ? <> {t(" at ")}<span className="font-semibold">{inviteSchoolName}</span></> : null} {t(" on SchoolHub.")}</p>
             <button onClick={signInWithGoogle} className="px-5 py-3 rounded-full bg-white text-luxury-black text-xs font-bold uppercase tracking-widest">
               {t("Sign in to join")}</button>
+          </div>
+        )}
+
+        {!user && !invite && isAuthReady && (
+          <div className="relative z-20 mb-5 px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] flex items-center gap-3">
+            <p className="flex-1 text-xs sm:text-sm text-white/70">{t("Sign in to save, vote and share your own materials.")}</p>
+            <button onClick={signInWithGoogle} className="shrink-0 px-4 py-2 rounded-full bg-luxury-gold text-luxury-black text-[11px] font-bold uppercase tracking-widest">
+              {t("Sign in")}
+            </button>
           </div>
         )}
 
@@ -235,6 +244,9 @@ export default function App() {
             <MaterialList userRole={userRole} view={activeTab} onViewChange={(v) => setActiveTab(v)} />
           )}
         </div>
+        <footer className="relative z-10 mt-20 pt-8 border-t border-white/5 text-center text-[10px] uppercase tracking-[0.3em] text-white/30">
+          SchoolHub · {t("By Samuel K.")}
+        </footer>
       </main>
 
       {isOwnProfileOpen && user && (

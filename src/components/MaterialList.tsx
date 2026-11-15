@@ -19,7 +19,7 @@ import CreateCollectionModal from './CreateCollectionModal';
 import StudyProgress from './StudyProgress';
 import { FinalExamPanel, HandInReminders, TeacherClassOverview } from './ArchivePanels';
 import ClassPosterModal from './ClassPosterModal';
-import { Search, Filter, FolderPlus, ChevronRight, Home, ArrowLeft, BookOpen, Plus, Trash2, Move, Edit, Info, RotateCcw, X, SlidersHorizontal, Shapes, ArrowUpWideNarrow, Layers, BookMarked } from 'lucide-react';
+import { Search, Filter, FolderPlus, ChevronRight, Home, ArrowLeft, BookOpen, Plus, Trash2, Move, Edit, Info, RotateCcw, X, SlidersHorizontal, Shapes, ArrowUpWideNarrow, Layers, BookMarked, SquareCheckBig as CheckSquare, ArrowUpDown, Bookmark } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { mapFolderDoc, mapMaterialDoc } from '../lib/mappers';
@@ -31,7 +31,7 @@ import { kindsInUse } from '../lib/materialKinds';
 import { booksForClass, bookLabel, Textbook } from '../lib/textbooks';
 import { firebaseErrorMessage } from '../lib/engagement';
 
-import { t } from '../lib/i18n';
+import { t, tc } from '../lib/i18n';
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 type View = 'archive' | 'personal' | 'trash';
@@ -107,6 +107,12 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
   // Multi-selection
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<Set<string>>(new Set());
+  /** Tap-to-select mode, for phones (no Ctrl/Shift, no right-click). */
+  const [selectMode, setSelectMode] = useState(false);
+  /** My Space root: everything, only my own materials, or only saved ones. */
+  const [personalShow, setPersonalShow] = useState<'all' | 'mine' | 'saved'>('all');
+  // Selecting is per view: leaving My Space or the Trash ends it.
+  useEffect(() => { setSelectMode(false); }, [view]);
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<{ index: number, type: 'material' | 'folder' } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, target: any, type: 'material' | 'folder' | 'background' } | null>(null);
@@ -264,7 +270,11 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         const isMine = m.authorId === uid;
         if (!isMine && !userSaves.has(m.id)) return false;
         // Saved materials from others live at the root of My Space.
-        if (currentFolderId === null) return !m.folderId || !isMine;
+        if (currentFolderId === null) {
+          if (personalShow === 'mine' && !isMine) return false;
+          if (personalShow === 'saved' && isMine) return false;
+          return !m.folderId || !isMine;
+        }
         return m.folderId === currentFolderId;
       }
 
@@ -276,7 +286,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
       return inScope(m);
     });
-  }, [allMaterials, currentView, currentFolderId, userSaves, uid, effectiveScope, bookFilter, profile?.schoolId, profile?.classYear, profile?.classSection, currentSchoolYear]);
+  }, [allMaterials, currentView, currentFolderId, userSaves, uid, personalShow, effectiveScope, bookFilter, profile?.schoolId, profile?.classYear, profile?.classSection, currentSchoolYear]);
 
   /** Subjects that exist in this view, most recently used first. */
   const subjectsHere = useMemo(() => subjectsInUse(materials), [materials]);
@@ -410,6 +420,21 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     ...sortedFolders.map(f => ({ ...f, itemType: 'folder' as const })),
     ...sortedMaterials.map(m => ({ ...m, itemType: 'material' as const })),
   ];
+
+  function toggleSelectMode() {
+    if (selectMode) clearSelection();
+    setSelectMode(!selectMode);
+  }
+
+  function toggleSelected(id: string, type: 'material' | 'folder') {
+    const toggle = (set: Set<string>) => {
+      const next = new Set(set);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    };
+    if (type === 'material') setSelectedMaterialIds(prev => toggle(prev));
+    else setSelectedFolderIds(prev => toggle(prev));
+  }
 
   function clearSelection() {
     setSelectedMaterialIds(new Set());
@@ -725,7 +750,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   // ---------------------------------------------------------------- render
 
   const filterOptions = [
-    { value: 'all', label: 'All types' },
+    { value: 'all', label: 'Any format' },
     { value: 'pdf', label: 'PDF' },
     { value: 'word', label: 'Word' },
     { value: 'canva', label: 'Presentations' },
@@ -785,12 +810,15 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     );
   }
 
-  const isEmpty = sortedFolders.length === 0 && sortedMaterials.length === 0 && visibleCollections.length === 0;
+  const isEmpty = (currentView === 'personal' && currentFolderId === null && personalShow === 'saved' ? 0 : sortedFolders.length) === 0 && sortedMaterials.length === 0 && visibleCollections.length === 0;
 
   const finalExamClass = isTeacher
     ? (teacherViewClass?.startsWith('5') ? teacherViewClass : null)
     : (hasClass && profile?.classYear === 5 ? myClassName : null);
   const archiveRoot = currentView === 'archive' && currentFolderId === null;
+  const atRoot = currentFolderId === null && currentView !== 'trash';
+  const shownFolders = currentView === 'personal' && currentFolderId === null && personalShow === 'saved' ? [] : sortedFolders;
+  const actionChip = 'flex items-center gap-2 px-4 py-3 bg-white/5 text-white/70 hover:text-white hover:bg-white/10 rounded-2xl border border-white/10 text-xs font-semibold transition-all';
 
   return (
     <div className="space-y-8 sm:space-y-10">
@@ -862,32 +890,30 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
           </div>
         )}
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-2">
+        {/* Breadcrumb: only inside a folder or the Trash */}
+        {!atRoot && (
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
-              onClick={() => handleBreadcrumbClick(-1)}
+              onClick={() => currentView === 'trash' ? onViewChange?.('personal') : handleBreadcrumbClick(-1)}
               onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('bg-white/10'); }}
               onDragLeave={(e) => e.currentTarget.classList.remove('bg-white/10')}
               onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('bg-white/10'); handleItemDrop(null); }}
-              className={cn(
-                "p-3 rounded-2xl transition-all",
-                (currentFolderId === null && currentView !== 'trash') ? "bg-luxury-gold text-luxury-black" : "text-white/40 hover:text-white hover:bg-white/5"
-              )}
-              title={t("Top level")}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
             >
-              <Home className="w-5 h-5" />
+              <ArrowLeft className="w-4 h-4" />
+              {currentView === 'archive' ? t("Archive") : t("My Space")}
             </button>
 
             {currentView !== 'trash' && folderPath.map((folder, index) => (
               <React.Fragment key={folder.id}>
-                <ChevronRight className="w-4 h-4 text-white/10 shrink-0" />
+                <ChevronRight className="w-4 h-4 text-white/15 shrink-0" />
                 <button
                   onClick={() => handleBreadcrumbClick(index)}
                   onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('bg-white/10'); }}
                   onDragLeave={(e) => e.currentTarget.classList.remove('bg-white/10')}
                   onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('bg-white/10'); handleItemDrop(folder.id); }}
                   className={cn(
-                    "px-4 py-2 hover:bg-white/10 rounded-xl transition-all text-sm font-medium whitespace-nowrap",
+                    "px-3 py-2 hover:bg-white/10 rounded-xl transition-all text-sm font-medium whitespace-nowrap max-w-[60vw] truncate",
                     index === folderPath.length - 1 ? "text-luxury-gold bg-luxury-gold/5" : "text-white/60 hover:text-white"
                   )}
                 >
@@ -898,80 +924,97 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
             {currentView === 'trash' && (
               <>
-                <ChevronRight className="w-4 h-4 text-white/10 shrink-0" />
-                <span className="px-4 py-2 bg-red-500/10 text-red-400 rounded-xl text-sm font-bold uppercase tracking-widest">{t("Trash")}</span>
+                <ChevronRight className="w-4 h-4 text-white/15 shrink-0" />
+                <span className="px-3 py-2 bg-red-500/10 text-red-400 rounded-xl text-sm font-bold uppercase tracking-widest">{t("Trash")}</span>
               </>
             )}
           </div>
+        )}
 
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <div className="relative group flex-1 min-w-0 md:min-w-[260px]">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-luxury-gold transition-colors" />
-              <input
-                type="text"
-                placeholder={t("Search materials…")}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30 transition-all font-light"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={cn(
-                  "relative p-3 rounded-2xl transition-all border",
-                  showFilters || activeFilterCount > 0 ? "bg-luxury-gold text-luxury-black border-luxury-gold" : "bg-white/5 text-white/60 hover:text-white border-white/5"
-                )}
-                title={t("Filters")}
-              >
-                <SlidersHorizontal className="w-5 h-5" />
-                {activeFilterCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white text-luxury-black text-[9px] font-bold flex items-center justify-center">{activeFilterCount}</span>
-                )}
-              </button>
-
-              {isAuthenticated && currentView === 'archive' && currentFolderId === null && (
-                <button
-                  onClick={() => setIsCreateCollectionOpen(true)}
-                  className="p-3 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all border border-white/5"
-                  title={isTeacher ? t("New collection or hand-in") : t("New collection")}
-                  aria-label={t("New collection")}
-                >
-                  <Layers className="w-5 h-5" />
-                </button>
-              )}
-
-              {isAuthenticated && currentView === 'personal' && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsUploadModalOpen(true)}
-                    className="p-3 bg-luxury-gold text-luxury-black rounded-2xl hover:scale-105 transition-all shadow-lg shadow-luxury-gold/20"
-                    title={t("Add material")}
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => setIsCreateFolderOpen(true)}
-                    className="p-3 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all border border-white/5"
-                    title={t("New folder")}
-                  >
-                    <FolderPlus className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => onViewChange?.('trash')}
-                    className="p-3 bg-white/5 text-white/60 hover:text-red-300 hover:bg-white/10 rounded-2xl transition-all border border-white/5"
-                    title={t("Trash")}
-                    aria-label={t("Trash")}
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              )}
-
-            </div>
+        {/* Search + filters */}
+        <div className="flex items-center gap-2">
+          <div className="relative group flex-1 min-w-0">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-luxury-gold transition-colors" />
+            <input
+              type="text"
+              placeholder={t("Search materials…")}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30 transition-all font-light"
+            />
           </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={cn(
+              "relative shrink-0 flex items-center gap-2 px-3 sm:px-4 py-3 rounded-2xl transition-all border text-xs font-semibold",
+              showFilters || activeFilterCount > 0 ? "bg-luxury-gold text-luxury-black border-luxury-gold" : "bg-white/5 text-white/70 hover:text-white border-white/10"
+            )}
+            aria-expanded={showFilters}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            <span>{t("Filters")}</span>
+            {activeFilterCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-luxury-black text-luxury-gold text-[9px] font-bold flex items-center justify-center">{activeFilterCount}</span>
+            )}
+          </button>
         </div>
+
+        {/* Actions, always with a label */}
+        {isAuthenticated && currentView !== 'trash' && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setIsUploadModalOpen(true)}
+              className="flex-1 sm:flex-none min-w-[11rem] flex items-center justify-center gap-2 px-5 py-3 bg-luxury-gold text-luxury-black rounded-2xl text-xs font-bold tracking-wide shadow-lg shadow-luxury-gold/20 hover:brightness-110 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              {currentView === 'archive' ? t("Share a material") : t("Add material")}
+            </button>
+            {currentView === 'archive' && currentFolderId === null && (
+              <button onClick={() => setIsCreateCollectionOpen(true)} className={actionChip}>
+                <Layers className="w-4 h-4" /> {isTeacher ? t("New collection or hand-in") : t("New collection")}
+              </button>
+            )}
+            {currentView === 'personal' && (
+              <>
+                <button onClick={() => setIsCreateFolderOpen(true)} className={actionChip}>
+                  <FolderPlus className="w-4 h-4" /> {t("New folder")}
+                </button>
+                <button onClick={toggleSelectMode} className={cn(actionChip, selectMode && 'border-luxury-gold text-luxury-gold')}>
+                  <CheckSquare className="w-4 h-4" /> {selectMode ? t("Done") : t("Select")}
+                </button>
+                <button onClick={() => onViewChange?.('trash')} className={cn(actionChip, 'hover:text-red-300')}>
+                  <Trash2 className="w-4 h-4" /> {t("Trash")}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+        {isAuthenticated && currentView === 'trash' && !isEmpty && (
+          <div className="flex flex-wrap gap-2">
+            <button onClick={toggleSelectMode} className={cn(actionChip, selectMode && 'border-luxury-gold text-luxury-gold')}>
+              <CheckSquare className="w-4 h-4" /> {selectMode ? t("Done") : t("Select")}
+            </button>
+          </div>
+        )}
+
+        {/* My Space: own materials vs saved ones */}
+        {currentView === 'personal' && currentFolderId === null && (
+          <div className="flex gap-2">
+            {([['all', 'Everything'], ['mine', 'Mine'], ['saved', 'Saved']] as const).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setPersonalShow(value)}
+                className={cn(
+                  'px-4 py-2 rounded-full text-[10px] uppercase tracking-widest font-semibold border transition-all flex items-center gap-1.5',
+                  personalShow === value ? 'bg-luxury-gold text-luxury-black border-luxury-gold' : 'border-white/10 text-white/50 hover:text-white'
+                )}
+              >
+                {value === 'saved' && <Bookmark className="w-3 h-3" />}
+                {tc('filter', label)}
+              </button>
+            ))}
+          </div>
+        )}
 
         {currentView === 'archive' && currentFolderId === null && myBooksWithMaterials.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1">
@@ -996,7 +1039,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2 sm:gap-4">
           <Dropdown options={subjectOptions} value={subjectFilter} onChange={setSubjectFilter} icon={<Shapes className="w-4 h-4 text-white/40 shrink-0" />} label={t("Subject")} className="col-span-2 sm:col-span-1" />
-          <Dropdown options={sortOptions} value={sortBy} onChange={setSortBy} label={t("Sort")} />
+          <Dropdown options={sortOptions} value={sortBy} onChange={setSortBy} icon={<ArrowUpDown className="w-4 h-4 text-white/40 shrink-0" />} label={t("Sort")} />
           <Dropdown options={kindOptions} value={kindFilter} onChange={setKindFilter} icon={<Filter className="w-4 h-4 text-white/40 shrink-0" />} label={t("Kind")} />
         </div>
       </div>
@@ -1054,7 +1097,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       )}
 
       <AnimatePresence>
-        {(selectedMaterialIds.size > 0 || selectedFolderIds.size > 0) && (
+        {(selectMode || selectedMaterialIds.size > 0 || selectedFolderIds.size > 0) && (
           <motion.div
             key="bulk-toolbar"
             initial={{ y: 50, opacity: 0, x: '-50%' }}
@@ -1066,6 +1109,13 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
               <span className="text-[9px] uppercase tracking-[0.2em] text-white/30 font-black">{t("Selected")}</span>
               <span className="text-luxury-gold font-serif text-xl">{selectedMaterialIds.size + selectedFolderIds.size}</span>
             </div>
+            {selectMode && selectedMaterialIds.size + selectedFolderIds.size === 0 ? (
+              <>
+                <div className="h-10 w-px bg-white/10" />
+                <p className="text-xs text-white/50">{t("Tap the items to select them")}</p>
+                <button onClick={toggleSelectMode} className="px-4 py-3 rounded-2xl text-[10px] uppercase tracking-widest text-white/60 hover:text-white bg-white/5 font-bold">{t("Done")}</button>
+              </>
+            ) : (<>
             <div className="h-10 w-px bg-white/10" />
             <div className="flex gap-2 overflow-x-auto scrollbar-none">
               {currentView === 'trash' ? (
@@ -1083,10 +1133,11 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                     <Trash2 className="w-4 h-4" /> {t(" Trash")}</button>
                 </>
               )}
-              <button onClick={clearSelection} className="px-4 py-3 hover:bg-white/5 rounded-2xl text-[10px] uppercase tracking-widest text-white/30 hover:text-white transition-all">
+              <button onClick={() => { clearSelection(); setSelectMode(false); }} aria-label={t("Cancel")} className="px-4 py-3 hover:bg-white/5 rounded-2xl text-[10px] uppercase tracking-widest text-white/30 hover:text-white transition-all">
                 <X className="w-4 h-4" />
               </button>
             </div>
+            </>)}
           </motion.div>
         )}
       </AnimatePresence>
@@ -1097,8 +1148,13 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         ref={containerRef}
         onMouseDown={handleMouseDown}
         onContextMenu={(e) => handleContextMenu(e, 'background')}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 min-h-[300px]"
+        className="space-y-6 sm:space-y-8 min-h-[300px]"
       >
+        {(visibleCollections.length > 0 || shownFolders.length > 0) && (
+        <div
+          onMouseDown={handleMouseDown}
+          className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8 overflow-x-auto md:overflow-visible snap-x snap-mandatory scroll-px-4 sm:scroll-px-6 md:scroll-px-0 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6 md:mx-0 md:px-0 pb-1 [&>*]:shrink-0 [&>*]:w-[82%] sm:[&>*]:w-[60%] md:[&>*]:w-auto [&>*]:snap-start"
+        >
         <AnimatePresence mode="popLayout">
           {visibleCollections.map(({ collection: c, works, lastActivity }) => (
             <motion.div
@@ -1118,7 +1174,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             </motion.div>
           ))}
 
-          {sortedFolders.map((folder, index) => (
+          {shownFolders.map((folder, index) => (
             <motion.div
               layout
               key={folder.id}
@@ -1131,7 +1187,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             >
               <FolderCard
                 folder={folder}
-                onClick={currentView === 'trash' ? () => {} : handleNavigateToFolder}
+                onClick={selectMode ? (f) => toggleSelected(f.id, 'folder') : currentView === 'trash' ? () => {} : handleNavigateToFolder}
                 onDeleteClick={handleFolderDelete}
                 onMoveClick={currentView === 'trash' ? undefined : handleMoveFolder}
                 userRole={userRole}
@@ -1144,7 +1200,12 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
               />
             </motion.div>
           ))}
+        </AnimatePresence>
+        </div>
+        )}
 
+        <div onMouseDown={handleMouseDown} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
+        <AnimatePresence mode="popLayout">
           {sortedMaterials.map((material, index) => (
             <motion.div
               layout
@@ -1159,7 +1220,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
               <MaterialCard
                 material={material}
                 onAuthorClick={handleAuthorClick}
-                onCardClick={currentView === 'trash' ? () => {} : handleCardClick}
+                onCardClick={selectMode ? (m) => toggleSelected(m.id, 'material') : currentView === 'trash' ? () => {} : handleCardClick}
                 onEditClick={handleEditClick}
                 onMoveClick={handleMoveMaterial}
                 userRole={userRole}
@@ -1175,6 +1236,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             </motion.div>
           ))}
         </AnimatePresence>
+        </div>
       </div>
 
       <AnimatePresence>
@@ -1210,7 +1272,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
               </h3>
               <p className="text-white/30 mt-2 text-sm font-light">
                 {currentView === 'personal'
-                  ? t("Add your first material with the + button, or save materials from the archive.")
+                  ? t("Add your first material with the Add material button, or save materials from the archive.")
                   : effectiveScope !== 'all'
                     ? t("Be the first to share something, or look wider.")
                     : t("Try a different search or clear the filters.")}
