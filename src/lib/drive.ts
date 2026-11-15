@@ -63,9 +63,9 @@ export interface FilePlan {
   canMakeEditable: boolean;
 }
 
-const GOOGLE_DOC = 'application/vnd.google-apps.document';
-const GOOGLE_SLIDES = 'application/vnd.google-apps.presentation';
-const GOOGLE_SHEET = 'application/vnd.google-apps.spreadsheet';
+export const GOOGLE_DOC = 'application/vnd.google-apps.document';
+export const GOOGLE_SLIDES = 'application/vnd.google-apps.presentation';
+export const GOOGLE_SHEET = 'application/vnd.google-apps.spreadsheet';
 
 export function planFor(file: File): FilePlan {
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
@@ -92,7 +92,7 @@ export function titleFromFileName(name: string): string {
   return name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').trim().slice(0, 100);
 }
 
-async function driveFetch(token: string, url: string, init: RequestInit = {}): Promise<any> {
+export async function driveFetch(token: string, url: string, init: RequestInit = {}): Promise<any> {
   const response = await fetch(url, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, ...(init.headers || {}) },
@@ -181,31 +181,26 @@ export interface UploadResult {
   isShared: boolean;
 }
 
-export async function uploadToDrive(
-  file: File,
-  options: { makeEditable?: boolean; onProgress?: (fraction: number) => void; onStage?: (stage: 'connecting' | 'uploading' | 'sharing') => void } = {}
-): Promise<UploadResult> {
-  const user = auth.currentUser;
-  if (!user) throw new DriveError(t("Sign in first."));
-  if (file.size > MAX_UPLOAD_BYTES) throw new DriveError(t("This file is larger than 100 MB."));
+export type UploadStage = 'connecting' | 'preparing' | 'uploading' | 'sharing';
 
-  options.onStage?.('connecting');
-  const token = await getDriveToken();
-  const plan = planFor(file);
-  const convertTo = plan.convertTo ?? (options.makeEditable && plan.canMakeEditable ? GOOGLE_DOC : null);
-  const folderId = await ensureFolder(token, user.uid);
-
+/**
+ * Uploads one blob into the SchoolHub folder, converting it to `convertTo`
+ * (a Google file type) when given. Returns the new file's id and link.
+ */
+export async function uploadBlob(
+  token: string,
+  folderId: string,
+  blob: Blob,
+  options: { name: string; contentType?: string; convertTo?: string | null; onProgress?: (fraction: number) => void }
+): Promise<{ id: string; webViewLink?: string }> {
   const metadata: Record<string, unknown> = {
-    name: convertTo ? titleFromFileName(file.name) : file.name,
+    name: options.name,
     parents: [folderId],
-    ...(convertTo ? { mimeType: convertTo } : {}),
+    ...(options.convertTo ? { mimeType: options.convertTo } : {}),
   };
   const fields = 'id,webViewLink';
-  const contentType = file.type || 'application/octet-stream';
+  const contentType = options.contentType || blob.type || 'application/octet-stream';
   const onProgress = options.onProgress ?? (() => undefined);
-
-  options.onStage?.('uploading');
-  let uploaded: { id: string; webViewLink?: string };
 
   // Resumable upload handles large files; small files fall back to a single
   // multipart request if the session URL is not readable in this browser.
@@ -215,7 +210,7 @@ export async function uploadToDrive(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json; charset=UTF-8',
       'X-Upload-Content-Type': contentType,
-      'X-Upload-Content-Length': String(file.size),
+      'X-Upload-Content-Length': String(blob.size),
     },
     body: JSON.stringify(metadata),
   });
@@ -223,17 +218,33 @@ export async function uploadToDrive(
   const sessionUrl = start.headers.get('Location');
 
   if (sessionUrl) {
-    uploaded = await sendWithProgress('PUT', sessionUrl, { 'Content-Type': contentType }, file, onProgress);
-  } else if (file.size <= MULTIPART_LIMIT) {
+    return sendWithProgress('PUT', sessionUrl, { 'Content-Type': contentType }, blob, onProgress);
+  }
+  if (blob.size <= MULTIPART_LIMIT) {
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', file);
-    uploaded = await sendWithProgress('POST', `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=${fields}`, { Authorization: `Bearer ${token}` }, form, onProgress);
-  } else {
-    throw new DriveError(t("This browser cannot upload large files to Drive. Try a file under 5 MB, or another browser."));
+    form.append('file', blob.type === contentType ? blob : new Blob([blob], { type: contentType }));
+    return sendWithProgress('POST', `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=${fields}`, { Authorization: `Bearer ${token}` }, form, onProgress);
   }
+  throw new DriveError(t("This browser cannot upload large files to Drive. Try a file under 5 MB, or another browser."));
+}
 
-  options.onStage?.('sharing');
+/** Downloads a Google file converted to another format (e.g. a Google Doc as PDF). */
+export async function exportDriveFile(token: string, fileId: string, mimeType: string): Promise<Blob> {
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(mimeType)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw await toDriveError(response);
+  return response.blob();
+}
+
+/** Removes a file SchoolHub created (used for temporary conversion files). */
+export async function deleteDriveFile(token: string, fileId: string): Promise<void> {
+  await driveFetch(token, `https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE' }).catch(() => undefined);
+}
+
+/** Shares the file as "anyone with the link can view" and returns its link. */
+export async function shareAndLink(token: string, uploaded: { id: string; webViewLink?: string }): Promise<UploadResult> {
   let isShared = true;
   try {
     await driveFetch(token, `https://www.googleapis.com/drive/v3/files/${uploaded.id}/permissions?fields=id`, {
@@ -245,14 +256,46 @@ export async function uploadToDrive(
     // School-managed accounts often forbid public links.
     isShared = false;
   }
-
   let url = uploaded.webViewLink;
   if (!url) {
     const info = await driveFetch(token, `https://www.googleapis.com/drive/v3/files/${uploaded.id}?fields=webViewLink`);
     url = info.webViewLink;
   }
-  onProgress(1);
   return { url: url!, fileId: uploaded.id, isShared };
+}
+
+/** Signs in to Drive and finds (or creates) the SchoolHub folder. */
+export async function openDrive(): Promise<{ token: string; folderId: string }> {
+  const user = auth.currentUser;
+  if (!user) throw new DriveError(t("Sign in first."));
+  const token = await getDriveToken();
+  const folderId = await ensureFolder(token, user.uid);
+  return { token, folderId };
+}
+
+export async function uploadToDrive(
+  file: File,
+  options: { makeEditable?: boolean; onProgress?: (fraction: number) => void; onStage?: (stage: UploadStage) => void } = {}
+): Promise<UploadResult> {
+  if (file.size > MAX_UPLOAD_BYTES) throw new DriveError(t("This file is larger than 100 MB."));
+
+  options.onStage?.('connecting');
+  const { token, folderId } = await openDrive();
+  const plan = planFor(file);
+  const convertTo = plan.convertTo ?? (options.makeEditable && plan.canMakeEditable ? GOOGLE_DOC : null);
+
+  options.onStage?.('uploading');
+  const uploaded = await uploadBlob(token, folderId, file, {
+    name: convertTo ? titleFromFileName(file.name) : file.name,
+    contentType: file.type || 'application/octet-stream',
+    convertTo,
+    onProgress: options.onProgress,
+  });
+
+  options.onStage?.('sharing');
+  const result = await shareAndLink(token, uploaded);
+  options.onProgress?.(1);
+  return result;
 }
 
 /**
