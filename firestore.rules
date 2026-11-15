@@ -104,7 +104,9 @@ service cloud.firestore {
         (!('linkStatus' in data) || data.linkStatus == null || data.linkStatus in ['ok', 'broken', 'restricted']) &&
         optTimestamp(data, 'linkCheckedAt') &&
         optTimestamp(data, 'visibleInArchiveUntil') &&
-        optString(data, 'collectionId', 128);
+        optString(data, 'collectionId', 128) &&
+        optString(data, 'kind', 30) &&
+        optString(data, 'level', 20);
     }
 
     function isValidFolderData(data) {
@@ -162,7 +164,18 @@ service cloud.firestore {
         data.createdByName is string && data.createdByName.size() <= 100 &&
         data.createdAt is timestamp &&
         optTimestamp(data, 'updatedAt') &&
-        optBool(data, 'isDeleted');
+        optBool(data, 'isDeleted') &&
+        optBool(data, 'isHandIn') &&
+        optTimestamp(data, 'dueAt');
+    }
+
+    // Hand-in deadlines are a teacher feature.
+    function canSetDeadline(data) {
+      return data.get('dueAt', null) == null ||
+        (exists(userPath(request.auth.uid)) &&
+          (get(userPath(request.auth.uid)).data.get('accountType', '') == 'teacher' ||
+           get(userPath(request.auth.uid)).data.role in ['teacher', 'admin'] ||
+           isAdmin()));
     }
 
     function isValidRequestData(data) {
@@ -279,6 +292,35 @@ service cloud.firestore {
       allow update: if isAuthorEdit() || isTrashToggle() || isOpenCount() || isSaveCount() || isVerification();
 
       allow delete: if isAuthorOrAdmin();
+
+      // Stars and a comment from one person on one work (id = their uid).
+      // Authors cannot review their own work.
+      match /feedback/{userId} {
+        allow read: if true;
+
+        function isValidFeedback(data) {
+          return (!('rating' in data) || data.rating == null || (data.rating is int && data.rating >= 1 && data.rating <= 5)) &&
+            (!('comment' in data) || data.comment == null || (data.comment is string && data.comment.size() <= 500)) &&
+            (data.get('rating', null) != null || data.get('comment', null) != null);
+        }
+
+        allow create: if isAuthenticated() &&
+          userId == request.auth.uid &&
+          request.resource.data.keys().hasOnly(['userId', 'userName', 'rating', 'comment', 'createdAt']) &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.userName is string && request.resource.data.userName.size() <= 100 &&
+          request.resource.data.createdAt == request.time &&
+          isValidFeedback(request.resource.data) &&
+          get(materialPath(materialId)).data.authorId != request.auth.uid;
+
+        allow update: if isAuthenticated() &&
+          userId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'comment', 'updatedAt']) &&
+          request.resource.data.updatedAt == request.time &&
+          isValidFeedback(request.resource.data);
+
+        allow delete: if isAuthenticated() && (userId == request.auth.uid || isAdmin());
+      }
     }
 
     // ================================================================= opens
@@ -360,13 +402,15 @@ service cloud.firestore {
         isValidCollectionData(request.resource.data) &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.createdAt == request.time &&
-        request.resource.data.get('isDeleted', false) == false;
+        request.resource.data.get('isDeleted', false) == false &&
+        canSetDeadline(request.resource.data);
 
       allow update: if isAuthenticated() &&
         (request.auth.uid == resource.data.createdBy || isAdmin()) &&
         isValidCollectionData(request.resource.data) &&
         request.resource.data.createdBy == resource.data.createdBy &&
-        request.resource.data.createdAt == resource.data.createdAt;
+        request.resource.data.createdAt == resource.data.createdAt &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dueAt']) || canSetDeadline(request.resource.data));
 
       allow delete: if isAuthenticated() && (request.auth.uid == resource.data.createdBy || isAdmin());
     }

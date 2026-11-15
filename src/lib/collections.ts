@@ -11,6 +11,8 @@ export interface NewCollectionInput {
   school: PickedSchool | null;
   classYear?: number;
   classSection?: string;
+  /** Hand-in deadline (teachers). */
+  dueAt?: Date | null;
 }
 
 export async function createCollection(input: NewCollectionInput): Promise<string> {
@@ -31,6 +33,8 @@ export async function createCollection(input: NewCollectionInput): Promise<strin
     createdByName: user.displayName || 'Student',
     createdAt: serverTimestamp(),
     isDeleted: false,
+    isHandIn: !!input.dueAt,
+    dueAt: input.dueAt || null,
   });
   return ref.id;
 }
@@ -65,4 +69,9 @@ export function sortCollectionsForViewer(collections: Collection[], profile: Use
     relevanceTier(a, profile, myClassLabels) - relevanceTier(b, profile, myClassLabels) ||
     b.createdAt.getTime() - a.createdAt.getTime()
   );
+}
+
+/** True when a work was added after the hand-in deadline. */
+export function isLate(work: Material, collection: Collection): boolean {
+  return !!collection.dueAt && work.createdAt.getTime() > collection.dueAt.getTime();
 }

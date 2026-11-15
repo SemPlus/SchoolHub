@@ -14,6 +14,7 @@ import { firebaseErrorMessage, recordOpen, toggleSave } from '../lib/engagement'
 import UserAvatar from './UserAvatar';
 import SubjectBadge from './SubjectBadge';
 import { subjectStyle, visibleTags, withAlpha } from '../lib/subjects';
+import { kindById, levelById } from '../lib/materialKinds';
 
 interface MaterialCardProps {
   key?: React.Key;
@@ -176,6 +177,8 @@ export default function MaterialCard({
   const subject = material.subject ? subjectStyle(material.subject) : null;
   const SubjectIcon = subject?.icon;
   const tags = visibleTags(material);
+  const kind = kindById(material.kind);
+  const level = levelById(material.level);
 
   return (
     <motion.div
@@ -303,6 +306,16 @@ export default function MaterialCard({
           </span>
         )}
         <SubjectBadge subject={material.subject} />
+        {kind && (
+          <span className="flex items-center gap-1 bg-white/5 border border-white/15 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-white/75 font-medium">
+            <kind.icon className="w-3 h-3" /> {kind.label}
+          </span>
+        )}
+        {level && (
+          <span className="px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest border border-white/10 text-white/50" title={level.hint}>
+            {level.label}
+          </span>
+        )}
         {material.collectionId && (
           <span className="flex items-center gap-1 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-white/60 font-medium">
             <Layers className="w-3 h-3" /> In a collection

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Layers } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { Layers, CalendarClock } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
 import type { Collection } from '../types';
 import { subjectStyle, withAlpha } from '../lib/subjects';
 import SubjectBadge from './SubjectBadge';
@@ -39,10 +39,16 @@ export default function CollectionCard({ collection, workCount, authorNames, las
         </div>
 
         <div className="space-y-2">
-          <p className="text-[9px] uppercase tracking-[0.25em] text-white/40">Collection</p>
+          <p className="text-[9px] uppercase tracking-[0.25em] text-white/40">{collection.dueAt ? 'Hand-in' : 'Collection'}</p>
           <h3 className="font-serif text-2xl text-white leading-tight line-clamp-2">{collection.title}</h3>
           <div className="flex flex-wrap gap-2">
             <SubjectBadge subject={collection.subject} />
+            {collection.dueAt && (
+              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest border ${collection.dueAt.getTime() < Date.now() ? 'border-red-400/30 bg-red-400/10 text-red-300' : 'border-luxury-gold/30 bg-luxury-gold/10 text-luxury-gold'}`}>
+                <CalendarClock className="w-3 h-3" />
+                {collection.dueAt.getTime() < Date.now() ? 'Past due' : `Due ${format(collection.dueAt, 'EEE d MMM')}`}
+              </span>
+            )}
             {collection.className && (
               <span className="px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest bg-luxury-gold/10 border border-luxury-gold/20 text-luxury-gold">
                 {collection.className}

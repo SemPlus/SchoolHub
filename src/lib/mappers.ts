@@ -1,4 +1,4 @@
-import type { Collection, Folder, Material, MaterialRequest, RequestAnswer } from '../types';
+import type { Collection, Folder, Material, MaterialRequest, RequestAnswer, WorkFeedback } from '../types';
 import { toDate } from './utils';
 
 // Firestore Timestamps must be converted explicitly: `new Date(timestamp)`
@@ -45,4 +45,12 @@ export const mapCollectionDoc = (id: string, data: any): Collection => ({
   ...data,
   createdAt: toDate(data.createdAt) ?? new Date(),
   updatedAt: toDate(data.updatedAt),
+  dueAt: toDate(data.dueAt),
 } as Collection);
+
+export const mapFeedbackDoc = (id: string, data: any): WorkFeedback => ({
+  id,
+  ...data,
+  createdAt: toDate(data.createdAt) ?? new Date(),
+  updatedAt: toDate(data.updatedAt),
+} as WorkFeedback);

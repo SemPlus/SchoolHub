@@ -8,6 +8,7 @@ import Modal from './Modal';
 import DriveUploader from './DriveUploader';
 import CollectionPicker from './CollectionPicker';
 import ClassificationFields, { ClassificationValue } from './ClassificationFields';
+import KindLevelFields from './KindLevelFields';
 import { useAppData } from '../context/AppData';
 import { classIdFor, classLabelsOf, formatClassName, isTeacherAccount, parseClassLabel, SECTION_PATTERN } from '../lib/schoolYear';
 import { cn } from '../lib/utils';
@@ -57,6 +58,8 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
   const [tags, setTags] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [materialType, setMaterialType] = useState<MaterialType>('link');
+  const [kind, setKind] = useState('');
+  const [level, setLevel] = useState('');
   const [classification, setClassification] = useState<ClassificationValue>({ school: null, subject: '' });
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [mode, setMode] = useState<'file' | 'link'>('file');
@@ -94,6 +97,8 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
     setTags('');
     setLinkUrl('');
     setMaterialType('link');
+    setKind('');
+    setLevel('');
     setMode('file');
     setShowMore(false);
     setUploaderKey(k => k + 1);
@@ -148,6 +153,8 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
         saveCount: 0,
         folderId: currentFolderId || null,
         collectionId: collectionId || null,
+        kind: kind || null,
+        level: level || null,
         createdAt: serverTimestamp(),
         isDeleted: false,
         schoolId: school?.id || null,
@@ -250,7 +257,10 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
           />
         </div>
 
-        {/* 3. Subject and class */}
+        {/* 3. What it is */}
+        <KindLevelFields kind={kind} level={level} onKindChange={setKind} onLevelChange={setLevel} showLevel={false} />
+
+        {/* 4. Subject and class */}
         <ClassificationFields
           value={classification}
           onChange={setClassification}
@@ -258,7 +268,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
           preferredSubjects={isTeacher ? profile?.teacherSubjects || [] : []}
         />
 
-        {/* 4. Collection */}
+        {/* 5. Collection */}
         <CollectionPicker
           value={collectionId}
           onChange={setCollectionId}
@@ -268,18 +278,19 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
           subject={classification.subject}
         />
 
-        {/* 5. Optional details */}
+        {/* 6. Optional details */}
         <div className="border-t border-white/5 pt-4">
           <button
             type="button"
             onClick={() => setShowMore(v => !v)}
             className="w-full flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40 hover:text-white py-2"
           >
-            More options (description, tags, type)
+            More options (level, description, topic)
             <ChevronDown className={cn('w-4 h-4 transition-transform', showMore && 'rotate-180')} />
           </button>
           {showMore && (
             <div className="space-y-6 pt-4">
+              <KindLevelFields kind={kind} level={level} onKindChange={setKind} onLevelChange={setLevel} showKind={false} />
               <div className="space-y-2">
                 <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Description</label>
                 <textarea
@@ -291,13 +302,13 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Tags (comma separated)</label>
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Topic or chapter (comma separated)</label>
                 <input
                   type="text"
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30"
-                  placeholder="Not the subject: that has its own field"
+                  placeholder="e.g. Ch. 5, French Revolution"
                   maxLength={200}
                 />
                 {tagSuggestions.length > 0 && (

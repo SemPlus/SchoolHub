@@ -7,6 +7,7 @@ import Dropdown from './Dropdown';
 import Modal from './Modal';
 import CollectionPicker from './CollectionPicker';
 import ClassificationFields, { ClassificationValue } from './ClassificationFields';
+import KindLevelFields from './KindLevelFields';
 import { TYPE_OPTIONS } from './UploadModal';
 import { useAppData } from '../context/AppData';
 import { classIdFor, formatClassName, isTeacherAccount, SECTION_PATTERN } from '../lib/schoolYear';
@@ -26,6 +27,8 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
   const [tags, setTags] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [materialType, setMaterialType] = useState<MaterialType>('link');
+  const [kind, setKind] = useState('');
+  const [level, setLevel] = useState('');
   const [classification, setClassification] = useState<ClassificationValue>({ school: null, subject: '' });
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -38,6 +41,8 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
     setTags(material.tags?.join(', ') || '');
     setLinkUrl(material.url || '');
     setMaterialType(material.type || 'link');
+    setKind(material.kind || '');
+    setLevel(material.level || '');
     setClassification({
       school: material.schoolId
         ? { id: material.schoolId, name: material.schoolName || material.schoolId, city: material.schoolCity || '' }
@@ -88,6 +93,8 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
         classId: hasClass ? classIdFor(school?.id, classYear, classSection) : null,
         subject: subject || null,
         collectionId: collectionId || null,
+        kind: kind || null,
+        level: level || null,
         // A new link has not been checked, and a teacher's verification no
         // longer applies to it.
         ...(urlChanged ? { linkStatus: null, verifiedBy: null, verifiedByName: null, verifiedAt: null } : {}),
@@ -140,6 +147,8 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
           </div>
         </div>
 
+        <KindLevelFields kind={kind} level={level} onKindChange={setKind} onLevelChange={setLevel} />
+
         <ClassificationFields
           value={classification}
           onChange={setClassification}
@@ -167,7 +176,7 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
         </div>
 
         <div className="space-y-2">
-          <label className={labelClass}>Tags (comma separated)</label>
+          <label className={labelClass}>Topic or chapter (comma separated)</label>
           <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} className={inputClass} />
         </div>
       </div>

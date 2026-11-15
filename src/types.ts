@@ -53,6 +53,10 @@ export interface Material {
   visibleInArchiveUntil?: Date | null;
   /** The collection (shared theme or project) this material belongs to. */
   collectionId?: string | null;
+  /** What it is: notes, exercises, past test… (see lib/materialKinds). */
+  kind?: string | null;
+  /** revision | extra | catch-up */
+  level?: string | null;
 }
 
 /**
@@ -75,6 +79,20 @@ export interface Collection {
   createdAt: Date;
   updatedAt?: Date | null;
   isDeleted?: boolean;
+  /** Hand-in mode: a teacher's collection with a deadline. */
+  isHandIn?: boolean;
+  dueAt?: Date | null;
+}
+
+/** One person's stars and comment on a work. The document id is their uid. */
+export interface WorkFeedback {
+  id: string;
+  userId: string;
+  userName: string;
+  rating?: number | null;
+  comment?: string | null;
+  createdAt: Date;
+  updatedAt?: Date | null;
 }
 
 export interface Folder {

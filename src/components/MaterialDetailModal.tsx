@@ -12,6 +12,7 @@ import { cn } from '../lib/utils';
 import { firebaseErrorMessage, recordOpen, setVerified, toggleSave } from '../lib/engagement';
 import { previewUrlFor } from '../lib/drive';
 import { subjectStyle, visibleTags, withAlpha } from '../lib/subjects';
+import { kindById, levelById } from '../lib/materialKinds';
 import { useAppData } from '../context/AppData';
 import { linkStatusLabel } from './MaterialCard';
 import Modal from './Modal';
@@ -82,6 +83,8 @@ export default function MaterialDetailModal({
   const preview = previewUrlFor(material.url);
   const { color } = subjectStyle(material.subject);
   const tags = visibleTags(material);
+  const kind = kindById(material.kind);
+  const materialLevel = levelById(material.level);
   const parentCollection = material.collectionId ? collections.find(c => c.id === material.collectionId) : undefined;
 
   const handleShare = async () => {
@@ -213,6 +216,16 @@ export default function MaterialDetailModal({
 
         <div className="flex flex-wrap gap-2">
           <SubjectBadge subject={material.subject} size="md" />
+          {kind && (
+            <span className="flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/15 rounded-full text-[10px] uppercase tracking-widest text-white/80">
+              <kind.icon className="w-3.5 h-3.5" /> {kind.label}
+            </span>
+          )}
+          {materialLevel && (
+            <span className="px-3 py-1 border border-white/10 rounded-full text-[10px] uppercase tracking-widest text-white/55">
+              {materialLevel.label} · {materialLevel.hint}
+            </span>
+          )}
           {material.verifiedBy && (
             <span className="flex items-center gap-1.5 px-3 py-1 bg-purple-400/10 border border-purple-400/30 rounded-full text-[10px] uppercase tracking-widest text-purple-300">
               <BadgeCheck className="w-3.5 h-3.5" /> Verified by {material.verifiedByName || 'a teacher'}

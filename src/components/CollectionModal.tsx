@@ -1,17 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, ExternalLink, Info, Layers, Plus, Pencil, Trash2, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Info, Layers, Plus, Pencil, Trash2, Users, CalendarClock, Clock } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { db, auth } from '../firebase';
 import type { Collection, Material } from '../types';
 import { useAppData } from '../context/AppData';
-import { worksIn } from '../lib/collections';
+import { isLate, worksIn } from '../lib/collections';
 import { previewUrlFor } from '../lib/drive';
 import { firebaseErrorMessage, recordOpen } from '../lib/engagement';
 import { subjectStyle, withAlpha } from '../lib/subjects';
 import { cn } from '../lib/utils';
 import Modal from './Modal';
 import SubjectBadge from './SubjectBadge';
+import WorkFeedback from './WorkFeedback';
 
 interface CollectionModalProps {
   collection: Collection | null;
@@ -58,6 +59,10 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
   const preview = current ? previewUrlFor(current.url) : null;
   const { color } = subjectStyle(collection.subject);
   const canManage = !!user && (user.uid === collection.createdBy || userRole === 'admin');
+  const dueAt = collection.dueAt || null;
+  const isPastDue = !!dueAt && dueAt.getTime() < Date.now();
+  const lateCount = works.filter(w => isLate(w, collection)).length;
+  const iHandedIn = !!user && works.some(w => w.authorId === user.uid);
 
   const rename = async () => {
     const title = prompt('Rename collection', collection.title)?.trim();
@@ -101,7 +106,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
               onClick={() => onAddWork(collection)}
               className="flex-1 min-w-[10rem] flex items-center justify-center gap-2 py-3.5 rounded-full bg-luxury-gold text-luxury-black text-xs font-bold uppercase tracking-widest"
             >
-              <Plus className="w-4 h-4" /> Add my work
+              <Plus className="w-4 h-4" /> {dueAt ? (iHandedIn ? 'Add another file' : isPastDue ? 'Hand in late' : 'Hand in my work') : 'Add my work'}
             </button>
           )}
           {canManage && (
@@ -117,6 +122,27 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
         </div>
       }
     >
+      {(dueAt || collection.description) && (
+        <div className="px-5 sm:px-6 pt-4 space-y-3">
+          {dueAt && (
+            <div className={cn(
+              'flex flex-wrap items-center gap-x-4 gap-y-1 p-3 rounded-2xl border text-sm',
+              isPastDue ? 'border-red-400/30 bg-red-400/5 text-red-200' : 'border-luxury-gold/30 bg-luxury-gold/5 text-white'
+            )}>
+              <span className="flex items-center gap-2">
+                <CalendarClock className="w-4 h-4 shrink-0" />
+                {isPastDue ? 'Deadline passed' : 'Hand in by'} {format(dueAt, 'EEE d MMM, HH:mm')}
+              </span>
+              {!isPastDue && <span className="text-white/50 text-xs">{formatDistanceToNow(dueAt, { addSuffix: true })}</span>}
+              <span className="text-white/50 text-xs ml-auto">
+                {works.length} handed in{lateCount ? ` · ${lateCount} late` : ''}{iHandedIn ? ' · yours is in' : ''}
+              </span>
+            </div>
+          )}
+          {collection.description && <p className="text-sm text-white/60 whitespace-pre-line">{collection.description}</p>}
+        </div>
+      )}
+
       {works.length === 0 ? (
         <div className="px-6 py-16 text-center space-y-3">
           <Users className="w-12 h-12 text-white/10 mx-auto" />
@@ -141,6 +167,9 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   <p className="text-[9px] uppercase tracking-widest text-white/40 mb-1">{i + 1} / {works.length}</p>
                   <p className="text-sm text-white line-clamp-2">{work.title}</p>
                   <p className="text-[10px] text-white/40 truncate mt-1">{work.authorName}</p>
+                  {isLate(work, collection) && (
+                    <span className="inline-flex items-center gap-1 mt-1 text-[9px] uppercase tracking-widest text-red-300"><Clock className="w-3 h-3" /> Late</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -154,6 +183,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   <h4 className="text-xl sm:text-2xl font-serif text-white leading-tight">{current.title}</h4>
                   <p className="text-[10px] uppercase tracking-widest text-white/40 mt-1">
                     {current.authorName} · {formatDistanceToNow(current.createdAt, { addSuffix: true })}
+                    {isLate(current, collection) && <span className="text-red-300"> · handed in late</span>}
                   </p>
                 </div>
                 <SubjectBadge subject={current.subject} />
@@ -214,6 +244,8 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
+
+              <WorkFeedback work={current} />
             </div>
           )}
         </div>
