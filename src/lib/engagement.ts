@@ -2,6 +2,7 @@ import { doc, getDoc, increment, serverTimestamp, updateDoc, writeBatch } from '
 import { auth, db } from '../firebase';
 import type { Material } from '../types';
 
+import { t } from './i18n';
 // Opens and saves are counted together with a per-user record in one batch.
 // The security rules only accept the counter change when that record is
 // created (or removed) in the same write, so each user counts at most once
@@ -34,7 +35,7 @@ export async function recordOpen(material: Material): Promise<void> {
 /** Saves or unsaves a material for the signed-in user. Throws on failure. */
 export async function toggleSave(material: Material, currentlySaved: boolean): Promise<void> {
   const user = auth.currentUser;
-  if (!user) throw new Error('Sign in to save materials.');
+  if (!user) throw new Error(t("Sign in to save materials."));
   const saveRef = doc(db, 'saves', saveId(user.uid, material.id));
   const materialRef = doc(db, 'materials', material.id);
   const batch = writeBatch(db);
@@ -61,7 +62,7 @@ export async function toggleSave(material: Material, currentlySaved: boolean): P
 /** Teacher or admin verification. Pass verify=false to remove it. */
 export async function setVerified(material: Material, verify: boolean): Promise<void> {
   const user = auth.currentUser;
-  if (!user) throw new Error('Sign in first.');
+  if (!user) throw new Error(t("Sign in first."));
   await updateDoc(doc(db, 'materials', material.id), verify
     ? { verifiedBy: user.uid, verifiedByName: user.displayName || 'Teacher', verifiedAt: serverTimestamp() }
     : { verifiedBy: null, verifiedByName: null, verifiedAt: null });
@@ -70,7 +71,7 @@ export async function setVerified(material: Material, verify: boolean): Promise<
 /** Readable message for a Firebase error. */
 export function firebaseErrorMessage(error: any, fallback: string): string {
   const code: string | undefined = error?.code;
-  if (code === 'permission-denied') return `${fallback} You do not have permission for this action.`;
-  if (code === 'unavailable') return `${fallback} The database could not be reached. Check your connection.`;
+  if (code === 'permission-denied') return `${fallback} ${t('You do not have permission for this action.')}`;
+  if (code === 'unavailable') return `${fallback} ${t('The database could not be reached. Check your connection.')}`;
   return `${fallback} ${error?.message || ''}`.trim();
 }

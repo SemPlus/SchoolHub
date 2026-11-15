@@ -5,6 +5,7 @@ import { formatSchoolYear, schoolYearStart } from '../lib/schoolYear';
 import { IMPACT_POINTS } from '../lib/stats';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 interface SchoolRow {
   schoolId: string;
   name: string;
@@ -54,24 +55,21 @@ export default function LeagueBoard() {
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-amber-300/10 rounded-xl"><Trophy className="w-5 h-5 text-amber-300" /></div>
           <div>
-            <h2 className="text-2xl font-serif text-white">School league · {formatSchoolYear(year)}</h2>
+            <h2 className="text-2xl font-serif text-white">{t("School league · ")}{formatSchoolYear(year)}</h2>
             <p className="text-xs text-white/45 mt-1">
-              Points for materials shared this school year: {IMPACT_POINTS.open} per student who opens one, {IMPACT_POINTS.save} per save,
-              {' '}{IMPACT_POINTS.verified} per teacher verification, {IMPACT_POINTS.bestWork} per best work.
-            </p>
+              {t("Points for materials shared this school year: ")}{IMPACT_POINTS.open} {t(" per student who opens one, ")}{IMPACT_POINTS.save} {t(" per save,")}{' '}{IMPACT_POINTS.verified} {t(" per teacher verification, ")}{IMPACT_POINTS.bestWork} {t(" per best work.")}</p>
           </div>
         </div>
         {myIndex >= 0 && (
           <p className="mt-4 text-sm text-white/80">
-            Your school is <span className="text-luxury-gold font-semibold">#{myIndex + 1}</span> of {rows.length} with {rows[myIndex].score} points.
-          </p>
+            {t("Your school is ")}<span className="text-luxury-gold font-semibold">#{myIndex + 1}</span> {t(" of ")}{rows.length} {t(" with ")}{rows[myIndex].score} {t(" points.")}</p>
         )}
       </div>
 
       {rows.length === 0 ? (
         <div className="text-center py-20 glass-panel rounded-[2.5rem] border-white/5">
           <Medal className="w-14 h-14 text-white/10 mx-auto mb-4" />
-          <p className="text-white/50">No school has scored yet this year. Share something useful and put yours on the board.</p>
+          <p className="text-white/50">{t("No school has scored yet this year. Share something useful and put yours on the board.")}</p>
         </div>
       ) : (
         <ol className="space-y-2">
@@ -90,8 +88,7 @@ export default function LeagueBoard() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white truncate">{r.name}</p>
                 <p className="text-[10px] uppercase tracking-widest text-white/40 truncate flex items-center gap-1.5">
-                  {r.city && <>{r.city} · </>}<Users className="w-3 h-3" /> {r.contributors} · {r.materials} materials
-                </p>
+                  {r.city && <>{r.city} · </>}<Users className="w-3 h-3" /> {r.contributors} · {r.materials === 1 ? t("1 material") : t("{0} materials", r.materials)}</p>
               </div>
               <span className="text-lg font-serif text-luxury-gold shrink-0">{r.score}</span>
             </li>

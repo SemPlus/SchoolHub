@@ -6,6 +6,7 @@ import { SUBJECTS, subjectStyle } from '../lib/subjects';
 import { maxClassYear, parseClassLabel } from '../lib/schoolYear';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 export interface ClassificationValue {
   school: PickedSchool | null;
   classYear?: number;
@@ -39,7 +40,7 @@ export default function ClassificationFields({ value, onChange, quickClasses = [
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Subject</label>
+        <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">{t("Subject")}</label>
         {preferredSubjects.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">
             {preferredSubjects.map(s => {
@@ -53,18 +54,18 @@ export default function ClassificationFields({ value, onChange, quickClasses = [
                   className="px-3 py-2 rounded-xl border text-xs flex items-center gap-1.5 transition-all"
                   style={active ? { borderColor: color, backgroundColor: `${color}22`, color } : { borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}
                 >
-                  <Icon className="w-3.5 h-3.5" /> {s}
+                  <Icon className="w-3.5 h-3.5" /> {t(s)}
                 </button>
               );
             })}
           </div>
         )}
-        <Dropdown options={subjectOptions} value={value.subject} onChange={(subject) => set({ subject })} className="w-full" label="Subject" />
+        <Dropdown options={subjectOptions} value={value.subject} onChange={(subject) => set({ subject })} className="w-full" label={t("Subject")} />
       </div>
 
       {quickClasses.length > 0 && (
         <div className="space-y-2">
-          <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">For which class?</label>
+          <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">{t("For which class?")}</label>
           <div className="flex flex-wrap gap-2">
             {quickClasses.map(label => {
               const parsed = parseClassLabel(label);
@@ -88,7 +89,7 @@ export default function ClassificationFields({ value, onChange, quickClasses = [
               onClick={() => setShowFullPicker(v => !v)}
               className="px-3 h-11 rounded-xl border border-dashed border-white/20 text-xs text-white/50 hover:text-white"
             >
-              {showFullPicker ? 'Hide other schools' : 'Other class or school'}
+              {showFullPicker ? t("Hide other schools") : t("Other class or school")}
             </button>
           </div>
         </div>
@@ -97,7 +98,7 @@ export default function ClassificationFields({ value, onChange, quickClasses = [
       {showFullPicker && (
         <>
           <div className="space-y-2">
-            <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">School</label>
+            <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">{t("School")}</label>
             <SchoolPicker
               value={value.school}
               clearable

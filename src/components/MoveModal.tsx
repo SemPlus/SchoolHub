@@ -6,6 +6,7 @@ import { Folder } from '../types';
 import Modal from './Modal';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 interface MoveModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -31,7 +32,7 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
     const uid = auth.currentUser?.uid;
     if (!uid) {
       setFolders([]);
-      setError('You must be signed in to move items.');
+      setError(t("You must be signed in to move items."));
       return;
     }
 
@@ -62,7 +63,7 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
     }, (err) => {
       console.error('Failed to load directories for move:', err);
       setFolders([]);
-      setError('Could not load your directories.');
+      setError(t("Could not load your directories."));
     });
 
     return () => unsubscribe();
@@ -94,7 +95,7 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
       onClose();
     } catch (err: any) {
       console.error('Failed to move items:', err);
-      setError(err?.message || 'Failed to move the selected items.');
+      setError(err?.message || t("Failed to move the selected items."));
     } finally {
       setIsMoving(false);
     }
@@ -104,8 +105,8 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Move items"
-      subtitle={`${targetItems.materials.length + targetItems.folders.length} selected · pick a folder`}
+      title={t("Move items")}
+      subtitle={t("{0} selected · pick a folder", targetItems.materials.length + targetItems.folders.length)}
       icon={<Move className="w-5 h-5 text-luxury-gold" />}
       size="sm"
       level={2}
@@ -116,7 +117,7 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
           disabled={isMoving || !auth.currentUser}
           className="w-full bg-white text-luxury-black font-bold py-4 rounded-full hover:bg-luxury-gold disabled:opacity-20 transition-all flex items-center justify-center gap-2"
         >
-          {isMoving ? 'Moving…' : (<><Check className="w-4 h-4" /> Move here</>)}
+          {isMoving ? t("Moving…") : (<><Check className="w-4 h-4" /> {t(" Move here")}</>)}
         </button>
       }
     >
@@ -128,12 +129,11 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
             currentParentId === null ? 'bg-luxury-gold text-luxury-black font-bold' : 'text-white/40 hover:text-white'
           )}
         >
-          Top level
-        </button>
+          {t("Top level")}</button>
         {history.length > 0 && (
           <>
             <ChevronRight className="w-3 h-3 text-white/10" />
-            <button onClick={handleBack} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white">Back</button>
+            <button onClick={handleBack} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white">{t("Back")}</button>
           </>
         )}
       </div>
@@ -146,7 +146,7 @@ export default function MoveModal({ isOpen, onClose, targetItems, onSuccess }: M
 
       <div className="px-3 sm:px-5 py-3 space-y-1">
         {folders.length === 0 ? (
-          <p className="py-12 text-center text-white/30 text-xs">No folders here</p>
+          <p className="py-12 text-center text-white/30 text-xs">{t("No folders here")}</p>
         ) : folders.map((folder) => (
           <button
             key={folder.id}

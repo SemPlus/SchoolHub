@@ -1,11 +1,13 @@
 import React, { useMemo } from 'react';
 import { AlarmClock, CalendarClock, ChevronRight, GraduationCap, LayoutDashboard, Trophy, ExternalLink, Sparkles, QrCode } from 'lucide-react';
-import { differenceInCalendarDays, format, formatDistanceToNow } from 'date-fns';
+import { differenceInCalendarDays } from 'date-fns';
+import { format, formatDistanceToNow } from '../lib/i18n';
 import type { Collection, Material, User } from '../types';
 import { worksIn } from '../lib/collections';
 import { parseClassLabel, schoolYearStart } from '../lib/schoolYear';
 import { subjectStyle } from '../lib/subjects';
 
+import { t } from '../lib/i18n';
 const DAY = 24 * 60 * 60 * 1000;
 
 function dueText(due: Date): string {
@@ -51,7 +53,7 @@ export function HandInReminders({ profile, uid, collections, materials, onOpen }
             <AlarmClock className={`w-5 h-5 shrink-0 ${late ? 'text-red-300' : 'text-luxury-gold'}`} />
             <span className="flex-1 min-w-0">
               <span className="block text-sm text-white truncate">{c.title}</span>
-              <span className="block text-xs text-white/60">You haven't handed in yet · {dueText(c.dueAt!)}</span>
+              <span className="block text-xs text-white/60">{t("You haven't handed in yet · ")}{dueText(c.dueAt!)}</span>
             </span>
             <ChevronRight className="w-4 h-4 text-white/40 shrink-0" />
           </button>
@@ -103,21 +105,19 @@ export function TeacherClassOverview({ profile, classLabel, uid, collections, ma
       <div className="flex items-center gap-3">
         <div className="p-2 bg-luxury-gold/10 rounded-xl"><LayoutDashboard className="w-4 h-4 text-luxury-gold" /></div>
         <div>
-          <h3 className="text-base font-serif text-white">Class {classLabel}</h3>
+          <h3 className="text-base font-serif text-white">{t("Class ")}{classLabel}</h3>
           <p className="text-[10px] uppercase tracking-widest text-white/35">
-            {data.thisWeek} new this week · {data.thisYear} this school year
-          </p>
+            {data.thisWeek} {t(" new this week · ")}{data.thisYear} {t(" this school year")}</p>
         </div>
         {onPoster && (
           <button onClick={onPoster} className="ml-auto shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/5 border border-white/10 text-[10px] uppercase tracking-widest text-white/60 hover:text-white">
-            <QrCode className="w-3.5 h-3.5" /> Class poster
-          </button>
+            <QrCode className="w-3.5 h-3.5" /> {t(" Class poster")}</button>
         )}
       </div>
 
       {data.handIns.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-widest text-white/40">Hand-ins</p>
+          <p className="text-[10px] uppercase tracking-widest text-white/40">{t("Hand-ins")}</p>
           {data.handIns.map(({ c, count, late }) => (
             <button
               key={c.id}
@@ -127,7 +127,7 @@ export function TeacherClassOverview({ profile, classLabel, uid, collections, ma
               <CalendarClock className="w-4 h-4 text-luxury-gold shrink-0" />
               <span className="flex-1 min-w-0">
                 <span className="block text-sm text-white truncate">{c.title}</span>
-                <span className="block text-[11px] text-white/50">{dueText(c.dueAt!)} · {count} handed in{late ? ` · ${late} late` : ''}</span>
+                <span className="block text-[11px] text-white/50">{dueText(c.dueAt!)} · {count} {t(" handed in")}{late ? t(" · {0} late", late) : ''}</span>
               </span>
               {c.winnerMaterialId && <Trophy className="w-4 h-4 text-amber-300 shrink-0" />}
               <ChevronRight className="w-4 h-4 text-white/30 shrink-0" />
@@ -138,13 +138,13 @@ export function TeacherClassOverview({ profile, classLabel, uid, collections, ma
 
       {data.gaps.length > 0 && (
         <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-widest text-white/40">Your subjects with nothing for {classLabel} yet this year</p>
+          <p className="text-[10px] uppercase tracking-widest text-white/40">{t("Your subjects with nothing for ")}{classLabel} {t(" yet this year")}</p>
           <div className="flex flex-wrap gap-2">
             {data.gaps.map(s => {
               const { color, icon: Icon } = subjectStyle(s);
               return (
                 <button key={s} onClick={() => onFilterSubject(s)} className="px-3 py-1.5 rounded-full border text-xs flex items-center gap-1.5" style={{ borderColor: `${color}55`, color }}>
-                  <Icon className="w-3.5 h-3.5" /> {s}
+                  <Icon className="w-3.5 h-3.5" /> {t(s)}
                 </button>
               );
             })}
@@ -183,9 +183,9 @@ export function FinalExamPanel({ profile, classLabel, materials, onShowYear, onF
       <div className="flex items-center gap-3">
         <div className="p-2 bg-luxury-gold/15 rounded-xl"><GraduationCap className="w-5 h-5 text-luxury-gold" /></div>
         <div className="min-w-0">
-          <h3 className="text-base sm:text-lg font-serif text-white">Final exam · Maturità {schoolYearStart() + 1}</h3>
+          <h3 className="text-base sm:text-lg font-serif text-white">{t("Final exam · Maturità ")}{schoolYearStart() + 1}</h3>
           <p className="text-[10px] uppercase tracking-widest text-white/40">
-            {examSeason ? 'Exam season: everything for year 5 in one place' : `Year-5 materials of your school · ${classLabel}`}
+            {examSeason ? t("Exam season: everything for year 5 in one place") : t("Year-5 materials of your school · {0}", classLabel)}
           </p>
         </div>
       </div>
@@ -196,26 +196,25 @@ export function FinalExamPanel({ profile, classLabel, materials, onShowYear, onF
             const { color, icon: Icon } = subjectStyle(s);
             return (
               <button key={s} onClick={() => onFilterSubject(s)} className="px-3 py-1.5 rounded-full border text-xs flex items-center gap-1.5" style={{ borderColor: `${color}55`, color }}>
-                <Icon className="w-3.5 h-3.5" /> {s} <span className="text-white/40">{n}</span>
+                <Icon className="w-3.5 h-3.5" /> {t(s)} <span className="text-white/40">{n}</span>
               </button>
             );
           })}
         </div>
       ) : (
-        <p className="text-xs text-white/45">No year-5 materials at your school yet. Share your summaries: next year's class inherits them.</p>
+        <p className="text-xs text-white/45">{t("No year-5 materials at your school yet. Share your summaries: next year's class inherits them.")}</p>
       )}
 
       <div className="flex flex-wrap gap-2">
         <button onClick={onShowYear} className="px-4 py-2 rounded-full bg-white text-luxury-black text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5" /> All year-5 materials, every year
-        </button>
+          <Sparkles className="w-3.5 h-3.5" /> {t(" All year-5 materials, every year")}</button>
         <a
           href="https://www.istruzione.it/esame_di_stato/"
           target="_blank"
           rel="noopener noreferrer"
           className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white/70 hover:text-white text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5"
         >
-          Official exam papers <ExternalLink className="w-3.5 h-3.5" />
+          {t("Official exam papers ")}<ExternalLink className="w-3.5 h-3.5" />
         </a>
       </div>
     </div>

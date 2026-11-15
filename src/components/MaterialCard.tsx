@@ -3,7 +3,7 @@ import {
   FileText, File, Link as LinkIcon, ExternalLink, Download, Trash2, Presentation, Share2, Edit2, Move,
   Bookmark, BookmarkCheck, ArrowLeft, BookOpen, BadgeCheck, AlertTriangle, Eye, History, Layers, CircleCheck, Circle, BookMarked,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '../lib/i18n';
 import { Material } from '../types';
 import { auth, db } from '../firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -17,6 +17,7 @@ import { subjectStyle, visibleTags, withAlpha } from '../lib/subjects';
 import { kindById, levelById } from '../lib/materialKinds';
 import { useAppData } from '../context/AppData';
 
+import { t } from '../lib/i18n';
 interface MaterialCardProps {
   key?: React.Key;
   material: Material;
@@ -113,12 +114,12 @@ export default function MaterialCard({
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isInTrash) {
-      if (!confirm(`Permanently delete "${material.title}"? This cannot be undone.`)) return;
+      if (!confirm(t("Permanently delete \"{0}\"? This cannot be undone.", material.title))) return;
       setIsDeleting(true);
       try {
         await deleteDoc(doc(db, 'materials', material.id));
       } catch (error) {
-        alert(firebaseErrorMessage(error, 'Could not delete this material.'));
+        alert(firebaseErrorMessage(error, t("Could not delete this material.")));
       } finally {
         setIsDeleting(false);
       }
@@ -132,7 +133,7 @@ export default function MaterialCard({
         deletedAt: serverTimestamp()
       });
     } catch (error) {
-      alert(firebaseErrorMessage(error, 'Could not move this material to Trash.'));
+      alert(firebaseErrorMessage(error, t("Could not move this material to Trash.")));
     } finally {
       setIsDeleting(false);
     }
@@ -155,7 +156,7 @@ export default function MaterialCard({
     try {
       await toggleSave(material, isSaved);
     } catch (error) {
-      alert(firebaseErrorMessage(error, isSaved ? 'Could not remove this save.' : 'Could not save this material.'));
+      alert(firebaseErrorMessage(error, isSaved ? t("Could not remove this save.") : t("Could not save this material.")));
     } finally {
       setIsSaving(false);
     }
@@ -215,15 +216,14 @@ export default function MaterialCard({
           {isInTrash && (
             <div className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-md">
               <span className="text-[9px] font-bold text-red-400 uppercase tracking-tighter">
-                Deleted for good in {getDaysRemaining()} days
-              </span>
+                {t("Deleted for good in ")}{getDaysRemaining()} {t(" days")}</span>
             </div>
           )}
           {isInTrash ? (
             <button
               onClick={handleRestore}
               className="transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] bg-luxury-gold/20 text-luxury-gold hover:bg-luxury-gold hover:text-luxury-black"
-              title="Restore"
+              title={t("Restore")}
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -234,7 +234,7 @@ export default function MaterialCard({
                   onClick={handleSave}
                   disabled={isSaving}
                   className={cn(actionButton, isSaved ? "text-luxury-gold bg-luxury-gold/10 sm:opacity-100" : "text-white/40 hover:text-luxury-gold hover:bg-white/10")}
-                  title={isSaved ? "Remove from saved" : "Save"}
+                  title={isSaved ? t("Remove from saved") : t("Save")}
                 >
                   {isSaving ? (
                     <div className="w-4 h-4 border-2 border-luxury-gold/30 border-t-luxury-gold rounded-full animate-spin" />
@@ -244,23 +244,23 @@ export default function MaterialCard({
               <button
                 onClick={handleShare}
                 className={cn(actionButton, copied ? 'bg-luxury-gold/20 text-luxury-gold sm:opacity-100' : 'text-white/40 hover:text-white hover:bg-white/10')}
-                title="Copy link"
+                title={t("Copy link")}
               >
-                {copied ? <span className="text-[10px] font-bold tracking-tighter uppercase">Copied</span> : <Share2 className="w-4 h-4" />}
+                {copied ? <span className="text-[10px] font-bold tracking-tighter uppercase">{t("Copied")}</span> : <Share2 className="w-4 h-4" />}
               </button>
               {canEdit && (
                 <>
                   <button
                     onClick={(e) => { e.stopPropagation(); onMoveClick?.(material); }}
                     className={cn(actionButton, "text-white/40 hover:text-luxury-gold hover:bg-white/10")}
-                    title="Move"
+                    title={t("Move")}
                   >
                     <Move className="w-4 h-4" />
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); onEditClick?.(material); }}
                     className={cn(actionButton, "text-white/40 hover:text-luxury-gold hover:bg-white/10")}
-                    title="Edit"
+                    title={t("Edit")}
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
@@ -277,7 +277,7 @@ export default function MaterialCard({
                 "disabled:opacity-50",
                 isInTrash ? "text-red-500 hover:bg-red-500/10 sm:opacity-100" : "text-white/40 hover:text-red-400 hover:bg-red-400/10"
               )}
-              title={isInTrash ? "Delete forever" : "Move to Trash"}
+              title={isInTrash ? t("Delete forever") : t("Move to Trash")}
             >
               {isDeleting ? <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" /> : <Trash2 className="w-4 h-4" />}
             </button>
@@ -293,7 +293,7 @@ export default function MaterialCard({
         {material.verifiedBy && (
           <span className="flex items-center gap-1 bg-purple-400/10 border border-purple-400/30 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-purple-300 font-medium">
             <BadgeCheck className="w-3 h-3" />
-            Verified{material.verifiedByName ? ` by ${material.verifiedByName}` : ''}
+            {t("Verified")}{material.verifiedByName ? t(" by {0}", material.verifiedByName) : ''}
           </span>
         )}
         {inheritedLabel && (
@@ -311,12 +311,12 @@ export default function MaterialCard({
         <SubjectBadge subject={material.subject} />
         {kind && (
           <span className="flex items-center gap-1 bg-white/5 border border-white/15 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-white/75 font-medium">
-            <kind.icon className="w-3 h-3" /> {kind.label}
+            <kind.icon className="w-3 h-3" /> {t(kind.label)}
           </span>
         )}
         {level && (
           <span className="px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest border border-white/10 text-white/50" title={level.hint}>
-            {level.label}
+            {t(level.label)}
           </span>
         )}
         {material.bookTitle && (
@@ -326,13 +326,11 @@ export default function MaterialCard({
         )}
         {material.improvesId && (
           <span className="flex items-center gap-1 bg-emerald-400/10 border border-emerald-400/30 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-emerald-300 font-medium">
-            Improved version
-          </span>
+            {t("Improved version")}</span>
         )}
         {material.collectionId && (
           <span className="flex items-center gap-1 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-white/60 font-medium">
-            <Layers className="w-3 h-3" /> In a collection
-          </span>
+            <Layers className="w-3 h-3" /> {t(" In a collection")}</span>
         )}
         {linkWarning && (
           <span className="flex items-center gap-1 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-amber-300 font-medium">
@@ -379,18 +377,18 @@ export default function MaterialCard({
               {material.authorName}
             </button>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <span className={`text-[8px] font-bold ${rank.color} uppercase tracking-tighter`}>{rank.label}</span>
+              <span className={`text-[8px] font-bold ${rank.color} uppercase tracking-tighter`}>{t(rank.label)}</span>
               <span className="text-white/10">•</span>
               <span className="text-[10px] uppercase tracking-widest text-white/30">
                 {formatDistanceToNow(material.createdAt, { addSuffix: true })}
               </span>
               <span className="text-white/10">•</span>
-              <span className="text-[10px] uppercase tracking-widest text-white/40 flex items-center gap-1" title="Opened by other students">
+              <span className="text-[10px] uppercase tracking-widest text-white/40 flex items-center gap-1" title={t("Opened by other students")}>
                 <Eye className="w-2.5 h-2.5" />
                 {material.downloadCount || 0}
               </span>
               {(material.saveCount || 0) > 0 && (
-                <span className="text-[10px] uppercase tracking-widest text-white/40 flex items-center gap-1" title="Saved by other students">
+                <span className="text-[10px] uppercase tracking-widest text-white/40 flex items-center gap-1" title={t("Saved by other students")}>
                   <Bookmark className="w-2.5 h-2.5" />
                   {material.saveCount}
                 </span>
@@ -401,13 +399,13 @@ export default function MaterialCard({
 
         {!isInTrash && isAuthenticated && (
           <button
-            onClick={(e) => { e.stopPropagation(); toggleStudied(material.id).catch(err => alert(firebaseErrorMessage(err, 'Could not update.'))); }}
+            onClick={(e) => { e.stopPropagation(); toggleStudied(material.id).catch(err => alert(firebaseErrorMessage(err, t("Could not update.")))); }}
             className={cn(
               'shrink-0 p-2 rounded-full border transition-all',
               isStudied ? 'border-emerald-400/50 bg-emerald-400/15 text-emerald-300' : 'border-white/10 text-white/35 hover:text-white'
             )}
-            title={isStudied ? 'Studied (tap to undo)' : 'Mark as studied'}
-            aria-label={isStudied ? 'Studied' : 'Mark as studied'}
+            title={isStudied ? t("Studied (tap to undo)") : t("Mark as studied")}
+            aria-label={isStudied ? t("Studied") : t("Mark as studied")}
           >
             {isStudied ? <CircleCheck className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
           </button>
@@ -420,7 +418,7 @@ export default function MaterialCard({
             onClick={handleOpen}
             className="shrink-0 flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold text-luxury-black bg-white px-4 py-2 rounded-full hover:bg-luxury-gold transition-all shadow-lg shadow-white/5"
           >
-            <span>Open</span>
+            <span>{t("Open")}</span>
             {isExternalLink ? <ExternalLink className="w-3 h-3" /> : <Download className="w-3 h-3" />}
           </a>
         )}

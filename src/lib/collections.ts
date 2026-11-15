@@ -4,6 +4,7 @@ import type { Collection, Material, User } from '../types';
 import { classIdFor, formatClassName } from './schoolYear';
 import type { PickedSchool } from '../components/SchoolPicker';
 
+import { t } from './i18n';
 export interface NewCollectionInput {
   title: string;
   description?: string;
@@ -17,7 +18,7 @@ export interface NewCollectionInput {
 
 export async function createCollection(input: NewCollectionInput): Promise<string> {
   const user = auth.currentUser;
-  if (!user) throw new Error('Sign in first.');
+  if (!user) throw new Error(t("Sign in first."));
   const hasClass = !!input.school && !!input.classYear && !!input.classSection;
   const ref = await addDoc(fsCollection(db, 'collections'), {
     title: input.title.trim(),

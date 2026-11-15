@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc,
 } from 'firebase/firestore';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '../lib/i18n';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   HandHelping, Plus, CheckCircle2, ChevronDown, ExternalLink, Trash2, X, Search, RotateCcw, Lock,
@@ -18,6 +18,7 @@ import { IMPACT_POINTS } from '../lib/stats';
 import { cn } from '../lib/utils';
 import Dropdown from './Dropdown';
 
+import { t, tc } from '../lib/i18n';
 type Scope = 'class' | 'school' | 'all';
 type StatusFilter = 'open' | 'fulfilled';
 
@@ -62,10 +63,9 @@ export default function RequestBoard() {
       <div className="glass-panel rounded-[1.5rem] sm:rounded-[2.5rem] p-5 sm:p-8 border-white/5 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-serif text-white">Requests</h2>
+            <h2 className="text-2xl font-serif text-white">{t("Requests")}</h2>
             <p className="text-xs text-white/40 mt-1">
-              Ask for what you need, or answer with one of your materials. Each accepted answer is worth {IMPACT_POINTS.acceptedAnswer} impact.
-            </p>
+              {t("Ask for what you need, or answer with one of your materials. Each accepted answer is worth ")}{IMPACT_POINTS.acceptedAnswer} {t(" impact.")}</p>
           </div>
           {user && (
             <button
@@ -73,7 +73,7 @@ export default function RequestBoard() {
               className="flex items-center justify-center gap-2 px-5 py-3 bg-luxury-gold text-luxury-black rounded-full text-[10px] uppercase tracking-widest font-bold hover:scale-105 transition-transform"
             >
               {isFormOpen ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-              {isFormOpen ? 'Cancel' : 'New request'}
+              {isFormOpen ? t("Cancel") : t("New request")}
             </button>
           )}
         </div>
@@ -87,9 +87,9 @@ export default function RequestBoard() {
         </AnimatePresence>
 
         <div className="flex flex-wrap items-center gap-2">
-          {chip('class', profile?.classYear ? `My class · ${formatClassName(profile.classYear, profile.classSection)}` : 'My class', !profile?.classYear)}
-          {chip('school', 'My school', !profile?.schoolId)}
-          {chip('all', 'Everywhere')}
+          {chip('class', profile?.classYear ? t("My class · {0}", formatClassName(profile.classYear, profile.classSection)) : t("My class"), !profile?.classYear)}
+          {chip('school', t("My school"), !profile?.schoolId)}
+          {chip('all', t("Everywhere"))}
           <div className="w-px h-6 bg-white/10 mx-1" />
           {(['open', 'fulfilled'] as StatusFilter[]).map(s => (
             <button
@@ -100,7 +100,7 @@ export default function RequestBoard() {
                 status === s ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'
               )}
             >
-              {s === 'open' ? 'Open' : 'Fulfilled'}
+              {s === 'open' ? tc('status', 'Open') : t("Fulfilled")}
             </button>
           ))}
         </div>
@@ -109,9 +109,9 @@ export default function RequestBoard() {
       {visible.length === 0 ? (
         <div className="text-center py-20 glass-panel rounded-[2.5rem] border-white/5">
           <HandHelping className="w-14 h-14 text-white/10 mx-auto mb-4" />
-          <h3 className="text-xl font-serif text-white/50">{status === 'open' ? 'No open requests here' : 'Nothing fulfilled yet'}</h3>
+          <h3 className="text-xl font-serif text-white/50">{status === 'open' ? t("No open requests here") : t("Nothing fulfilled yet")}</h3>
           <p className="text-white/30 mt-2 text-sm font-light">
-            {status === 'open' ? 'Need notes or exercises? Post a request.' : 'Accepted answers show up here.'}
+            {status === 'open' ? t("Need notes or exercises? Post a request.") : t("Accepted answers show up here.")}
           </p>
         </div>
       ) : (
@@ -165,7 +165,7 @@ function NewRequestForm({ onDone }: { onDone: () => void }) {
       setSubject('');
       onDone();
     } catch (err) {
-      setError(firebaseErrorMessage(err, 'Could not post your request.'));
+      setError(firebaseErrorMessage(err, t("Could not post your request.")));
     } finally {
       setIsSaving(false);
     }
@@ -176,7 +176,7 @@ function NewRequestForm({ onDone }: { onDone: () => void }) {
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="What do you need? e.g. History notes, chapter 5"
+        placeholder={t("What do you need? e.g. History notes, chapter 5")}
         maxLength={120}
         required
         className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30"
@@ -184,21 +184,21 @@ function NewRequestForm({ onDone }: { onDone: () => void }) {
       <textarea
         value={details}
         onChange={(e) => setDetails(e.target.value)}
-        placeholder="Details (optional): pages, topics, test date…"
+        placeholder={t("Details (optional): pages, topics, test date…")}
         maxLength={1000}
         className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30 h-20 resize-none"
       />
       <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
         <Dropdown options={subjectOptions} value={subject} onChange={setSubject} className="sm:w-60" />
         <p className="text-[10px] text-white/30 flex-1">
-          {profile?.classYear ? `Posted for ${formatClassName(profile.classYear, profile.classSection)} · ${profile.schoolName}` : 'Posted for everyone'}
+          {profile?.classYear ? t("Posted for {0} · {1}", formatClassName(profile.classYear, profile.classSection), profile.schoolName) : t("Posted for everyone")}
         </p>
         <button
           type="submit"
           disabled={isSaving || title.trim().length < 3}
           className="px-6 py-3 bg-white text-luxury-black rounded-full text-[10px] uppercase tracking-widest font-bold disabled:opacity-30"
         >
-          {isSaving ? 'Posting…' : 'Post request'}
+          {isSaving ? t("Posting…") : t("Post request")}
         </button>
       </div>
       {error && <p className="text-xs text-red-400">{error}</p>}
@@ -232,7 +232,7 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
       const list = snapshot.docs.map(d => mapAnswerDoc(d.id, d.data()));
       list.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       setAnswers(list);
-    }, (err) => setError(firebaseErrorMessage(err, 'Could not load answers.')));
+    }, (err) => setError(firebaseErrorMessage(err, t("Could not load answers."))));
     return () => unsubscribe();
   }, [isExpanded, request.id]);
 
@@ -291,14 +291,14 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
   }), 'Could not update the request.');
 
   const deleteRequest = () => {
-    if (!confirm('Delete this request?')) return;
+    if (!confirm(t("Delete this request?"))) return;
     run(() => deleteDoc(doc(db, 'requests', request.id)), 'Could not delete the request.');
   };
 
   const openMaterialLink = (materialId: string, fallbackTitle: string) => {
     const material = materialById(materialId);
     if (!material || material.isDeleted) {
-      return <span className="text-white/30 text-sm">{fallbackTitle} (removed)</span>;
+      return <span className="text-white/30 text-sm">{fallbackTitle} {t(" (removed)")}</span>;
     }
     return (
       <a
@@ -320,7 +320,7 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             {request.subject && (
-              <span className="px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest border border-white/10 bg-white/5 text-white/60">{request.subject}</span>
+              <span className="px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest border border-white/10 bg-white/5 text-white/60">{t(request.subject)}</span>
             )}
             {request.className && (
               <span className="px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest bg-luxury-gold/10 border border-luxury-gold/20 text-luxury-gold truncate max-w-[240px]">
@@ -329,12 +329,11 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
             )}
             {request.status === 'closed' && (
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest bg-white/5 border border-white/10 text-white/40">
-                <Lock className="w-3 h-3" /> Closed
-              </span>
+                <Lock className="w-3 h-3" /> {t(" Closed")}</span>
             )}
             {request.status === 'fulfilled' && (
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest bg-emerald-400/10 border border-emerald-400/30 text-emerald-300">
-                <CheckCircle2 className="w-3 h-3" /> Fulfilled by {request.acceptedUserName}
+                <CheckCircle2 className="w-3 h-3" /> {t(" Fulfilled by ")}{request.acceptedUserName}
               </span>
             )}
           </div>
@@ -354,20 +353,20 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
 
               {request.status === 'fulfilled' && request.acceptedMaterialId && (
                 <div className="p-4 rounded-2xl bg-emerald-400/5 border border-emerald-400/20">
-                  <p className="text-[10px] uppercase tracking-widest text-emerald-300 mb-1">Accepted answer</p>
-                  {openMaterialLink(request.acceptedMaterialId, 'Material')}
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-300 mb-1">{t("Accepted answer")}</p>
+                  {openMaterialLink(request.acceptedMaterialId, t("Material"))}
                 </div>
               )}
 
               <div className="space-y-2">
                 <p className="text-[10px] uppercase tracking-widest text-white/30">
-                  {answers.length === 0 ? 'No answers yet' : `${answers.length} ${answers.length === 1 ? 'answer' : 'answers'}`}
+                  {answers.length === 0 ? t("No answers yet") : (answers.length === 1 ? t('1 answer') : t('{0} answers', answers.length))}
                 </p>
                 {answers.map(answer => (
                   <div key={answer.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/5">
                     <div className="min-w-0">
                       {openMaterialLink(answer.materialId, answer.materialTitle)}
-                      <p className="text-[10px] uppercase tracking-widest text-white/30">from {answer.userName}</p>
+                      <p className="text-[10px] uppercase tracking-widest text-white/30">{t("from ")}{answer.userName}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {isRequester && request.status === 'open' && answer.userId !== user?.uid && (
@@ -376,11 +375,10 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
                           onClick={() => acceptAnswer(answer)}
                           className="px-3 py-2 rounded-full bg-emerald-400/15 text-emerald-300 text-[9px] uppercase tracking-widest font-bold hover:bg-emerald-400/25 disabled:opacity-40"
                         >
-                          Accept
-                        </button>
+                          {t("Accept")}</button>
                       )}
                       {answer.userId === user?.uid && request.status === 'open' && (
-                        <button disabled={busy} onClick={withdrawAnswer} className="text-white/30 hover:text-red-400 p-1" title="Withdraw your answer">
+                        <button disabled={busy} onClick={withdrawAnswer} className="text-white/30 hover:text-red-400 p-1" title={t("Withdraw your answer")}>
                           <X className="w-4 h-4" />
                         </button>
                       )}
@@ -398,12 +396,12 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
                         autoFocus
                         value={pickQuery}
                         onChange={(e) => setPickQuery(e.target.value)}
-                        placeholder="Pick one of your materials…"
+                        placeholder={t("Pick one of your materials…")}
                         className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-white/20 focus:outline-none"
                       />
                     </div>
                     {myMaterials.length === 0 ? (
-                      <p className="text-xs text-white/40">You have no matching materials. Add one in My Space first, then answer.</p>
+                      <p className="text-xs text-white/40">{t("You have no matching materials. Add one in My Space first, then answer.")}</p>
                     ) : (
                       <ul className="max-h-56 overflow-y-auto custom-scrollbar rounded-xl border border-white/5 divide-y divide-white/5">
                         {myMaterials.map(m => (
@@ -414,21 +412,20 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
                               className="w-full text-left px-3 py-2.5 text-sm text-white/70 hover:bg-white/5 hover:text-luxury-gold disabled:opacity-40"
                             >
                               {m.title}
-                              {m.subject && <span className="text-white/30 text-xs"> · {m.subject}</span>}
+                              {m.subject && <span className="text-white/30 text-xs"> · {t(m.subject)}</span>}
                             </button>
                           </li>
                         ))}
                       </ul>
                     )}
-                    <button onClick={() => setIsPicking(false)} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white">Cancel</button>
+                    <button onClick={() => setIsPicking(false)} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white">{t("Cancel")}</button>
                   </div>
                 ) : (
                   <button
                     onClick={() => setIsPicking(true)}
                     className="flex items-center gap-2 px-5 py-3 rounded-full bg-white text-luxury-black text-[10px] uppercase tracking-widest font-bold"
                   >
-                    <HandHelping className="w-4 h-4" /> Answer with a material
-                  </button>
+                    <HandHelping className="w-4 h-4" /> {t(" Answer with a material")}</button>
                 )
               )}
 
@@ -436,19 +433,16 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
                 <div className="flex flex-wrap gap-2 pt-2 border-t border-white/5">
                   {request.status === 'open' && (
                     <button disabled={busy} onClick={() => setOpenState('closed')} className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/5 text-white/50 hover:text-white text-[9px] uppercase tracking-widest">
-                      <Lock className="w-3 h-3" /> Close without answer
-                    </button>
+                      <Lock className="w-3 h-3" /> {t(" Close without answer")}</button>
                   )}
                   {request.status === 'closed' && (
                     <button disabled={busy} onClick={() => setOpenState('open')} className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/5 text-white/50 hover:text-white text-[9px] uppercase tracking-widest">
-                      <RotateCcw className="w-3 h-3" /> Reopen
-                    </button>
+                      <RotateCcw className="w-3 h-3" /> {t(" Reopen")}</button>
                   )}
                   {/* A fulfilled request is part of the helper's record; only an admin removes it. */}
                   {(request.status !== 'fulfilled' || userRole === 'admin') && (
                     <button disabled={busy} onClick={deleteRequest} className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-red-400/10 text-red-400 hover:bg-red-400/20 text-[9px] uppercase tracking-widest">
-                      <Trash2 className="w-3 h-3" /> Delete
-                    </button>
+                      <Trash2 className="w-3 h-3" /> {t(" Delete")}</button>
                   )}
                 </div>
               )}

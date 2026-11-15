@@ -3,7 +3,7 @@ import {
   ExternalLink, Download, Tag, Trash2, Bookmark, BookmarkCheck, Share2, BookOpen, BadgeCheck, AlertTriangle,
   Calendar, Eye, Edit2, Layers, Maximize2, Sparkles, CornerDownRight, BookMarked,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format } from '../lib/i18n';
 import { Material, User as UserType } from '../types';
 import { getRank } from '../lib/ranks';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -19,6 +19,7 @@ import Modal from './Modal';
 import SubjectBadge from './SubjectBadge';
 import UserAvatar from './UserAvatar';
 
+import { t } from '../lib/i18n';
 interface MaterialDetailModalProps {
   material: Material | null;
   isOpen: boolean;
@@ -104,13 +105,13 @@ export default function MaterialDetailModal({
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Move "${material.title}" to Trash?`)) return;
+    if (!confirm(t("Move \"{0}\" to Trash?", material.title))) return;
     setIsDeleting(true);
     try {
       await updateDoc(doc(db, 'materials', material.id), { isDeleted: true, deletedAt: serverTimestamp() });
       handleClose();
     } catch (error) {
-      alert(firebaseErrorMessage(error, 'Could not move this material to Trash.'));
+      alert(firebaseErrorMessage(error, t("Could not move this material to Trash.")));
     } finally {
       setIsDeleting(false);
     }
@@ -121,7 +122,7 @@ export default function MaterialDetailModal({
     try {
       await toggleSave(material, isSaved);
     } catch (error) {
-      alert(firebaseErrorMessage(error, 'Could not update your saved materials.'));
+      alert(firebaseErrorMessage(error, t("Could not update your saved materials.")));
     } finally {
       setIsSaving(false);
     }
@@ -132,7 +133,7 @@ export default function MaterialDetailModal({
     try {
       await setVerified(material, !material.verifiedBy);
     } catch (error) {
-      alert(firebaseErrorMessage(error, 'Could not change the verification.'));
+      alert(firebaseErrorMessage(error, t("Could not change the verification.")));
     } finally {
       setIsVerifying(false);
     }
@@ -157,7 +158,7 @@ export default function MaterialDetailModal({
       size="lg"
       level={level}
       title={material.title}
-      subtitle={[material.subject, material.className, material.schoolName].filter(Boolean).join(' · ') || 'Material'}
+      subtitle={[material.subject ? t(material.subject) : null, material.className, material.schoolName].filter(Boolean).join(' · ') || t('Material')}
       footer={
         <div className="flex flex-col gap-3">
           <a
@@ -167,7 +168,7 @@ export default function MaterialDetailModal({
             onClick={() => recordOpen(material)}
             className="flex items-center justify-center gap-2 py-4 bg-white text-luxury-black hover:bg-luxury-gold transition-all rounded-full"
           >
-            <span className="uppercase tracking-[0.2em] text-xs font-bold">Open</span>
+            <span className="uppercase tracking-[0.2em] text-xs font-bold">{t("Open")}</span>
             {isExternalLink ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />}
           </a>
           <div className="flex flex-wrap gap-2">
@@ -178,7 +179,7 @@ export default function MaterialDetailModal({
                 className={cn(secondaryButton, 'flex-1', isSaved ? 'bg-luxury-gold/10 border-luxury-gold/50 text-luxury-gold' : 'bg-white/5 border-white/10 text-white/60 hover:text-white')}
               >
                 {isSaved ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
-                {isSaved ? 'Saved' : 'Save'}
+                {isSaved ? t("Saved") : t("Save")}
               </button>
             )}
             <button
@@ -186,17 +187,15 @@ export default function MaterialDetailModal({
               className={cn(secondaryButton, 'flex-1', copied ? 'bg-luxury-gold/20 border-luxury-gold text-luxury-gold' : 'bg-white/5 border-white/10 text-white/60 hover:text-white')}
             >
               <Share2 className="w-4 h-4" />
-              {copied ? 'Copied' : 'Share'}
+              {copied ? t("Copied") : t("Share")}
             </button>
             {auth.currentUser && onImprove && (
-              <button onClick={() => onImprove(material)} className={cn(secondaryButton, 'flex-1 bg-white/5 border-white/10 text-white/60 hover:text-white')} title="Upload a corrected or extended version">
-                <Sparkles className="w-4 h-4" /> Improve
-              </button>
+              <button onClick={() => onImprove(material)} className={cn(secondaryButton, 'flex-1 bg-white/5 border-white/10 text-white/60 hover:text-white')} title={t("Upload a corrected or extended version")}>
+                <Sparkles className="w-4 h-4" /> {t(" Improve")}</button>
             )}
             {canEdit && onEditClick && (
               <button onClick={() => onEditClick(material)} className={cn(secondaryButton, 'flex-1 bg-white/5 border-white/10 text-white/60 hover:text-white')}>
-                <Edit2 className="w-4 h-4" /> Edit
-              </button>
+                <Edit2 className="w-4 h-4" /> {t(" Edit")}</button>
             )}
             {canVerify && (
               <button
@@ -205,7 +204,7 @@ export default function MaterialDetailModal({
                 className={cn(secondaryButton, 'flex-1 disabled:opacity-50', material.verifiedBy ? 'bg-purple-400/15 border-purple-400/40 text-purple-200' : 'bg-white/5 border-white/10 text-white/60 hover:text-white')}
               >
                 <BadgeCheck className="w-4 h-4" />
-                {material.verifiedBy ? 'Unverify' : 'Verify'}
+                {material.verifiedBy ? t("Unverify") : t("Verify")}
               </button>
             )}
             {canEdit && (
@@ -213,7 +212,7 @@ export default function MaterialDetailModal({
                 onClick={handleDelete}
                 disabled={isDeleting}
                 className={cn(secondaryButton, 'bg-red-400/10 border-red-400/20 text-red-400 hover:bg-red-400/20 disabled:opacity-50')}
-                title="Move to Trash"
+                title={t("Move to Trash")}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -229,7 +228,7 @@ export default function MaterialDetailModal({
           <SubjectBadge subject={material.subject} size="md" />
           {kind && (
             <span className="flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/15 rounded-full text-[10px] uppercase tracking-widest text-white/80">
-              <kind.icon className="w-3.5 h-3.5" /> {kind.label}
+              <kind.icon className="w-3.5 h-3.5" /> {t(kind.label)}
             </span>
           )}
           {material.bookTitle && (
@@ -239,12 +238,12 @@ export default function MaterialDetailModal({
           )}
           {materialLevel && (
             <span className="px-3 py-1 border border-white/10 rounded-full text-[10px] uppercase tracking-widest text-white/55">
-              {materialLevel.label} · {materialLevel.hint}
+              {t(materialLevel.label)} · {materialLevel.hint}
             </span>
           )}
           {material.verifiedBy && (
             <span className="flex items-center gap-1.5 px-3 py-1 bg-purple-400/10 border border-purple-400/30 rounded-full text-[10px] uppercase tracking-widest text-purple-300">
-              <BadgeCheck className="w-3.5 h-3.5" /> Verified by {material.verifiedByName || 'a teacher'}
+              <BadgeCheck className="w-3.5 h-3.5" /> {t(" Verified by ")}{material.verifiedByName || t("a teacher")}
             </span>
           )}
           {linkWarning && (
@@ -265,7 +264,7 @@ export default function MaterialDetailModal({
             className="w-full flex items-center gap-3 p-3 rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-left transition-colors"
           >
             <Layers className="w-4 h-4 text-luxury-gold shrink-0" />
-            <span className="text-sm text-white/80 truncate">Part of <span className="text-white">{parentCollection.title}</span></span>
+            <span className="text-sm text-white/80 truncate">{t("Part of ")}<span className="text-white">{parentCollection.title}</span></span>
           </button>
         )}
 
@@ -277,7 +276,7 @@ export default function MaterialDetailModal({
                 className="w-full flex items-center gap-3 p-3 rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-left"
               >
                 <CornerDownRight className="w-4 h-4 text-white/50 shrink-0" />
-                <span className="text-sm text-white/70 truncate">Improves <span className="text-white">{original.title}</span> by {original.authorName}</span>
+                <span className="text-sm text-white/70 truncate">{t("Improves ")}<span className="text-white">{original.title}</span> {t(" by ")}{original.authorName}</span>
               </button>
             )}
             {improvements.map(v => (
@@ -287,7 +286,7 @@ export default function MaterialDetailModal({
                 className="w-full flex items-center gap-3 p-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 hover:bg-emerald-400/10 text-left"
               >
                 <Sparkles className="w-4 h-4 text-emerald-300 shrink-0" />
-                <span className="text-sm text-white/70 truncate">Improved version: <span className="text-white">{v.title}</span> by {v.authorName}</span>
+                <span className="text-sm text-white/70 truncate">{t("Improved version: ")}<span className="text-white">{v.title}</span> {t(" by ")}{v.authorName}</span>
               </button>
             ))}
           </div>
@@ -296,9 +295,9 @@ export default function MaterialDetailModal({
         {preview && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-bold">Preview</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-bold">{t("Preview")}</p>
               <button onClick={() => setShowPreview(v => !v)} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white flex items-center gap-1">
-                <Maximize2 className="w-3 h-3" /> {showPreview ? 'Hide' : 'Show'}
+                <Maximize2 className="w-3 h-3" /> {showPreview ? t("Hide") : t("Show")}
               </button>
             </div>
             {showPreview && (
@@ -306,7 +305,7 @@ export default function MaterialDetailModal({
                 <iframe
                   key={preview}
                   src={preview}
-                  title={`Preview of ${material.title}`}
+                  title={t("Preview of {0}", material.title)}
                   className="absolute inset-0 w-full h-full"
                   loading="lazy"
                   allow="autoplay; fullscreen"
@@ -319,7 +318,7 @@ export default function MaterialDetailModal({
 
         {material.description && (
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 mb-2 font-bold">Description</p>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 mb-2 font-bold">{t("Description")}</p>
             <p className="text-sm sm:text-base text-white/75 font-light leading-relaxed whitespace-pre-line">{material.description}</p>
           </div>
         )}
@@ -338,23 +337,23 @@ export default function MaterialDetailModal({
             />
             <div className="min-w-0">
               <p className="text-[9px] uppercase tracking-widest text-white/40 font-semibold flex items-center gap-1.5">
-                Shared by <span className={rank.color}>{authorProfile?.customBadge || rank.label}</span>
+                {t("Shared by ")}<span className={rank.color}>{t(authorProfile?.customBadge || rank.label)}</span>
               </p>
               <p className="text-sm text-white truncate">{material.authorName}</p>
             </div>
           </button>
           {(material.schoolName || material.className) && infoItem(
             <BookOpen className="w-4 h-4 text-luxury-gold" />,
-            'School & class',
+            t("School & class"),
             [material.className, material.schoolName].filter(Boolean).join(' · ')
           )}
-          {infoItem(<Calendar className="w-4 h-4 text-luxury-gold" />, 'Added', format(material.createdAt, 'd MMM yyyy'))}
-          {infoItem(<Eye className="w-4 h-4 text-luxury-gold" />, 'Opened / saved by', `${material.downloadCount || 0} / ${material.saveCount || 0} students`)}
+          {infoItem(<Calendar className="w-4 h-4 text-luxury-gold" />, t("Added"), format(material.createdAt, 'd MMM yyyy'))}
+          {infoItem(<Eye className="w-4 h-4 text-luxury-gold" />, t("Opened / saved by"), t("{0} / {1} students", material.downloadCount || 0, material.saveCount || 0))}
         </div>
 
         {linkWarning && (
           <p className="text-xs text-amber-300/80">
-            The weekly link check could not open this link{material.linkStatus === 'restricted' ? ' without signing in' : ''}. It may have been moved or made private.
+            {t("The weekly link check could not open this link")}{material.linkStatus === 'restricted' ? t(" without signing in") : ''}. It may have been moved or made private.
           </p>
         )}
       </div>

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { t } from '../lib/i18n';
 
 export interface DropdownOption {
   value: string;
@@ -70,7 +71,7 @@ export default function Dropdown({ options, value, onChange, className = '', ico
         <span className="flex items-center gap-2 min-w-0">
           {icon}
           {selectedOption?.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: selectedOption.color }} />}
-          <span className="truncate">{selectedOption?.label}</span>
+          <span className="truncate">{selectedOption ? t(selectedOption.label) : null}</span>
         </span>
         <ChevronDown className={cn('w-4 h-4 text-white/30 shrink-0 transition-transform duration-300', isOpen && 'rotate-180')} />
       </button>
@@ -106,7 +107,7 @@ export default function Dropdown({ options, value, onChange, className = '', ico
                 )}
               >
                 {option.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: option.color }} />}
-                <span className="flex-1 truncate">{option.label}</span>
+                <span className="flex-1 truncate">{t(option.label)}</span>
                 {value === option.value && <Check className="w-3.5 h-3.5 shrink-0" />}
               </button>
             ))}

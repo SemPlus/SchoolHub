@@ -14,6 +14,7 @@ import { useAppData } from '../context/AppData';
 import { classIdFor, classLabelsOf, formatClassName, isTeacherAccount, parseClassLabel, SECTION_PATTERN } from '../lib/schoolYear';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -139,20 +140,20 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
   const handleSubmit = async () => {
     setError('');
     if (!auth.currentUser) {
-      setError('You must be signed in to add materials.');
+      setError(t("You must be signed in to add materials."));
       return;
     }
     if (!/^https?:\/\//i.test(linkUrl.trim())) {
-      setError(mode === 'file' ? 'Upload a file first, or paste a link.' : 'Paste a link that starts with https://');
+      setError(mode === 'file' ? t("Upload a file first, or paste a link.") : t("Paste a link that starts with https://"));
       return;
     }
     if (!title.trim()) {
-      setError('Give it a title.');
+      setError(t("Give it a title."));
       return;
     }
     const { school, classYear, classSection, subject } = classification;
     if (!subject) {
-      setError('Choose a subject.');
+      setError(t("Choose a subject."));
       return;
     }
     const hasClass = !!school && !!classYear && !!classSection && SECTION_PATTERN.test(classSection);
@@ -196,8 +197,8 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
       console.error('Upload error:', err);
       const code: string = err?.code || 'unknown';
       setError(code === 'permission-denied'
-        ? `The database rejected this entry (permission-denied). ${err?.message || ''}`
-        : `Could not save this entry (${code}): ${err?.message || String(err)}`);
+        ? t("The database rejected this entry (permission-denied). {0}", err?.message || '')
+        : t("Could not save this entry ({0}): {1}", code, err?.message || String(err)));
     } finally {
       setIsUploading(false);
     }
@@ -209,8 +210,8 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={improves ? 'Improved version' : 'Add material'}
-      subtitle={improves ? `Of "${improves.title}" by ${improves.authorName}` : undefined}
+      title={improves ? t("Improved version") : t("Add material")}
+      subtitle={improves ? t("Of \"{0}\" by {1}", improves.title, improves.authorName) : undefined}
       size="md"
       level={2}
       footer={
@@ -222,7 +223,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
             disabled={isUploading}
             className="w-full bg-white text-luxury-black font-bold py-4 rounded-full hover:bg-luxury-gold disabled:opacity-30 transition-all"
           >
-            {isUploading ? 'Saving…' : 'Add material'}
+            {isUploading ? t("Saving…") : t("Add material")}
           </button>
         </div>
       }
@@ -238,7 +239,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
                 onClick={() => setMode(m)}
                 className={cn('py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all', mode === m ? 'bg-white text-luxury-black' : 'text-white/50')}
               >
-                {m === 'file' ? 'Upload a file' : 'Paste a link'}
+                {m === 'file' ? t("Upload a file") : t("Paste a link")}
               </button>
             ))}
           </div>
@@ -264,20 +265,20 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-11 pr-4 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30"
                 placeholder="https://…"
               />
-              <p className="text-[10px] text-white/30 mt-2 ml-1">For Google Drive files, set sharing to "Anyone with the link".</p>
+              <p className="text-[10px] text-white/30 mt-2 ml-1">{t("For Google Drive files, set sharing to \"Anyone with the link\".")}</p>
             </div>
           )}
         </div>
 
         {/* 2. Title */}
         <div className="space-y-2">
-          <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Title</label>
+          <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">{t("Title")}</label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30"
-            placeholder="e.g. Chapter 5 summary"
+            placeholder={t("e.g. Chapter 5 summary")}
             maxLength={100}
           />
         </div>
@@ -320,30 +321,29 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
             onClick={() => setShowMore(v => !v)}
             className="w-full flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40 hover:text-white py-2"
           >
-            More options (level, description, topic)
-            <ChevronDown className={cn('w-4 h-4 transition-transform', showMore && 'rotate-180')} />
+            {t("More options (level, description, topic)")}<ChevronDown className={cn('w-4 h-4 transition-transform', showMore && 'rotate-180')} />
           </button>
           {showMore && (
             <div className="space-y-6 pt-4">
               <KindLevelFields kind={kind} level={level} onKindChange={setKind} onLevelChange={setLevel} showKind={false} />
               <div className="space-y-2">
-                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Description</label>
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">{t("Description")}</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30 resize-none h-24"
-                  placeholder="What is in it, and who is it for?"
+                  placeholder={t("What is in it, and who is it for?")}
                   maxLength={1000}
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Topic or chapter (comma separated)</label>
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">{t("Topic or chapter (comma separated)")}</label>
                 <input
                   type="text"
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30"
-                  placeholder="e.g. Ch. 5, French Revolution"
+                  placeholder={t("e.g. Ch. 5, French Revolution")}
                   maxLength={200}
                 />
                 {tagSuggestions.length > 0 && (
@@ -365,8 +365,8 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
                 )}
               </div>
               <div className="space-y-2">
-                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">Type</label>
-                <Dropdown options={TYPE_OPTIONS} value={materialType} onChange={(val) => setMaterialType(val as MaterialType)} className="w-full" label="Type" />
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1">{t("Type")}</label>
+                <Dropdown options={TYPE_OPTIONS} value={materialType} onChange={(val) => setMaterialType(val as MaterialType)} className="w-full" label={t("Type")} />
               </div>
             </div>
           )}

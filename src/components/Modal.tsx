@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 // Every window in the app goes through this component, so they all behave
 // the same way:
 // - rendered into <body> through a portal, so no parent layer (the sticky
@@ -139,7 +140,7 @@ export default function Modal({
                   <button
                     onClick={onClose}
                     className="shrink-0 -mr-1 p-2 rounded-full text-white/40 hover:text-white hover:bg-white/5 transition-colors"
-                    aria-label="Close"
+                    aria-label={t("Close")}
                   >
                     <X className="w-5 h-5" />
                   </button>

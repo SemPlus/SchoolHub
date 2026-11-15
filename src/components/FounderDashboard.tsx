@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { LayoutDashboard, Users, FileText, School, Layers, AlertTriangle, UserX, HandHelping } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '../lib/i18n';
 import { db } from '../firebase';
 import type { User } from '../types';
 import { useAppData } from '../context/AppData';
 import { toDate } from '../lib/utils';
 import PendingTeachers from './PendingTeachers';
 
+import { t } from '../lib/i18n';
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 
 type DashboardUser = User & { createdAtDate: Date | null };
@@ -77,23 +78,23 @@ export default function FounderDashboard() {
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-luxury-gold/10 rounded-xl"><LayoutDashboard className="w-5 h-5 text-luxury-gold" /></div>
           <div>
-            <h2 className="text-2xl font-serif text-white">Founder dashboard</h2>
-            <p className="text-xs text-white/40">Only you can see this.</p>
+            <h2 className="text-2xl font-serif text-white">{t("Founder dashboard")}</h2>
+            <p className="text-xs text-white/40">{t("Only you can see this.")}</p>
           </div>
         </div>
-        {error && <p className="text-xs text-red-400">Could not load users: {error}</p>}
+        {error && <p className="text-xs text-red-400">{t("Could not load users: ")}{error}</p>}
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {tile(<Users className="w-3.5 h-3.5" />, 'Users', stats.users, `+${stats.newUsers} this week · ${stats.teachers} teachers`)}
-          {tile(<FileText className="w-3.5 h-3.5" />, 'Materials', stats.materials, `+${stats.newMaterials} this week`)}
-          {tile(<School className="w-3.5 h-3.5" />, 'Active schools', stats.schools, `${stats.classes} classes`)}
-          {tile(<Layers className="w-3.5 h-3.5" />, 'Collections', stats.collections, `${stats.openRequests} open requests`)}
+          {tile(<Users className="w-3.5 h-3.5" />, t("Users"), stats.users, t("+{0} this week · {1} teachers", stats.newUsers, stats.teachers))}
+          {tile(<FileText className="w-3.5 h-3.5" />, t("Materials"), stats.materials, t("+{0} this week", stats.newMaterials))}
+          {tile(<School className="w-3.5 h-3.5" />, t("Active schools"), stats.schools, t("{0} classes", stats.classes))}
+          {tile(<Layers className="w-3.5 h-3.5" />, t("Collections"), stats.collections, t("{0} open requests", stats.openRequests))}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {tile(<UserX className="w-3.5 h-3.5" />, 'Signed up, never shared', stats.silent.length, `${stats.noSchool} never finished setup`)}
-          {tile(<AlertTriangle className="w-3.5 h-3.5" />, 'Broken or private links', stats.brokenLinks)}
-          {tile(<HandHelping className="w-3.5 h-3.5" />, 'Materials without subject', stats.withoutSubject)}
+          {tile(<UserX className="w-3.5 h-3.5" />, t("Signed up, never shared"), stats.silent.length, t("{0} never finished setup", stats.noSchool))}
+          {tile(<AlertTriangle className="w-3.5 h-3.5" />, t("Broken or private links"), stats.brokenLinks)}
+          {tile(<HandHelping className="w-3.5 h-3.5" />, t("Materials without subject"), stats.withoutSubject)}
         </div>
 
         <PendingTeachers />
@@ -101,8 +102,8 @@ export default function FounderDashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="glass-panel rounded-[1.5rem] p-5 border-white/5 space-y-3">
-          <p className="text-[10px] uppercase tracking-widest text-white/40">Most active schools</p>
-          {stats.topSchools.length === 0 ? <p className="text-xs text-white/40">No school yet.</p> : stats.topSchools.map(s => (
+          <p className="text-[10px] uppercase tracking-widest text-white/40">{t("Most active schools")}</p>
+          {stats.topSchools.length === 0 ? <p className="text-xs text-white/40">{t("No school yet.")}</p> : stats.topSchools.map(s => (
             <div key={s.name} className="flex items-center justify-between gap-3 text-sm">
               <span className="text-white/80 truncate">{s.name}</span>
               <span className="text-white/50 shrink-0">{s.count}{s.week ? <span className="text-emerald-300"> +{s.week}</span> : null}</span>
@@ -110,10 +111,10 @@ export default function FounderDashboard() {
           ))}
         </div>
         <div className="glass-panel rounded-[1.5rem] p-5 border-white/5 space-y-3">
-          <p className="text-[10px] uppercase tracking-widest text-white/40">Recent sign-ups who never shared</p>
+          <p className="text-[10px] uppercase tracking-widest text-white/40">{t("Recent sign-ups who never shared")}</p>
           {stats.silent.slice(0, 10).map(u => (
             <div key={u.uid} className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-white/80 truncate">{u.displayName || 'Unnamed'}<span className="text-white/35"> · {u.schoolName || 'no school yet'}</span></span>
+              <span className="text-white/80 truncate">{u.displayName || t("Unnamed")}<span className="text-white/35"> · {u.schoolName || t("no school yet")}</span></span>
               <span className="text-[11px] text-white/40 shrink-0">{u.createdAtDate ? formatDistanceToNow(u.createdAtDate, { addSuffix: true }) : ''}</span>
             </div>
           ))}

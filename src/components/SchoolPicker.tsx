@@ -3,6 +3,7 @@ import { Search, School, X, Loader2 } from 'lucide-react';
 import { describeSchool, searchSchools, SchoolOption } from '../lib/schools';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 export interface PickedSchool {
   id: string;
   name: string;
@@ -55,7 +56,7 @@ export default function SchoolPicker({ value, onChange, placeholder = 'Search by
         })
         .catch(err => {
           if (id !== requestId.current) return;
-          setError(err?.message || 'Could not load the school list.');
+          setError(err?.message || t("Could not load the school list."));
         })
         .finally(() => {
           if (id === requestId.current) setIsSearching(false);
@@ -86,14 +87,13 @@ export default function SchoolPicker({ value, onChange, placeholder = 'Search by
           onClick={() => setIsEditing(true)}
           className="text-[10px] uppercase tracking-widest text-luxury-gold hover:text-white px-2 py-1"
         >
-          Change
-        </button>
+          {t("Change")}</button>
         {clearable && (
           <button
             type="button"
             onClick={() => onChange(null)}
             className="text-white/30 hover:text-white p-1"
-            title="Clear school"
+            title={t("Clear school")}
           >
             <X className="w-4 h-4" />
           </button>
@@ -120,7 +120,7 @@ export default function SchoolPicker({ value, onChange, placeholder = 'Search by
             type="button"
             onClick={() => { setIsEditing(false); setQuery(''); }}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white p-1"
-            title="Keep current school"
+            title={t("Keep current school")}
           >
             <X className="w-4 h-4" />
           </button>
@@ -131,8 +131,7 @@ export default function SchoolPicker({ value, onChange, placeholder = 'Search by
 
       {query.trim().length >= 2 && !isSearching && results.length === 0 && !error && (
         <p className="mt-2 text-xs text-white/40">
-          No school matches. Try the town name, or a shorter part of the school name.
-        </p>
+          {t("No school matches. Try the town name, or a shorter part of the school name.")}</p>
       )}
 
       {results.length > 0 && (

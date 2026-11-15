@@ -4,6 +4,7 @@ import type { UserStats } from '../lib/stats';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Lock } from 'lucide-react';
+import { t } from '../lib/i18n';
 
 interface AchievementBadgesProps {
   stats: UserStats;
@@ -23,7 +24,7 @@ export default function AchievementBadges({ stats, compact = false }: Achievemen
             key={badge.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            title={badge.description}
+            title={t(badge.description)}
             className={cn(
               "group relative flex flex-col items-center justify-center p-4 rounded-2xl border transition-all duration-500 text-center",
               isUnlocked
@@ -38,9 +39,9 @@ export default function AchievementBadges({ stats, compact = false }: Achievemen
             {!compact && (
               <>
                 <p className={cn("text-[10px] font-bold uppercase tracking-widest", isUnlocked ? "text-white" : "text-white/40")}>
-                  {badge.name}
+                  {t(badge.name)}
                 </p>
-                <p className="text-[9px] text-white/40 leading-tight mt-1">{badge.description}</p>
+                <p className="text-[9px] text-white/40 leading-tight mt-1">{t(badge.description)}</p>
                 {!isUnlocked && badge.count > 1 && (
                   <p className="text-[8px] text-white/30 uppercase tracking-[0.2em] mt-2">
                     {Math.min(progress, badge.count)} / {badge.count}

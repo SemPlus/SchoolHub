@@ -1,4 +1,5 @@
-// Textbooks adopted by each class, from the Ministry of Education open data
+
+import { t } from './i18n';// Textbooks adopted by each class, from the Ministry of Education open data
 // (built by scripts/build-textbooks.mjs). A material tagged with a book's ISBN
 // is useful to every class in Italy that uses the same book.
 
@@ -51,7 +52,7 @@ export function loadCatalog(): Promise<Textbook[]> {
   if (!catalogPromise) {
     catalogPromise = fetch('/textbooks/catalog.json')
       .then(r => {
-        if (!r.ok) throw new Error(`Could not load textbooks (HTTP ${r.status}).`);
+        if (!r.ok) throw new Error(t("Could not load textbooks (HTTP {0}).", r.status));
         return r.json() as Promise<[string, string, string, string, string][]>;
       })
       .then(rows => rows.map(([isbn, title, discipline, volume, publisher]) => ({

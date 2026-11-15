@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { Trash2, Move, Edit, Share2, Info, CheckCircle, RotateCcw } from 'lucide-react';
+import { t } from '../lib/i18n';
 
 interface ContextMenuProps {
   x: number;
@@ -69,7 +70,7 @@ export default function ContextMenu({ x, y, onClose, items }: ContextMenuProps) 
           }`}
         >
           {item.icon}
-          <span className="font-bold">{item.label}</span>
+          <span className="font-bold">{t(item.label)}</span>
         </button>
       ))}
     </motion.div>,

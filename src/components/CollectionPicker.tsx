@@ -8,6 +8,7 @@ import { subjectStyle } from '../lib/subjects';
 import { cn } from '../lib/utils';
 import type { PickedSchool } from './SchoolPicker';
 
+import { t } from '../lib/i18n';
 interface CollectionPickerProps {
   value: string | null;
   onChange: (collectionId: string | null) => void;
@@ -52,7 +53,7 @@ export default function CollectionPicker({ value, onChange, school, classYear, c
       setIsCreating(false);
       setTitle('');
     } catch (err) {
-      setError(firebaseErrorMessage(err, 'Could not create the collection.'));
+      setError(firebaseErrorMessage(err, t("Could not create the collection.")));
     } finally {
       setBusy(false);
     }
@@ -61,8 +62,7 @@ export default function CollectionPicker({ value, onChange, school, classYear, c
   return (
     <div className="space-y-3">
       <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1 flex items-center gap-2">
-        <Layers className="w-3.5 h-3.5" /> Part of a group project or theme? (optional)
-      </p>
+        <Layers className="w-3.5 h-3.5" /> {t(" Part of a group project or theme? (optional)")}</p>
 
       <div className="flex flex-wrap gap-2">
         <button
@@ -73,8 +73,7 @@ export default function CollectionPicker({ value, onChange, school, classYear, c
             !value ? 'border-luxury-gold bg-luxury-gold/10 text-luxury-gold' : 'border-white/10 text-white/50 hover:text-white'
           )}
         >
-          No
-        </button>
+          {t("No")}</button>
         {options.map(c => {
           const color = subjectStyle(c.subject).color;
           return (
@@ -103,8 +102,7 @@ export default function CollectionPicker({ value, onChange, school, classYear, c
             onClick={() => setIsCreating(true)}
             className="px-3 py-2 rounded-xl border border-dashed border-white/20 text-xs text-white/60 hover:text-white flex items-center gap-1.5"
           >
-            <Plus className="w-3.5 h-3.5" /> New
-          </button>
+            <Plus className="w-3.5 h-3.5" /> {t(" New")}</button>
         )}
       </div>
 
@@ -115,7 +113,7 @@ export default function CollectionPicker({ value, onChange, school, classYear, c
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreate(); } }}
-            placeholder="e.g. Renaissance presentations"
+            placeholder={t("e.g. Renaissance presentations")}
             maxLength={120}
             className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30"
           />
@@ -125,7 +123,7 @@ export default function CollectionPicker({ value, onChange, school, classYear, c
             onClick={handleCreate}
             className="px-4 py-2.5 rounded-xl bg-luxury-gold text-luxury-black text-xs font-bold disabled:opacity-30"
           >
-            {busy ? '…' : 'Create'}
+            {busy ? '…' : t("Create")}
           </button>
           <button type="button" onClick={() => { setIsCreating(false); setTitle(''); }} className="p-2 text-white/40 hover:text-white">
             <X className="w-4 h-4" />

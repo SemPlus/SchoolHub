@@ -1,10 +1,11 @@
 import React from 'react';
 import { Layers, CalendarClock } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from '../lib/i18n';
 import type { Collection } from '../types';
 import { subjectStyle, withAlpha } from '../lib/subjects';
 import SubjectBadge from './SubjectBadge';
 
+import { t } from '../lib/i18n';
 interface CollectionCardProps {
   key?: React.Key;
   collection: Collection;
@@ -34,19 +35,19 @@ export default function CollectionCard({ collection, workCount, authorNames, las
             <Layers className="w-6 h-6" style={{ color }} />
           </div>
           <span className="text-[10px] uppercase tracking-widest font-semibold px-3 py-1 rounded-full" style={{ color, backgroundColor: withAlpha(color, 0.1) }}>
-            {workCount} {workCount === 1 ? 'work' : 'works'}
+            {workCount === 1 ? t('1 work') : t('{0} works', workCount)}
           </span>
         </div>
 
         <div className="space-y-2">
-          <p className="text-[9px] uppercase tracking-[0.25em] text-white/40">{collection.dueAt ? 'Hand-in' : 'Collection'}</p>
+          <p className="text-[9px] uppercase tracking-[0.25em] text-white/40">{collection.dueAt ? t("Hand-in") : t("Collection")}</p>
           <h3 className="font-serif text-2xl text-white leading-tight line-clamp-2">{collection.title}</h3>
           <div className="flex flex-wrap gap-2">
             <SubjectBadge subject={collection.subject} />
             {collection.dueAt && (
               <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest border ${collection.dueAt.getTime() < Date.now() ? 'border-red-400/30 bg-red-400/10 text-red-300' : 'border-luxury-gold/30 bg-luxury-gold/10 text-luxury-gold'}`}>
                 <CalendarClock className="w-3 h-3" />
-                {collection.dueAt.getTime() < Date.now() ? 'Past due' : `Due ${format(collection.dueAt, 'EEE d MMM')}`}
+                {collection.dueAt.getTime() < Date.now() ? t("Past due") : t("Due {0}", format(collection.dueAt, 'EEE d MMM'))}
               </span>
             )}
             {collection.className && (
@@ -58,7 +59,7 @@ export default function CollectionCard({ collection, workCount, authorNames, las
         </div>
 
         <p className="mt-auto pt-4 border-t border-white/5 text-[10px] uppercase tracking-widest text-white/35 truncate">
-          {people.length > 0 ? `${people.slice(0, 3).join(', ')}${people.length > 3 ? ` +${people.length - 3}` : ''}` : 'No works yet'}
+          {people.length > 0 ? `${people.slice(0, 3).join(', ')}${people.length > 3 ? ` +${people.length - 3}` : ''}` : t("No works yet")}
           {lastActivity ? ` · ${formatDistanceToNow(lastActivity, { addSuffix: true })}` : ''}
         </p>
       </div>

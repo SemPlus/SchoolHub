@@ -2,6 +2,7 @@ import { GoogleAuthProvider, reauthenticateWithPopup } from 'firebase/auth';
 import { auth } from '../firebase';
 import type { MaterialType } from '../types';
 
+import { t } from './i18n';
 // Uploads a file from the user's device to their own Google Drive, converts
 // it to a Google Docs / Slides / Sheets file where that keeps the content
 // intact, shares it as "anyone with the link can view", and returns the link.
@@ -24,7 +25,7 @@ let cachedToken: CachedToken | null = null;
 /** Opens Google's permission popup if needed. Must be called from a click. */
 export async function getDriveToken(): Promise<string> {
   const user = auth.currentUser;
-  if (!user) throw new DriveError('Sign in first.');
+  if (!user) throw new DriveError(t("Sign in first."));
   if (cachedToken && cachedToken.uid === user.uid && cachedToken.expires > Date.now() + 60_000) {
     return cachedToken.token;
   }
@@ -34,16 +35,16 @@ export async function getDriveToken(): Promise<string> {
   try {
     const result = await reauthenticateWithPopup(user, provider);
     const token = GoogleAuthProvider.credentialFromResult(result)?.accessToken;
-    if (!token) throw new DriveError('Google did not give access to Drive. Please try again.');
+    if (!token) throw new DriveError(t("Google did not give access to Drive. Please try again."));
     cachedToken = { token, uid: user.uid, expires: Date.now() + 55 * 60 * 1000 };
     return token;
   } catch (error: any) {
     if (error instanceof DriveError) throw error;
     const code: string = error?.code || '';
-    if (code === 'auth/popup-blocked') throw new DriveError('Your browser blocked the Google window. Allow pop-ups for this site and tap Upload again.');
-    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') throw new DriveError('The Google window was closed before finishing.');
-    if (code === 'auth/user-mismatch') throw new DriveError('Choose the same Google account you are signed in with.');
-    throw new DriveError(error?.message || 'Could not connect to Google Drive.');
+    if (code === 'auth/popup-blocked') throw new DriveError(t("Your browser blocked the Google window. Allow pop-ups for this site and tap Upload again."));
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') throw new DriveError(t("The Google window was closed before finishing."));
+    if (code === 'auth/user-mismatch') throw new DriveError(t("Choose the same Google account you are signed in with."));
+    throw new DriveError(error?.message || t("Could not connect to Google Drive."));
   }
 }
 
@@ -112,19 +113,19 @@ async function toDriveError(response: Response): Promise<DriveError> {
   }
   if (response.status === 401) {
     cachedToken = null;
-    return new DriveError('Your Google permission expired. Tap Upload again.');
+    return new DriveError(t("Your Google permission expired. Tap Upload again."));
   }
   if (reason === 'insufficientPermissions' || reason === 'PERMISSION_DENIED' || /insufficient/i.test(message)) {
     cachedToken = null;
-    return new DriveError('SchoolHub needs permission to save files in your Google Drive. Tap Upload again and tick the Google Drive box.');
+    return new DriveError(t("SchoolHub needs permission to save files in your Google Drive. Tap Upload again and tick the Google Drive box."));
   }
   if (reason === 'accessNotConfigured' || /has not been used|is disabled/i.test(message)) {
-    return new DriveError('Google Drive uploads are not switched on for SchoolHub yet. Please tell the SchoolHub team.');
+    return new DriveError(t("Google Drive uploads are not switched on for SchoolHub yet. Please tell the SchoolHub team."));
   }
   if (reason === 'storageQuotaExceeded') {
-    return new DriveError('Your Google Drive is full.');
+    return new DriveError(t("Your Google Drive is full."));
   }
-  return new DriveError(message || `Google Drive error (${response.status}).`);
+  return new DriveError(message || t("Google Drive error ({0}).", response.status));
 }
 
 async function ensureFolder(token: string, uid: string): Promise<string> {
@@ -168,7 +169,7 @@ function sendWithProgress(method: string, url: string, headers: Record<string, s
         reject(await toDriveError(new Response(xhr.responseText, { status: xhr.status })));
       }
     };
-    xhr.onerror = () => reject(new DriveError('The upload stopped. Check your connection and try again.'));
+    xhr.onerror = () => reject(new DriveError(t("The upload stopped. Check your connection and try again.")));
     xhr.send(body);
   });
 }
@@ -185,8 +186,8 @@ export async function uploadToDrive(
   options: { makeEditable?: boolean; onProgress?: (fraction: number) => void; onStage?: (stage: 'connecting' | 'uploading' | 'sharing') => void } = {}
 ): Promise<UploadResult> {
   const user = auth.currentUser;
-  if (!user) throw new DriveError('Sign in first.');
-  if (file.size > MAX_UPLOAD_BYTES) throw new DriveError('This file is larger than 100 MB.');
+  if (!user) throw new DriveError(t("Sign in first."));
+  if (file.size > MAX_UPLOAD_BYTES) throw new DriveError(t("This file is larger than 100 MB."));
 
   options.onStage?.('connecting');
   const token = await getDriveToken();
@@ -229,7 +230,7 @@ export async function uploadToDrive(
     form.append('file', file);
     uploaded = await sendWithProgress('POST', `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=${fields}`, { Authorization: `Bearer ${token}` }, form, onProgress);
   } else {
-    throw new DriveError('This browser cannot upload large files to Drive. Try a file under 5 MB, or another browser.');
+    throw new DriveError(t("This browser cannot upload large files to Drive. Try a file under 5 MB, or another browser."));
   }
 
   options.onStage?.('sharing');

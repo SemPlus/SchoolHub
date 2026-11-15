@@ -4,6 +4,7 @@ import { auth, db } from '../firebase';
 import type { Collection, CollectionVote, Material } from '../types';
 import { toDate } from './utils';
 
+import { t } from './i18n';
 /**
  * Live votes for the best work in a collection. One vote per person (the
  * document id is their uid); changing your mind moves your vote.
@@ -33,7 +34,7 @@ export function useCollectionVotes(collectionId: string | null) {
 
 export async function castVote(collectionId: string, material: Material, hasVoted: boolean): Promise<void> {
   const user = auth.currentUser;
-  if (!user) throw new Error('Sign in to vote.');
+  if (!user) throw new Error(t("Sign in to vote."));
   const ref = doc(db, 'collections', collectionId, 'votes', user.uid);
   if (hasVoted) {
     await updateDoc(ref, { materialId: material.id });

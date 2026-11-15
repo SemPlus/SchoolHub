@@ -1,6 +1,7 @@
 import React from 'react';
 import { subjectStyle, withAlpha } from '../lib/subjects';
 import { cn } from '../lib/utils';
+import { t } from '../lib/i18n';
 
 interface SubjectBadgeProps {
   subject?: string | null;
@@ -22,7 +23,7 @@ export default function SubjectBadge({ subject, size = 'sm', className }: Subjec
       style={{ color, borderColor: withAlpha(color, 0.35), backgroundColor: withAlpha(color, 0.1) }}
     >
       <Icon className={size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
-      {subject}
+      {t(subject)}
     </span>
   );
 }

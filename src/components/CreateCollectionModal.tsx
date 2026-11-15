@@ -8,6 +8,7 @@ import { classLabelsOf, isTeacherAccount, parseClassLabel } from '../lib/schoolY
 import { firebaseErrorMessage } from '../lib/engagement';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 interface CreateCollectionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -61,12 +62,12 @@ export default function CreateCollectionModal({ isOpen, onClose, onCreated, defa
 
   const handleCreate = async () => {
     if (title.trim().length < 2) {
-      setError('Give it a title.');
+      setError(t("Give it a title."));
       return;
     }
     const deadline = hasDeadline && dueAt ? new Date(dueAt) : null;
     if (deadline && (isNaN(deadline.getTime()) || deadline.getTime() < Date.now())) {
-      setError('Pick a deadline in the future.');
+      setError(t("Pick a deadline in the future."));
       return;
     }
     setBusy(true);
@@ -84,7 +85,7 @@ export default function CreateCollectionModal({ isOpen, onClose, onCreated, defa
       onClose();
       onCreated?.(id);
     } catch (err) {
-      setError(firebaseErrorMessage(err, 'Could not create the collection.'));
+      setError(firebaseErrorMessage(err, t("Could not create the collection.")));
     } finally {
       setBusy(false);
     }
@@ -97,8 +98,8 @@ export default function CreateCollectionModal({ isOpen, onClose, onCreated, defa
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="New collection"
-      subtitle="Group works on the same theme, project or exam"
+      title={t("New collection")}
+      subtitle={t("Group works on the same theme, project or exam")}
       icon={<Layers className="w-5 h-5 text-luxury-gold" />}
       size="md"
       level={2}
@@ -110,15 +111,15 @@ export default function CreateCollectionModal({ isOpen, onClose, onCreated, defa
             disabled={busy}
             className="w-full bg-white text-luxury-black font-bold py-4 rounded-full hover:bg-luxury-gold disabled:opacity-30 transition-all"
           >
-            {busy ? 'Creating…' : hasDeadline ? 'Create hand-in' : 'Create collection'}
+            {busy ? t("Creating…") : hasDeadline ? t("Create hand-in") : t("Create collection")}
           </button>
         </div>
       }
     >
       <div className="space-y-7">
         <div className="space-y-2">
-          <label className={label}>Title</label>
-          <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} className={inputClass} placeholder="e.g. Renaissance presentations" />
+          <label className={label}>{t("Title")}</label>
+          <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} className={inputClass} placeholder={t("e.g. Renaissance presentations")} />
         </div>
 
         <ClassificationFields
@@ -129,13 +130,13 @@ export default function CreateCollectionModal({ isOpen, onClose, onCreated, defa
         />
 
         <div className="space-y-2">
-          <label className={label}>Instructions (optional)</label>
+          <label className={label}>{t("Instructions (optional)")}</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={1000}
             className={`${inputClass} h-24 resize-none`}
-            placeholder="What should each group add?"
+            placeholder={t("What should each group add?")}
           />
         </div>
 
@@ -143,7 +144,7 @@ export default function CreateCollectionModal({ isOpen, onClose, onCreated, defa
           <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <label className="flex items-center gap-3 cursor-pointer select-none">
               <input type="checkbox" checked={hasDeadline} onChange={(e) => setHasDeadline(e.target.checked)} className="w-4 h-4 accent-[#D4AF37]" />
-              <span className="text-sm text-white flex items-center gap-2"><CalendarClock className="w-4 h-4 text-luxury-gold" /> Hand-in with a deadline</span>
+              <span className="text-sm text-white flex items-center gap-2"><CalendarClock className="w-4 h-4 text-luxury-gold" /> {t(" Hand-in with a deadline")}</span>
             </label>
             <div className={cn('space-y-2', !hasDeadline && 'opacity-40 pointer-events-none')}>
               <input
@@ -152,7 +153,7 @@ export default function CreateCollectionModal({ isOpen, onClose, onCreated, defa
                 onChange={(e) => setDueAt(e.target.value)}
                 className={`${inputClass} [color-scheme:dark]`}
               />
-              <p className="text-[10px] text-white/35">Students see the deadline. Works added later are marked "late".</p>
+              <p className="text-[10px] text-white/35">{t("Students see the deadline. Works added later are marked \"late\".")}</p>
             </div>
           </div>
         )}

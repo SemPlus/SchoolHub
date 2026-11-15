@@ -42,11 +42,26 @@ export function onLanguageChange(fn: (lang: Language) => void): () => void {
 
 /** Translate an English interface text. {0}, {1}… are replaced by the extra arguments. */
 export function t(text: string, ...args: unknown[]): string {
-  const template = current === 'it' ? (IT[text] ?? text) : text;
+  let template = text;
+  if (current === 'it') {
+    // Keys are looked up without surrounding spaces; the spaces are kept.
+    const match = /^(\s*)([\s\S]*?)(\s*)$/.exec(text)!;
+    const core = match[2];
+    template = match[1] + (IT[core] ?? core) + match[3];
+  }
   return args.length === 0 ? template : template.replace(/\{(\d+)\}/g, (match, i) => {
     const value = args[Number(i)];
     return value === undefined || value === null ? '' : String(value);
   });
+}
+
+/**
+ * Like t(), for words whose translation depends on where they appear
+ * ("Open" the button vs "Open" the status). Looks up "context|text" first.
+ */
+export function tc(context: string, text: string, ...args: unknown[]): string {
+  const key = `${context}|${text}`;
+  return current === 'it' && key in IT ? t(key, ...args) : t(text, ...args);
 }
 
 export function dateLocale(): Locale {

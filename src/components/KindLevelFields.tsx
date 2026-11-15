@@ -2,6 +2,7 @@ import React from 'react';
 import { KINDS, LEVELS } from '../lib/materialKinds';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 interface KindLevelFieldsProps {
   kind: string;
   level: string;
@@ -19,7 +20,7 @@ export default function KindLevelFields({ kind, level, onKindChange, onLevelChan
     <div className="space-y-6">
       {showKind && (
         <div className="space-y-2">
-          <p className={label}>What is it?</p>
+          <p className={label}>{t("What is it?")}</p>
           <div className="flex flex-wrap gap-2">
             {KINDS.map(k => {
               const active = kind === k.id;
@@ -33,7 +34,7 @@ export default function KindLevelFields({ kind, level, onKindChange, onLevelChan
                     active ? 'border-luxury-gold bg-luxury-gold/10 text-luxury-gold' : 'border-white/10 text-white/60 hover:text-white'
                   )}
                 >
-                  <k.icon className="w-3.5 h-3.5" /> {k.label}
+                  <k.icon className="w-3.5 h-3.5" /> {t(k.label)}
                 </button>
               );
             })}
@@ -43,7 +44,7 @@ export default function KindLevelFields({ kind, level, onKindChange, onLevelChan
 
       {showLevel && (
         <div className="space-y-2">
-          <p className={label}>Level (optional)</p>
+          <p className={label}>{t("Level (optional)")}</p>
           <div className="flex flex-wrap gap-2">
             {LEVELS.map(l => {
               const active = level === l.id;
@@ -57,7 +58,7 @@ export default function KindLevelFields({ kind, level, onKindChange, onLevelChan
                     active ? 'border-luxury-gold bg-luxury-gold/10 text-luxury-gold' : 'border-white/10 text-white/60 hover:text-white'
                   )}
                 >
-                  {l.label} <span className="text-white/30">· {l.hint}</span>
+                  {t(l.label)} <span className="text-white/30">· {l.hint}</span>
                 </button>
               );
             })}

@@ -4,6 +4,7 @@ import { useAppData } from '../context/AppData';
 import { formatClassName, isTeacherAccount, schoolYearStart } from '../lib/schoolYear';
 import { subjectStyle } from '../lib/subjects';
 
+import { t } from '../lib/i18n';
 /**
  * Private study progress for a student: per subject, how many of this year's
  * class materials they have marked as studied.
@@ -40,8 +41,8 @@ export default function StudyProgress() {
         <div className="flex items-center gap-3">
           <div className="p-2 bg-luxury-gold/10 rounded-xl"><GraduationCap className="w-4 h-4 text-luxury-gold" /></div>
           <div>
-            <h3 className="text-base font-serif text-white">Study progress · {formatClassName(profile?.classYear, profile?.classSection)}</h3>
-            <p className="text-[10px] uppercase tracking-widest text-white/35">Only you see this · tick "Studied" on a material</p>
+            <h3 className="text-base font-serif text-white">{t("Study progress · ")}{formatClassName(profile?.classYear, profile?.classSection)}</h3>
+            <p className="text-[10px] uppercase tracking-widest text-white/35">{t("Only you see this · tick \"Studied\" on a material")}</p>
           </div>
         </div>
         <span className="text-sm text-white/70 shrink-0">{done} / {total}</span>
@@ -53,7 +54,7 @@ export default function StudyProgress() {
           return (
             <div key={r.subject} className="space-y-1">
               <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-white/75"><Icon className="w-3.5 h-3.5" style={{ color }} /> {r.subject}</span>
+                <span className="flex items-center gap-1.5 text-white/75"><Icon className="w-3.5 h-3.5" style={{ color }} /> {t(r.subject)}</span>
                 <span className="text-white/45">{r.done} / {r.total}</span>
               </div>
               <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">

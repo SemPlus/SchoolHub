@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink, Info, Layers, Plus, Pencil, Trash2, Users, CalendarClock, Clock, Trophy } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from '../lib/i18n';
 import { db, auth } from '../firebase';
 import type { Collection, Material } from '../types';
 import { useAppData } from '../context/AppData';
@@ -15,6 +15,7 @@ import SubjectBadge from './SubjectBadge';
 import WorkFeedback from './WorkFeedback';
 import { announceWinner, castVote, leadingWork, useCollectionVotes, withdrawVote } from '../lib/useCollectionVotes';
 
+import { t } from '../lib/i18n';
 interface CollectionModalProps {
   collection: Collection | null;
   isOpen: boolean;
@@ -77,7 +78,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
       if (myVote === work.id) await withdrawVote(collection.id);
       else await castVote(collection.id, work, !!myVote);
     } catch (error) {
-      alert(firebaseErrorMessage(error, 'Could not save your vote.'));
+      alert(firebaseErrorMessage(error, t("Could not save your vote.")));
     } finally {
       setVoteBusy(false);
     }
@@ -85,38 +86,38 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
 
   const announce = async () => {
     if (!leader) return;
-    if (!confirm(`Announce "${leader.title}" by ${leader.authorName} as the best work? Voting closes.`)) return;
+    if (!confirm(t("Announce \"{0}\" by {1} as the best work? Voting closes.", leader.title, leader.authorName))) return;
     setVoteBusy(true);
     try {
       await announceWinner(collection, leader);
     } catch (error) {
-      alert(firebaseErrorMessage(error, 'Could not announce the best work.'));
+      alert(firebaseErrorMessage(error, t("Could not announce the best work.")));
     } finally {
       setVoteBusy(false);
     }
   };
 
   const rename = async () => {
-    const title = prompt('Rename collection', collection.title)?.trim();
+    const title = prompt(t("Rename collection"), collection.title)?.trim();
     if (!title || title === collection.title) return;
     setBusy(true);
     try {
       await updateDoc(doc(db, 'collections', collection.id), { title: title.slice(0, 120), updatedAt: serverTimestamp() });
     } catch (error) {
-      alert(firebaseErrorMessage(error, 'Could not rename the collection.'));
+      alert(firebaseErrorMessage(error, t("Could not rename the collection.")));
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async () => {
-    if (!confirm(`Delete the collection "${collection.title}"? The works inside stay in the archive.`)) return;
+    if (!confirm(t("Delete the collection \"{0}\"? The works inside stay in the archive.", collection.title))) return;
     setBusy(true);
     try {
       await updateDoc(doc(db, 'collections', collection.id), { isDeleted: true, updatedAt: serverTimestamp() });
       onClose();
     } catch (error) {
-      alert(firebaseErrorMessage(error, 'Could not delete the collection.'));
+      alert(firebaseErrorMessage(error, t("Could not delete the collection.")));
     } finally {
       setBusy(false);
     }
@@ -128,7 +129,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
       onClose={onClose}
       size="xl"
       title={collection.title}
-      subtitle={`${works.length} ${works.length === 1 ? 'work' : 'works'}${collection.className ? ` · ${collection.className}` : ''}${collection.schoolName ? ` · ${collection.schoolName}` : ''}`}
+      subtitle={`${works.length === 1 ? t('1 work') : t('{0} works', works.length)}${collection.className ? ` · ${collection.className}` : ''}${collection.schoolName ? ` · ${collection.schoolName}` : ''}`}
       icon={<Layers className="w-5 h-5" style={{ color }} />}
       bare
       footer={
@@ -138,15 +139,15 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
               onClick={() => onAddWork(collection)}
               className="flex-1 min-w-[10rem] flex items-center justify-center gap-2 py-3.5 rounded-full bg-luxury-gold text-luxury-black text-xs font-bold uppercase tracking-widest"
             >
-              <Plus className="w-4 h-4" /> {dueAt ? (iHandedIn ? 'Add another file' : isPastDue ? 'Hand in late' : 'Hand in my work') : 'Add my work'}
+              <Plus className="w-4 h-4" /> {dueAt ? (iHandedIn ? t("Add another file") : isPastDue ? t("Hand in late") : t("Hand in my work")) : t("Add my work")}
             </button>
           )}
           {canManage && (
             <>
-              <button disabled={busy} onClick={rename} className="px-4 py-3.5 rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white" title="Rename">
+              <button disabled={busy} onClick={rename} className="px-4 py-3.5 rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white" title={t("Rename")}>
                 <Pencil className="w-4 h-4" />
               </button>
-              <button disabled={busy} onClick={remove} className="px-4 py-3.5 rounded-full bg-red-400/10 border border-red-400/20 text-red-400" title="Delete collection">
+              <button disabled={busy} onClick={remove} className="px-4 py-3.5 rounded-full bg-red-400/10 border border-red-400/20 text-red-400" title={t("Delete collection")}>
                 <Trash2 className="w-4 h-4" />
               </button>
             </>
@@ -163,11 +164,11 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
             )}>
               <span className="flex items-center gap-2">
                 <CalendarClock className="w-4 h-4 shrink-0" />
-                {isPastDue ? 'Deadline passed' : 'Hand in by'} {format(dueAt, 'EEE d MMM, HH:mm')}
+                {isPastDue ? t("Deadline passed") : t("Hand in by")} {format(dueAt, 'EEE d MMM, HH:mm')}
               </span>
               {!isPastDue && <span className="text-white/50 text-xs">{formatDistanceToNow(dueAt, { addSuffix: true })}</span>}
               <span className="text-white/50 text-xs ml-auto">
-                {works.length} handed in{lateCount ? ` · ${lateCount} late` : ''}{iHandedIn ? ' · yours is in' : ''}
+                {works.length} {t(" handed in")}{lateCount ? t(" · {0} late", lateCount) : ''}{iHandedIn ? t(" · yours is in") : ''}
               </span>
             </div>
           )}
@@ -184,22 +185,21 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
             >
               <Trophy className="w-5 h-5 text-amber-300 shrink-0" />
               <span className="text-sm text-white min-w-0 truncate">
-                Best work: <span className="font-semibold">{winner.title}</span> <span className="text-white/50">by {winner.authorName}</span>
+                {t("Best work: ")}<span className="font-semibold">{winner.title}</span> <span className="text-white/50">{t("by ")}{winner.authorName}</span>
               </span>
             </button>
           ) : (
             <div className="flex flex-wrap items-center gap-3 p-3 rounded-2xl border border-white/10 bg-white/[0.03]">
               <Trophy className="w-5 h-5 text-amber-300 shrink-0" />
               <span className="text-sm text-white/70 flex-1 min-w-[10rem]">
-                {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'} so far{leader ? ` · leading: ${leader.title}` : ''}
+                {totalVotes === 1 ? t('1 vote so far') : t('{0} votes so far', totalVotes)}{leader ? t(" · leading: {0}", leader.title) : ''}
               </span>
               <button
                 onClick={announce}
                 disabled={voteBusy || !leader}
                 className="px-4 py-2 rounded-full bg-amber-300/20 text-amber-100 text-[10px] uppercase tracking-widest font-bold disabled:opacity-30"
               >
-                Announce best work
-              </button>
+                {t("Announce best work")}</button>
             </div>
           )}
         </div>
@@ -208,8 +208,8 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
       {works.length === 0 ? (
         <div className="px-6 py-16 text-center space-y-3">
           <Users className="w-12 h-12 text-white/10 mx-auto" />
-          <p className="text-white/60">No works yet.</p>
-          <p className="text-xs text-white/35">Each group adds its own work with "Add my work".</p>
+          <p className="text-white/60">{t("No works yet.")}</p>
+          <p className="text-xs text-white/35">{t("Each group adds its own work with \"Add my work\".")}</p>
         </div>
       ) : (
         <div className="flex flex-col md:flex-row min-h-0">
@@ -231,11 +231,11 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   <p className="text-[10px] text-white/40 truncate mt-1">{work.authorName}</p>
                   {(work.id === collection.winnerMaterialId || (counts.get(work.id) || 0) > 0) && (
                     <span className="inline-flex items-center gap-1 mt-1 mr-2 text-[9px] uppercase tracking-widest text-amber-300">
-                      <Trophy className="w-3 h-3" /> {work.id === collection.winnerMaterialId ? 'Best' : counts.get(work.id)}
+                      <Trophy className="w-3 h-3" /> {work.id === collection.winnerMaterialId ? t("Best") : counts.get(work.id)}
                     </span>
                   )}
                   {isLate(work, collection) && (
-                    <span className="inline-flex items-center gap-1 mt-1 text-[9px] uppercase tracking-widest text-red-300"><Clock className="w-3 h-3" /> Late</span>
+                    <span className="inline-flex items-center gap-1 mt-1 text-[9px] uppercase tracking-widest text-red-300"><Clock className="w-3 h-3" /> {t(" Late")}</span>
                   )}
                 </button>
               ))}
@@ -250,7 +250,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   <h4 className="text-xl sm:text-2xl font-serif text-white leading-tight">{current.title}</h4>
                   <p className="text-[10px] uppercase tracking-widest text-white/40 mt-1">
                     {current.authorName} · {formatDistanceToNow(current.createdAt, { addSuffix: true })}
-                    {isLate(current, collection) && <span className="text-red-300"> · handed in late</span>}
+                    {isLate(current, collection) && <span className="text-red-300"> {t(" · handed in late")}</span>}
                   </p>
                 </div>
                 <SubjectBadge subject={current.subject} />
@@ -261,7 +261,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   <iframe
                     key={preview}
                     src={preview}
-                    title={`Preview of ${current.title}`}
+                    title={t("Preview of {0}", current.title)}
                     className="absolute inset-0 w-full h-full"
                     loading="lazy"
                     allow="autoplay; fullscreen"
@@ -270,8 +270,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                 </div>
               ) : (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-white/50">
-                  This link cannot be previewed here. Use Open to see it.
-                </div>
+                  {t("This link cannot be previewed here. Use Open to see it.")}</div>
               )}
 
               {current.description && <p className="text-sm text-white/70 whitespace-pre-line">{current.description}</p>}
@@ -281,7 +280,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   onClick={() => setIndex(i => Math.max(0, i - 1))}
                   disabled={index === 0}
                   className="p-3 rounded-full bg-white/5 border border-white/10 text-white disabled:opacity-20"
-                  aria-label="Previous work"
+                  aria-label={t("Previous work")}
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -292,13 +291,13 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   onClick={() => recordOpen(current)}
                   className="flex-1 flex items-center justify-center gap-2 py-3 rounded-full bg-white text-luxury-black text-xs font-bold uppercase tracking-widest"
                 >
-                  Open <ExternalLink className="w-4 h-4" />
+                  {t("Open ")}<ExternalLink className="w-4 h-4" />
                 </a>
                 <button
                   onClick={() => onShowDetails(current)}
                   className="p-3 rounded-full bg-white/5 border border-white/10 text-white/70 hover:text-white"
-                  aria-label="Details"
-                  title="Details"
+                  aria-label={t("Details")}
+                  title={t("Details")}
                 >
                   <Info className="w-5 h-5" />
                 </button>
@@ -306,7 +305,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   onClick={() => setIndex(i => Math.min(works.length - 1, i + 1))}
                   disabled={index >= works.length - 1}
                   className="p-3 rounded-full bg-white/5 border border-white/10 text-white disabled:opacity-20"
-                  aria-label="Next work"
+                  aria-label={t("Next work")}
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -322,7 +321,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                   )}
                 >
                   <Trophy className="w-4 h-4" />
-                  {myVote === current.id ? 'Your vote for best work (tap to remove)' : myVote ? 'Move my vote here' : 'Vote as best work'}
+                  {myVote === current.id ? t("Your vote for best work (tap to remove)") : myVote ? t("Move my vote here") : t("Vote as best work")}
                 </button>
               )}
 

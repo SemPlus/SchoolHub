@@ -22,6 +22,7 @@ import { cn } from '../lib/utils';
 import { clearJoinInvite, JoinInvite } from '../lib/join';
 import { findSchoolById } from '../lib/schools';
 
+import { t } from '../lib/i18n';
 interface OnboardingModalProps {
   profile: User;
   /** 'setup' cannot be dismissed; 'edit' is opened from the profile. */
@@ -114,7 +115,7 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
       clearJoinInvite();
       onClose?.();
     } catch (err) {
-      setError(firebaseErrorMessage(err, 'Could not save your profile.'));
+      setError(firebaseErrorMessage(err, t("Could not save your profile.")));
     } finally {
       setIsSaving(false);
     }
@@ -123,10 +124,10 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
   const label = 'text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium';
 
   const continueText = !canSave
-    ? 'Continue'
+    ? t('Continue')
     : accountType === 'teacher'
-      ? `Continue as teacher · ${teacherClasses.length} ${teacherClasses.length === 1 ? 'class' : 'classes'}`
-      : `Continue as ${formatClassName(classYear, classSection)} · ${school?.name}`;
+      ? (teacherClasses.length === 1 ? t('Continue as teacher · 1 class') : t('Continue as teacher · {0} classes', teacherClasses.length))
+      : t('Continue as {0} · {1}', formatClassName(classYear, classSection), school?.name);
 
   return (
     <Modal
@@ -136,8 +137,8 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
       level={3}
       size="md"
       icon={<GraduationCap className="w-5 h-5 text-luxury-gold" />}
-      title={isNewSchoolYear ? `Welcome to ${formatSchoolYear(schoolYearStart())}` : mode === 'edit' ? 'School and classes' : 'Welcome to SchoolHub'}
-      subtitle={isNewSchoolYear ? 'A new school year has started: check your classes' : 'This shows you what your class needs first'}
+      title={isNewSchoolYear ? t("Welcome to {0}", formatSchoolYear(schoolYearStart())) : mode === 'edit' ? t("School and classes") : t("Welcome to SchoolHub")}
+      subtitle={isNewSchoolYear ? t("A new school year has started: check your classes") : t("This shows you what your class needs first")}
       footer={
         <div className="space-y-3">
           {error && <p className="text-xs text-red-400">{error}</p>}
@@ -146,7 +147,7 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
             disabled={!canSave || isSaving}
             className="w-full bg-white text-luxury-black font-bold py-4 rounded-full disabled:opacity-20 transition-all truncate px-4"
           >
-            {isSaving ? 'Saving…' : continueText}
+            {isSaving ? t("Saving…") : continueText}
           </button>
         </div>
       }
@@ -154,11 +155,11 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
       <div className="space-y-8">
         {/* 1. Student or teacher */}
         <div className="space-y-3">
-          <p className={label}>I am a</p>
+          <p className={label}>{t("I am a")}</p>
           <div className="grid grid-cols-2 gap-3">
             {([
-              { type: 'student' as const, title: 'Student', icon: Backpack, hint: 'One class' },
-              { type: 'teacher' as const, title: 'Teacher', icon: Presentation, hint: 'Several classes' },
+              { type: 'student' as const, title: t("Student"), icon: Backpack, hint: t("One class") },
+              { type: 'teacher' as const, title: t("Teacher"), icon: Presentation, hint: t("Several classes") },
             ]).map(option => (
               <button
                 key={option.type}
@@ -170,8 +171,8 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
                 )}
               >
                 <option.icon className={cn('w-7 h-7', accountType === option.type ? 'text-luxury-gold' : 'text-white/40')} />
-                <span className="text-sm font-semibold">{option.title}</span>
-                <span className="text-[10px] text-white/40">{option.hint}</span>
+                <span className="text-sm font-semibold">{t(option.title)}</span>
+                <span className="text-[10px] text-white/40">{t(option.hint)}</span>
               </button>
             ))}
           </div>
@@ -181,9 +182,9 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
           <>
             {/* 2. School */}
             <div className="space-y-2">
-              <p className={label}>School</p>
+              <p className={label}>{t("School")}</p>
               <SchoolPicker value={school} onChange={setSchool} />
-              <p className="text-[10px] text-white/25">From the official Ministry of Education school registry.</p>
+              <p className="text-[10px] text-white/25">{t("From the official Ministry of Education school registry.")}</p>
             </div>
 
             {/* 3a. Student class */}
@@ -204,13 +205,13 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
             {accountType === 'teacher' && (
               <>
                 <div className={cn('space-y-4', !school && 'opacity-40 pointer-events-none')}>
-                  <p className={label}>Classes you teach</p>
+                  <p className={label}>{t("Classes you teach")}</p>
                   {teacherClasses.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {teacherClasses.map(l => (
                         <span key={l} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl bg-luxury-gold/10 border border-luxury-gold/30 text-sm text-white">
                           {l}
-                          <button type="button" onClick={() => setTeacherClasses(teacherClasses.filter(x => x !== l))} className="p-0.5 text-white/40 hover:text-white" aria-label={`Remove ${l}`}>
+                          <button type="button" onClick={() => setTeacherClasses(teacherClasses.filter(x => x !== l))} className="p-0.5 text-white/40 hover:text-white" aria-label={t("Remove {0}", l)}>
                             <X className="w-3.5 h-3.5" />
                           </button>
                         </span>
@@ -232,12 +233,12 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
                     disabled={!draftLabel || teacherClasses.includes(draftLabel)}
                     className="w-full py-3 rounded-xl border border-dashed border-white/20 text-sm text-white/70 hover:text-white flex items-center justify-center gap-2 disabled:opacity-30"
                   >
-                    <Plus className="w-4 h-4" /> {draftLabel ? `Add class ${draftLabel}` : 'Pick a year and section, then add'}
+                    <Plus className="w-4 h-4" /> {draftLabel ? t("Add class {0}", draftLabel) : t("Pick a year and section, then add")}
                   </button>
                 </div>
 
                 <div className="space-y-3">
-                  <p className={label}>Subjects you teach</p>
+                  <p className={label}>{t("Subjects you teach")}</p>
                   <div className="flex flex-wrap gap-2">
                     {SUBJECTS.map(s => {
                       const { color, icon: Icon } = subjectStyle(s);
@@ -261,8 +262,7 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
                 </div>
 
                 <p className="text-[11px] text-white/35 leading-relaxed">
-                  Teacher accounts can add materials for any of these classes right away. Verifying other people's materials unlocks once the SchoolHub team confirms you are a teacher.
-                </p>
+                  {t("Teacher accounts can add materials for any of these classes right away. Verifying other people's materials unlocks once the SchoolHub team confirms you are a teacher.")}</p>
               </>
             )}
           </>

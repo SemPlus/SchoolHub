@@ -31,6 +31,7 @@ import { kindsInUse } from '../lib/materialKinds';
 import { booksForClass, bookLabel, Textbook } from '../lib/textbooks';
 import { firebaseErrorMessage } from '../lib/engagement';
 
+import { t } from '../lib/i18n';
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 type View = 'archive' | 'personal' | 'trash';
@@ -231,13 +232,13 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       setFolders(list);
     }, (error) => {
       setFolders([]);
-      setErrorStatus(firebaseErrorMessage(error, 'Could not load folders.'));
+      setErrorStatus(firebaseErrorMessage(error, t("Could not load folders.")));
     });
     return () => unsubscribe();
   }, [currentFolderId, currentView, uid]);
 
   useEffect(() => {
-    if (materialsError) setErrorStatus(`Could not load materials: ${materialsError}`);
+    if (materialsError) setErrorStatus(t("Could not load materials: {0}", materialsError));
   }, [materialsError]);
 
   /** "Inherited · 2025/26" for materials from earlier years of the student's grade. */
@@ -543,7 +544,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   ], 'Restore failed.');
 
   const handleBulkDelete = () => {
-    if (!confirm(`Delete ${selectedMaterialIds.size + selectedFolderIds.size} items forever? This cannot be undone.`)) return;
+    if (!confirm(t("Delete {0} items forever? This cannot be undone.", selectedMaterialIds.size + selectedFolderIds.size))) return;
     runBulk([
       ...Array.from(selectedMaterialIds).map(id => deleteDoc(doc(db, 'materials', id))),
       ...Array.from(selectedFolderIds).map(id => deleteDoc(doc(db, 'folders', id))),
@@ -559,21 +560,21 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     setErrorStatus(null);
     try {
       if (currentView === 'trash') {
-        if (!confirm(`Delete folder "${folder.name}" forever? This cannot be undone.`)) return;
+        if (!confirm(t("Delete folder \"{0}\" forever? This cannot be undone.", folder.name))) return;
         await deleteDoc(doc(db, 'folders', folder.id));
       } else {
         await updateDoc(doc(db, 'folders', folder.id), { isDeleted: true, deletedAt: serverTimestamp() });
       }
     } catch (error) {
-      setErrorStatus(firebaseErrorMessage(error, 'Could not delete the folder.'));
+      setErrorStatus(firebaseErrorMessage(error, t("Could not delete the folder.")));
     }
   };
 
   const handleRenameFolder = async (folder: Folder) => {
-    const newName = prompt('Rename folder', folder.name)?.trim();
+    const newName = prompt(t("Rename folder"), folder.name)?.trim();
     if (!newName || newName === folder.name) return;
     if (newName.length > 100) {
-      setErrorStatus('Folder names are limited to 100 characters.');
+      setErrorStatus(t("Folder names are limited to 100 characters."));
       return;
     }
     setErrorStatus(null);
@@ -581,7 +582,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       await updateDoc(doc(db, 'folders', folder.id), { name: newName, updatedAt: serverTimestamp() });
       setFolderPath(prev => prev.map(f => f.id === folder.id ? { ...f, name: newName } : f));
     } catch (error) {
-      setErrorStatus(firebaseErrorMessage(error, 'Rename failed.'));
+      setErrorStatus(firebaseErrorMessage(error, t("Rename failed.")));
     }
   };
 
@@ -590,7 +591,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     try {
       await updateDoc(doc(db, collectionName, id), { isDeleted: false, deletedAt: null });
     } catch (error) {
-      setErrorStatus(firebaseErrorMessage(error, 'Restore failed.'));
+      setErrorStatus(firebaseErrorMessage(error, t("Restore failed.")));
     }
   };
 
@@ -599,7 +600,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     const foldersToMove = Array.from(selectedFolderIds);
     if (materialsToMove.length === 0 && foldersToMove.length === 0) return;
     if (targetFolderId && foldersToMove.includes(targetFolderId)) {
-      setErrorStatus('A folder cannot be moved into itself.');
+      setErrorStatus(t("A folder cannot be moved into itself."));
       return;
     }
     runBulk([
@@ -639,7 +640,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       if ((e.key === 'Delete' || e.key === 'Backspace') && hasSelection) {
         e.preventDefault();
         if (currentView === 'trash') handleBulkDelete();
-        else if (confirm(`Move ${selectedMaterialIds.size + selectedFolderIds.size} items to Trash?`)) handleBulkTrash();
+        else if (confirm(t("Move {0} items to Trash?", selectedMaterialIds.size + selectedFolderIds.size))) handleBulkTrash();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
         e.preventDefault();
@@ -743,7 +744,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   ];
 
   const maxYear = schoolFilter?.grade === 1 ? 3 : 5;
-  const yearOptions = [{ value: '', label: 'Any year' }, ...Array.from({ length: maxYear }, (_, i) => ({ value: String(i + 1), label: `Year ${i + 1}` }))];
+  const yearOptions = [{ value: '', label: 'Any year' }, ...Array.from({ length: maxYear }, (_, i) => ({ value: String(i + 1), label: t('Year {0}', i + 1) }))];
   const subjectOptions = [
     { value: '', label: 'All subjects' },
     ...subjectsHere.map(s => ({ value: s, label: s, color: subjectStyle(s).color })),
@@ -762,8 +763,8 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         { value: 'all', label: 'Everything', disabled: false },
       ]
     : [
-        { value: 'class', label: myClassName ? `My class · ${myClassName}` : 'My class', disabled: !hasClass },
-        { value: 'grade', label: profile?.classYear ? `Year ${profile.classYear}` : 'My year', disabled: !hasClass },
+        { value: 'class', label: myClassName ? t('My class · {0}', myClassName) : t('My class'), disabled: !hasClass },
+        { value: 'grade', label: profile?.classYear ? t('Year {0}', profile.classYear) : t('My year'), disabled: !hasClass },
         { value: 'school', label: 'My school', disabled: !profile?.schoolId },
         { value: 'all', label: 'Everything', disabled: false },
       ];
@@ -778,7 +779,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       <div className="flex justify-center items-center h-64">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border border-luxury-gold/30 rounded-full border-t-luxury-gold animate-spin"></div>
-          <span className="text-luxury-gold/50 text-[10px] uppercase tracking-widest">Loading…</span>
+          <span className="text-luxury-gold/50 text-[10px] uppercase tracking-widest">{t("Loading…")}</span>
         </div>
       </div>
     );
@@ -844,7 +845,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                   effectiveScope === chip.value ? 'bg-luxury-gold text-luxury-black border-luxury-gold' : 'border-white/10 text-white/50 hover:text-white'
                 )}
               >
-                {chip.label}
+                {t(chip.label)}
               </button>
             ))}
             {isTeacher && teacherSubjects.length > 0 && (
@@ -854,10 +855,9 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                   'shrink-0 px-4 py-2 rounded-full text-[10px] uppercase tracking-widest font-semibold border transition-all flex items-center gap-1.5',
                   subjectsFirst ? 'border-luxury-gold/60 text-luxury-gold bg-luxury-gold/10' : 'border-white/10 text-white/40'
                 )}
-                title="Show the subjects you teach first"
+                title={t("Show the subjects you teach first")}
               >
-                <ArrowUpWideNarrow className="w-3.5 h-3.5" /> My subjects first
-              </button>
+                <ArrowUpWideNarrow className="w-3.5 h-3.5" /> {t(" My subjects first")}</button>
             )}
           </div>
         )}
@@ -873,7 +873,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                 "p-3 rounded-2xl transition-all",
                 (currentFolderId === null && currentView !== 'trash') ? "bg-luxury-gold text-luxury-black" : "text-white/40 hover:text-white hover:bg-white/5"
               )}
-              title="Top level"
+              title={t("Top level")}
             >
               <Home className="w-5 h-5" />
             </button>
@@ -899,7 +899,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             {currentView === 'trash' && (
               <>
                 <ChevronRight className="w-4 h-4 text-white/10 shrink-0" />
-                <span className="px-4 py-2 bg-red-500/10 text-red-400 rounded-xl text-sm font-bold uppercase tracking-widest">Trash</span>
+                <span className="px-4 py-2 bg-red-500/10 text-red-400 rounded-xl text-sm font-bold uppercase tracking-widest">{t("Trash")}</span>
               </>
             )}
           </div>
@@ -909,7 +909,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-luxury-gold transition-colors" />
               <input
                 type="text"
-                placeholder="Search materials…"
+                placeholder={t("Search materials…")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30 transition-all font-light"
@@ -923,7 +923,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                   "relative p-3 rounded-2xl transition-all border",
                   showFilters || activeFilterCount > 0 ? "bg-luxury-gold text-luxury-black border-luxury-gold" : "bg-white/5 text-white/60 hover:text-white border-white/5"
                 )}
-                title="Filters"
+                title={t("Filters")}
               >
                 <SlidersHorizontal className="w-5 h-5" />
                 {activeFilterCount > 0 && (
@@ -935,8 +935,8 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                 <button
                   onClick={() => setIsCreateCollectionOpen(true)}
                   className="p-3 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all border border-white/5"
-                  title={isTeacher ? 'New collection or hand-in' : 'New collection'}
-                  aria-label="New collection"
+                  title={isTeacher ? t("New collection or hand-in") : t("New collection")}
+                  aria-label={t("New collection")}
                 >
                   <Layers className="w-5 h-5" />
                 </button>
@@ -947,22 +947,22 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                   <button
                     onClick={() => setIsUploadModalOpen(true)}
                     className="p-3 bg-luxury-gold text-luxury-black rounded-2xl hover:scale-105 transition-all shadow-lg shadow-luxury-gold/20"
-                    title="Add material"
+                    title={t("Add material")}
                   >
                     <Plus className="w-5 h-5" />
                   </button>
                   <button
                     onClick={() => setIsCreateFolderOpen(true)}
                     className="p-3 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all border border-white/5"
-                    title="New folder"
+                    title={t("New folder")}
                   >
                     <FolderPlus className="w-5 h-5" />
                   </button>
                   <button
                     onClick={() => onViewChange?.('trash')}
                     className="p-3 bg-white/5 text-white/60 hover:text-red-300 hover:bg-white/10 rounded-2xl transition-all border border-white/5"
-                    title="Trash"
-                    aria-label="Trash"
+                    title={t("Trash")}
+                    aria-label={t("Trash")}
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
@@ -976,8 +976,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         {currentView === 'archive' && currentFolderId === null && myBooksWithMaterials.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1">
             <span className="shrink-0 flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/40 pr-1">
-              <BookMarked className="w-3.5 h-3.5" /> {bookClassLabel}'s books
-            </span>
+              <BookMarked className="w-3.5 h-3.5" /> {bookClassLabel}{t("'s books")}</span>
             {myBooksWithMaterials.map(({ book, count }) => (
               <button
                 key={book.isbn}
@@ -996,9 +995,9 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         )}
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2 sm:gap-4">
-          <Dropdown options={subjectOptions} value={subjectFilter} onChange={setSubjectFilter} icon={<Shapes className="w-4 h-4 text-white/40 shrink-0" />} label="Subject" className="col-span-2 sm:col-span-1" />
-          <Dropdown options={sortOptions} value={sortBy} onChange={setSortBy} label="Sort" />
-          <Dropdown options={kindOptions} value={kindFilter} onChange={setKindFilter} icon={<Filter className="w-4 h-4 text-white/40 shrink-0" />} label="Kind" />
+          <Dropdown options={subjectOptions} value={subjectFilter} onChange={setSubjectFilter} icon={<Shapes className="w-4 h-4 text-white/40 shrink-0" />} label={t("Subject")} className="col-span-2 sm:col-span-1" />
+          <Dropdown options={sortOptions} value={sortBy} onChange={setSortBy} label={t("Sort")} />
+          <Dropdown options={kindOptions} value={kindFilter} onChange={setKindFilter} icon={<Filter className="w-4 h-4 text-white/40 shrink-0" />} label={t("Kind")} />
         </div>
       </div>
 
@@ -1012,15 +1011,15 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
           >
             <div className="bg-white/[0.02] border border-white/5 p-4 sm:p-6 rounded-[2rem] grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-4 md:items-end">
               <div className="space-y-2">
-                <p className="text-[9px] uppercase tracking-widest text-white/40 ml-1">School</p>
-                <SchoolPicker value={schoolFilter} onChange={setSchoolFilter} clearable placeholder="Any school – search to filter" />
+                <p className="text-[9px] uppercase tracking-widest text-white/40 ml-1">{t("School")}</p>
+                <SchoolPicker value={schoolFilter} onChange={setSchoolFilter} clearable placeholder={t("Any school – search to filter")} />
               </div>
               <div className="space-y-2">
-                <p className="text-[9px] uppercase tracking-widest text-white/40 ml-1">Year</p>
+                <p className="text-[9px] uppercase tracking-widest text-white/40 ml-1">{t("Year")}</p>
                 <Dropdown options={yearOptions} value={yearFilter} onChange={setYearFilter} className="w-full" />
               </div>
               <div className="space-y-2">
-                <p className="text-[9px] uppercase tracking-widest text-white/40 ml-1">File type</p>
+                <p className="text-[9px] uppercase tracking-widest text-white/40 ml-1">{t("File type")}</p>
                 <Dropdown options={filterOptions} value={filterType} onChange={setFilterType} className="w-full" />
               </div>
               {activeFilterCount > 0 && (
@@ -1028,8 +1027,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                   onClick={() => { setSchoolFilter(null); setYearFilter(''); setFilterType('all'); }}
                   className="text-[10px] text-luxury-gold uppercase tracking-widest hover:underline px-2 py-3"
                 >
-                  Clear all
-                </button>
+                  {t("Clear all")}</button>
               )}
             </div>
           </motion.div>
@@ -1039,7 +1037,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       {errorStatus && (
         <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-between gap-4">
           <p className="text-xs text-red-400 font-medium">{errorStatus}</p>
-          <button onClick={() => setErrorStatus(null)} className="text-red-400/50 hover:text-red-400 text-xs uppercase tracking-widest font-bold px-2">Dismiss</button>
+          <button onClick={() => setErrorStatus(null)} className="text-red-400/50 hover:text-red-400 text-xs uppercase tracking-widest font-bold px-2">{t("Dismiss")}</button>
         </div>
       )}
 
@@ -1065,7 +1063,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             className="fixed bottom-6 sm:bottom-10 left-1/2 z-50 bg-luxury-black/90 backdrop-blur-3xl border border-white/10 px-4 sm:px-8 py-3 sm:py-4 rounded-[2rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.8)] flex items-center gap-4 sm:gap-8 max-w-[calc(100vw-2rem)]"
           >
             <div className="flex flex-col shrink-0">
-              <span className="text-[9px] uppercase tracking-[0.2em] text-white/30 font-black">Selected</span>
+              <span className="text-[9px] uppercase tracking-[0.2em] text-white/30 font-black">{t("Selected")}</span>
               <span className="text-luxury-gold font-serif text-xl">{selectedMaterialIds.size + selectedFolderIds.size}</span>
             </div>
             <div className="h-10 w-px bg-white/10" />
@@ -1073,20 +1071,16 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
               {currentView === 'trash' ? (
                 <>
                   <button onClick={handleBulkRestore} className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] uppercase tracking-widest text-white font-bold transition-all whitespace-nowrap">
-                    <ArrowLeft className="w-4 h-4" /> Restore
-                  </button>
+                    <ArrowLeft className="w-4 h-4" /> {t(" Restore")}</button>
                   <button onClick={handleBulkDelete} className="flex items-center gap-2 px-4 py-3 bg-red-500/20 hover:bg-red-400 rounded-2xl text-[10px] uppercase tracking-widest text-red-100 font-bold transition-all whitespace-nowrap">
-                    <Trash2 className="w-4 h-4" /> Delete forever
-                  </button>
+                    <Trash2 className="w-4 h-4" /> {t(" Delete forever")}</button>
                 </>
               ) : (
                 <>
                   <button onClick={handleBulkMove} className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] uppercase tracking-widest text-white font-bold transition-all whitespace-nowrap">
-                    <Move className="w-4 h-4" /> Move
-                  </button>
+                    <Move className="w-4 h-4" /> {t(" Move")}</button>
                   <button onClick={handleBulkTrash} className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] uppercase tracking-widest text-white/60 font-bold transition-all whitespace-nowrap">
-                    <Trash2 className="w-4 h-4" /> Trash
-                  </button>
+                    <Trash2 className="w-4 h-4" /> {t(" Trash")}</button>
                 </>
               )}
               <button onClick={clearSelection} className="px-4 py-3 hover:bg-white/5 rounded-2xl text-[10px] uppercase tracking-widest text-white/30 hover:text-white transition-all">
@@ -1200,38 +1194,35 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
           {currentView === 'trash' ? (
             <>
               <Trash2 className="w-16 h-16 text-white/5 mx-auto mb-6" />
-              <h3 className="text-2xl font-serif text-white/40">Trash is empty</h3>
-              <p className="text-white/30 mt-2 text-sm font-light">Items in Trash are deleted for good after 30 days.</p>
+              <h3 className="text-2xl font-serif text-white/40">{t("Trash is empty")}</h3>
+              <p className="text-white/30 mt-2 text-sm font-light">{t("Items in Trash are deleted for good after 30 days.")}</p>
               <button
                 onClick={() => onViewChange?.('personal')}
                 className="mt-8 text-[10px] uppercase tracking-[0.3em] text-luxury-gold hover:text-white transition-colors flex items-center gap-2 mx-auto"
               >
-                <ArrowLeft className="w-3 h-3" /> Back to My Space
-              </button>
+                <ArrowLeft className="w-3 h-3" /> {t(" Back to My Space")}</button>
             </>
           ) : (
             <>
               <BookOpen className="w-16 h-16 text-white/5 mx-auto mb-6" />
               <h3 className="text-2xl font-serif text-white/40">
-                {currentView === 'personal' ? 'Nothing here yet' : effectiveScope === 'class' ? `Nothing for ${myClassName} yet` : 'No materials found'}
+                {currentView === 'personal' ? t("Nothing here yet") : effectiveScope === 'class' ? t("Nothing for {0} yet", myClassName) : t("No materials found")}
               </h3>
               <p className="text-white/30 mt-2 text-sm font-light">
                 {currentView === 'personal'
-                  ? 'Add your first material with the + button, or save materials from the archive.'
+                  ? t("Add your first material with the + button, or save materials from the archive.")
                   : effectiveScope !== 'all'
-                    ? 'Be the first to share something, or look wider.'
-                    : 'Try a different search or clear the filters.'}
+                    ? t("Be the first to share something, or look wider.")
+                    : t("Try a different search or clear the filters.")}
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-4">
                 {currentView === 'archive' && effectiveScope !== 'all' && currentFolderId === null && (
                   <button onClick={() => setScope('all')} className="text-[10px] uppercase tracking-[0.3em] text-luxury-gold hover:text-white transition-colors">
-                    Show everything
-                  </button>
+                    {t("Show everything")}</button>
                 )}
                 {currentFolderId && (
                   <button onClick={() => handleBreadcrumbClick(-1)} className="text-[10px] uppercase tracking-[0.3em] text-luxury-gold hover:text-white transition-colors flex items-center gap-2">
-                    <ArrowLeft className="w-3 h-3" /> Back to top level
-                  </button>
+                    <ArrowLeft className="w-3 h-3" /> {t(" Back to top level")}</button>
                 )}
               </div>
             </>

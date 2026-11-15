@@ -4,6 +4,7 @@ import { DriveError, hasDriveToken, MAX_UPLOAD_BYTES, planFor, titleFromFileName
 import type { MaterialType } from '../types';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 export interface UploadedFile {
   url: string;
   title: string;
@@ -60,7 +61,7 @@ export default function DriveUploader({ onUploaded, onReset }: DriveUploaderProp
       onUploaded(done);
     } catch (err) {
       setStage('error');
-      setError(err instanceof DriveError ? err.message : 'Something went wrong while uploading. Please try again.');
+      setError(err instanceof DriveError ? err.message : t("Something went wrong while uploading. Please try again."));
     }
   };
 
@@ -71,7 +72,7 @@ export default function DriveUploader({ onUploaded, onReset }: DriveUploaderProp
     if (chosen.size > MAX_UPLOAD_BYTES) {
       setFile(null);
       setStage('error');
-      setError('This file is larger than 100 MB.');
+      setError(t("This file is larger than 100 MB."));
       return;
     }
     setFile(chosen);
@@ -83,9 +84,9 @@ export default function DriveUploader({ onUploaded, onReset }: DriveUploaderProp
   };
 
   const stageText = {
-    connecting: 'Connecting to your Google Drive…',
-    uploading: `Uploading… ${Math.round(progress * 100)}%`,
-    sharing: plan?.convertTo ? `Turning it into a ${plan.resultLabel}…` : 'Making the link shareable…',
+    connecting: t('Connecting to your Google Drive…'),
+    uploading: t('Uploading… {0}%', Math.round(progress * 100)),
+    sharing: plan?.convertTo ? t('Turning it into a {0}…', t(plan.resultLabel)) : t('Making the link shareable…'),
   } as Record<string, string>;
 
   return (
@@ -114,8 +115,8 @@ export default function DriveUploader({ onUploaded, onReset }: DriveUploaderProp
             <UploadCloud className="w-7 h-7 text-luxury-gold" />
           </div>
           <div className="text-center">
-            <p className="text-base text-white font-medium">Upload a file</p>
-            <p className="text-xs text-white/40 mt-1">PDF, Word, PowerPoint, Excel or a photo · saved to your Google Drive</p>
+            <p className="text-base text-white font-medium">{t("Upload a file")}</p>
+            <p className="text-xs text-white/40 mt-1">{t("PDF, Word, PowerPoint, Excel or a photo · saved to your Google Drive")}</p>
           </div>
         </button>
       ) : (
@@ -130,13 +131,12 @@ export default function DriveUploader({ onUploaded, onReset }: DriveUploaderProp
             <div className="min-w-0 flex-1">
               <p className="text-sm text-white truncate">{file?.name}</p>
               <p className="text-[11px] text-white/45">
-                {stage === 'done' ? `Ready: saved as a ${plan?.resultLabel}` : isBusy ? stageText[stage] : `Will be saved as a ${makeEditable && plan?.canMakeEditable ? 'Google Docs document' : plan?.resultLabel}`}
+                {stage === 'done' ? t("Ready: saved as a {0}", t(plan?.resultLabel ?? '')) : isBusy ? stageText[stage] : t("Will be saved as a {0}", t(makeEditable && plan?.canMakeEditable ? 'Google Docs document' : plan?.resultLabel ?? ''))}
               </p>
             </div>
             {!isBusy && (
               <button type="button" onClick={() => inputRef.current?.click()} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white flex items-center gap-1 shrink-0">
-                <RefreshCw className="w-3 h-3" /> Change
-              </button>
+                <RefreshCw className="w-3 h-3" /> {t(" Change")}</button>
             )}
           </div>
 
@@ -154,7 +154,7 @@ export default function DriveUploader({ onUploaded, onReset }: DriveUploaderProp
               {plan?.canMakeEditable && (
                 <label className="flex items-start gap-3 text-xs text-white/60 cursor-pointer select-none">
                   <input type="checkbox" checked={makeEditable} onChange={(e) => setMakeEditable(e.target.checked)} className="mt-0.5 accent-[#D4AF37] w-4 h-4" />
-                  <span>Make it an editable Google Doc. Only the text is kept; pictures and layout may be lost.</span>
+                  <span>{t("Make it an editable Google Doc. Only the text is kept; pictures and layout may be lost.")}</span>
                 </label>
               )}
               <button
@@ -162,9 +162,8 @@ export default function DriveUploader({ onUploaded, onReset }: DriveUploaderProp
                 onClick={() => file && start(file)}
                 className="w-full py-4 rounded-full bg-luxury-gold text-luxury-black text-sm font-bold tracking-wide"
               >
-                Upload
-              </button>
-              <p className="text-[10px] text-white/30 text-center">The first time, Google asks you to allow SchoolHub to save files in your Drive.</p>
+                {t("Upload")}</button>
+              <p className="text-[10px] text-white/30 text-center">{t("The first time, Google asks you to allow SchoolHub to save files in your Drive.")}</p>
             </>
           )}
 
@@ -173,16 +172,14 @@ export default function DriveUploader({ onUploaded, onReset }: DriveUploaderProp
               <p className="text-xs text-red-300">{error}</p>
               {file && (
                 <button type="button" onClick={() => start(file)} className="w-full py-3 rounded-full bg-white text-luxury-black text-sm font-bold">
-                  Try again
-                </button>
+                  {t("Try again")}</button>
               )}
             </div>
           )}
 
           {stage === 'done' && result && !result.isShared && (
             <p className="text-xs text-amber-300">
-              Your school's Google account does not allow public links, so classmates may need to ask you for access in Drive.
-            </p>
+              {t("Your school's Google account does not allow public links, so classmates may need to ask you for access in Drive.")}</p>
           )}
         </div>
       )}

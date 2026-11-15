@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '../lib/i18n';
 import { Star, MessageSquare, Trash2 } from 'lucide-react';
 import { db } from '../firebase';
 import type { Material, WorkFeedback as Feedback } from '../types';
@@ -9,6 +9,7 @@ import { mapFeedbackDoc } from '../lib/mappers';
 import { firebaseErrorMessage } from '../lib/engagement';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 interface WorkFeedbackProps {
   work: Material;
 }
@@ -27,7 +28,7 @@ function Stars({ value, onChange, size = 'md' }: { value: number; onChange?: (v:
           onClick={() => onChange?.(n === value ? 0 : n)}
           onMouseEnter={() => onChange && setHover(n)}
           className={cn('p-0.5', onChange ? 'cursor-pointer' : 'cursor-default')}
-          aria-label={`${n} star${n > 1 ? 's' : ''}`}
+          aria-label={t("{0} star{1}", n, n > 1 ? 's' : '')}
         >
           <Star className={cn(cls, n <= shown ? 'fill-luxury-gold text-luxury-gold' : 'text-white/20')} />
         </button>
@@ -77,7 +78,7 @@ export default function WorkFeedback({ work }: WorkFeedbackProps) {
   const save = async () => {
     if (!user) return;
     if (!rating && !comment.trim()) {
-      setError('Add stars or a comment.');
+      setError(t("Add stars or a comment."));
       return;
     }
     setBusy(true);
@@ -101,18 +102,18 @@ export default function WorkFeedback({ work }: WorkFeedbackProps) {
       }
       setEditing(false);
     } catch (err) {
-      setError(firebaseErrorMessage(err, 'Could not save your feedback.'));
+      setError(firebaseErrorMessage(err, t("Could not save your feedback.")));
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async (item: Feedback) => {
-    if (!confirm('Delete this feedback?')) return;
+    if (!confirm(t("Delete this feedback?"))) return;
     try {
       await deleteDoc(doc(db, 'materials', work.id, 'feedback', item.id));
     } catch (err) {
-      alert(firebaseErrorMessage(err, 'Could not delete the feedback.'));
+      alert(firebaseErrorMessage(err, t("Could not delete the feedback.")));
     }
   };
 
@@ -120,8 +121,7 @@ export default function WorkFeedback({ work }: WorkFeedbackProps) {
     <div className="space-y-4 border-t border-white/5 pt-5">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-bold flex items-center gap-2">
-          <MessageSquare className="w-3.5 h-3.5" /> Feedback
-        </p>
+          <MessageSquare className="w-3.5 h-3.5" /> {t(" Feedback")}</p>
         {ratings.length > 0 && (
           <div className="flex items-center gap-2">
             <Stars value={Math.round(average)} size="sm" />
@@ -137,25 +137,25 @@ export default function WorkFeedback({ work }: WorkFeedbackProps) {
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             maxLength={500}
-            placeholder="What was good? What could be better?"
+            placeholder={t("What was good? What could be better?")}
             className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-luxury-gold/30 h-20 resize-none"
           />
           {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex gap-2">
             <button onClick={save} disabled={busy} className="px-5 py-2.5 rounded-full bg-white text-luxury-black text-xs font-bold disabled:opacity-30">
-              {busy ? 'Saving…' : mine ? 'Update' : 'Send feedback'}
+              {busy ? t("Saving…") : mine ? t("Update") : t("Send feedback")}
             </button>
             {editing && (
-              <button onClick={() => setEditing(false)} className="px-4 py-2.5 rounded-full text-xs text-white/50 hover:text-white">Cancel</button>
+              <button onClick={() => setEditing(false)} className="px-4 py-2.5 rounded-full text-xs text-white/50 hover:text-white">{t("Cancel")}</button>
             )}
           </div>
         </div>
       )}
 
-      {!user && <p className="text-xs text-white/35">Sign in to leave feedback.</p>}
+      {!user && <p className="text-xs text-white/35">{t("Sign in to leave feedback.")}</p>}
 
       {items.length === 0 ? (
-        !showForm && <p className="text-xs text-white/35">No feedback yet.</p>
+        !showForm && <p className="text-xs text-white/35">{t("No feedback yet.")}</p>
       ) : (
         <ul className="space-y-2">
           {items.map(item => (
@@ -168,10 +168,10 @@ export default function WorkFeedback({ work }: WorkFeedbackProps) {
                 <div className="flex items-center gap-1 shrink-0">
                   {!!item.rating && <Stars value={item.rating} size="sm" />}
                   {item.userId === user?.uid && !editing && (
-                    <button onClick={() => setEditing(true)} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white px-1">Edit</button>
+                    <button onClick={() => setEditing(true)} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white px-1">{t("Edit")}</button>
                   )}
                   {(item.userId === user?.uid || userRole === 'admin') && (
-                    <button onClick={() => remove(item)} className="p-1 text-white/30 hover:text-red-400" aria-label="Delete feedback">
+                    <button onClick={() => remove(item)} className="p-1 text-white/30 hover:text-red-400" aria-label={t("Delete feedback")}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}

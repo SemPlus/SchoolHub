@@ -4,6 +4,7 @@ import { booksForClass, bookLabel, Textbook } from '../lib/textbooks';
 import { subjectStyle } from '../lib/subjects';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 interface TextbookPickerProps {
   schoolId?: string;
   classYear?: number;
@@ -47,10 +48,9 @@ export default function TextbookPicker({ schoolId, classYear, classSection, subj
   return (
     <div className="space-y-2">
       <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium ml-1 flex items-center gap-2">
-        <BookMarked className="w-3.5 h-3.5" /> Which textbook does it go with? (optional)
-      </p>
+        <BookMarked className="w-3.5 h-3.5" /> {t(" Which textbook does it go with? (optional)")}</p>
       {loading ? (
-        <p className="text-xs text-white/40 flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading {label}'s books…</p>
+        <p className="text-xs text-white/40 flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> {t(" Loading ")}{label}{t("'s books…")}</p>
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
@@ -77,10 +77,10 @@ export default function TextbookPicker({ schoolId, classYear, classSection, subj
           </div>
           {forSubject.length > 0 && others.length > 0 && (
             <button type="button" onClick={() => setShowAll(v => !v)} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white">
-              {showAll ? `Only ${subject} books` : `All ${books.length} books of ${label}`}
+              {showAll ? t("Only {0} books", subject) : t("All {0} books of {1}", books.length, label)}
             </button>
           )}
-          <p className="text-[10px] text-white/25">Every class in Italy using the same book will find it.</p>
+          <p className="text-[10px] text-white/25">{t("Every class in Italy using the same book will find it.")}</p>
         </>
       )}
     </div>

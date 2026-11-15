@@ -14,9 +14,11 @@ import { motion, useScroll, useTransform } from 'motion/react';
 import { useAppData } from './context/AppData';
 import { isProfileComplete } from './lib/schoolYear';
 import { readJoinInvite } from './lib/join';
+import { getLanguage, onLanguageChange, setLanguage, Language } from './lib/i18n';
 import { findSchoolById } from './lib/schools';
 import { cn } from './lib/utils';
 
+import { t } from './lib/i18n';
 type Tab = 'archive' | 'requests' | 'league' | 'personal' | 'trash' | 'dashboard';
 
 const TITLES: Record<Tab, string> = {
@@ -32,6 +34,12 @@ export default function App() {
   const { user, isAuthReady, profile, isProfileLoaded, userRole, getStats } = useAppData();
   const [activeTab, setActiveTab] = useState<Tab>('archive');
   const [isOwnProfileOpen, setIsOwnProfileOpen] = useState(false);
+  // Changing the language re-renders the app (no component here is memoised).
+  const [language, setLanguageState] = useState<Language>(getLanguage());
+  useEffect(() => {
+    document.documentElement.lang = language;
+    return onLanguageChange(setLanguageState);
+  }, []);
   // Class poster invitation (?join=SCHOOL-3B), kept for this session.
   const [invite] = useState(() => readJoinInvite());
   const [inviteSchoolName, setInviteSchoolName] = useState<string | null>(null);
@@ -104,7 +112,7 @@ export default function App() {
               <div className="w-10 h-10 border border-white/20 rounded-full flex items-center justify-center bg-white/5">
                 <BookOpen className="h-5 w-5 text-luxury-gold" />
               </div>
-              <span className="text-xl sm:text-2xl font-serif tracking-widest uppercase text-white">SchoolHub</span>
+              <span className="text-xl sm:text-2xl font-serif tracking-widest uppercase text-white">{t("SchoolHub")}</span>
             </button>
 
             <div className="flex items-center gap-4 sm:gap-6">
@@ -112,15 +120,23 @@ export default function App() {
                 {visibleTabs.map(tab => (
                   <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn(tabClass(tab.id), 'px-5 py-2 text-[10px] tracking-[0.2em]')}>
                     {tab.icon}
-                    {tab.label}
+                    {t(tab.label)}
                   </button>
                 ))}
               </div>
 
+              <button
+                onClick={() => setLanguage(language === 'it' ? 'en' : 'it')}
+                className="px-2.5 py-2 rounded-full border border-white/15 text-[10px] font-bold tracking-widest text-white/70 hover:text-white"
+                title={language === 'it' ? 'Switch to English' : "Passa all'italiano"}
+                aria-label={language === 'it' ? 'Switch to English' : "Passa all'italiano"}
+              >
+                {language === 'it' ? 'EN' : 'IT'}
+              </button>
               <InstallButton />
               {user ? (
                 <div className="flex items-center gap-4">
-                  <button onClick={() => setIsOwnProfileOpen(true)} title="Your profile">
+                  <button onClick={() => setIsOwnProfileOpen(true)} title={t("Your profile")}>
                     <UserAvatar
                       name={user.displayName || 'User'}
                       photoUrl={user.photoURL || undefined}
@@ -130,7 +146,7 @@ export default function App() {
                       isClickable
                     />
                   </button>
-                  <button onClick={logOut} className="text-white/40 hover:text-white transition-colors" title="Sign out">
+                  <button onClick={logOut} className="text-white/40 hover:text-white transition-colors" title={t("Sign out")}>
                     <LogOut className="h-5 w-5" />
                   </button>
                 </div>
@@ -141,8 +157,7 @@ export default function App() {
                 >
                   <span className="flex items-center gap-2">
                     <LogIn className="h-4 w-4" />
-                    Sign in
-                  </span>
+                    {t("Sign in")}</span>
                 </button>
               )}
             </div>
@@ -158,7 +173,7 @@ export default function App() {
           >
             <div className="overflow-hidden mb-4">
               <h1 className="text-5xl sm:text-6xl md:text-8xl font-serif font-light text-white tracking-tight flex justify-center flex-wrap">
-                {TITLES[activeTab].split("").map((char, index) => (
+                {t(TITLES[activeTab]).split("").map((char, index) => (
                   <motion.span
                     key={`${activeTab}-${index}`}
                     initial={{ y: 100, opacity: 0, filter: "blur(10px)" }}
@@ -183,20 +198,17 @@ export default function App() {
               transition={{ delay: 1.8, duration: 1.5 }}
               className="text-luxury-gold font-light max-w-lg mx-auto uppercase text-[10px]"
             >
-              By Samuel K.
-            </motion.p>
+              {t("By Samuel K.")}</motion.p>
           </motion.div>
         </div>
 
         {invite && !user && (
           <div className="relative z-20 mb-6 p-4 sm:p-5 rounded-2xl border border-luxury-gold/40 bg-luxury-gold/10 flex flex-col sm:flex-row sm:items-center gap-3">
             <p className="flex-1 text-sm text-white">
-              You're invited to join <span className="font-semibold">{invite.classLabel}</span>
-              {inviteSchoolName ? <> at <span className="font-semibold">{inviteSchoolName}</span></> : null} on SchoolHub.
-            </p>
+              {t("You're invited to join ")}<span className="font-semibold">{invite.classLabel}</span>
+              {inviteSchoolName ? <> {t(" at ")}<span className="font-semibold">{inviteSchoolName}</span></> : null} {t(" on SchoolHub.")}</p>
             <button onClick={signInWithGoogle} className="px-5 py-3 rounded-full bg-white text-luxury-black text-xs font-bold uppercase tracking-widest">
-              Sign in to join
-            </button>
+              {t("Sign in to join")}</button>
           </div>
         )}
 
@@ -206,7 +218,7 @@ export default function App() {
             {visibleTabs.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn(tabClass(tab.id), 'flex-1 py-3 text-[9px] tracking-[0.08em]')}>
                 {tab.icon}
-                <span>{tab.label}</span>
+                <span>{t(tab.label)}</span>
               </button>
             ))}
           </div>
@@ -230,7 +242,7 @@ export default function App() {
           isOpen
           onClose={() => setIsOwnProfileOpen(false)}
           authorId={user.uid}
-          authorName={user.displayName || 'You'}
+          authorName={user.displayName || t("You")}
           authorPhotoUrl={user.photoURL || undefined}
           userRole={userRole}
         />

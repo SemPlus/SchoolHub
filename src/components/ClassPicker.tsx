@@ -2,6 +2,7 @@ import React from 'react';
 import { cn } from '../lib/utils';
 import { sanitizeSection } from '../lib/schoolYear';
 
+import { t } from '../lib/i18n';
 interface ClassPickerProps {
   classYear?: number;
   classSection?: string;
@@ -23,7 +24,7 @@ export default function ClassPicker({ classYear, classSection = '', maxYear, onC
   return (
     <div className={cn('space-y-4', disabled && 'opacity-40 pointer-events-none')}>
       <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">Year</p>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">{t("Year")}</p>
         <div className="flex gap-2">
           {years.map(year => (
             <button
@@ -42,7 +43,7 @@ export default function ClassPicker({ classYear, classSection = '', maxYear, onC
       </div>
 
       <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">Section</p>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">{t("Section")}</p>
         <div className="flex flex-wrap items-center gap-2">
           {COMMON_SECTIONS.map(letter => (
             <button
@@ -63,10 +64,10 @@ export default function ClassPicker({ classYear, classSection = '', maxYear, onC
             autoCapitalize="characters"
             value={COMMON_SECTIONS.includes(classSection) ? '' : classSection}
             onChange={(e) => onChange({ classYear, classSection: sanitizeSection(e.target.value) })}
-            placeholder="Other"
+            placeholder={t("Other")}
             maxLength={3}
             className="w-20 h-11 bg-white/5 border border-white/10 rounded-xl px-3 text-sm text-center text-white uppercase placeholder:text-white/20 placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-luxury-gold/30"
-            title="Section letters, for example AS"
+            title={t("Section letters, for example AS")}
           />
         </div>
       </div>

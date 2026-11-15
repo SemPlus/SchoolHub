@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
+import { t } from '../lib/i18n';
 interface Props {
   children: React.ReactNode;
 }
@@ -56,7 +57,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
               <AlertTriangle className="w-8 h-8 text-red-500" />
             </div>
             
-            <h2 className="text-2xl font-serif text-white mb-4">Something went wrong</h2>
+            <h2 className="text-2xl font-serif text-white mb-4">{t("Something went wrong")}</h2>
             
             <div className="bg-black/40 rounded-xl p-4 mb-8 text-left">
               <p className="text-white/60 text-sm font-mono break-words">
@@ -64,8 +65,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
               </p>
               {isFirestoreError && (
                 <p className="text-luxury-gold text-[10px] uppercase tracking-widest mt-2">
-                  Check your network connection or ad-blocker.
-                </p>
+                  {t("Check your network connection or ad-blocker.")}</p>
               )}
             </div>
 
@@ -74,8 +74,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
               className="luxury-button w-full bg-white text-luxury-black flex items-center justify-center gap-2"
             >
               <RefreshCw className="w-4 h-4" />
-              Reload Application
-            </button>
+              {t("Reload Application")}</button>
           </div>
         </div>
       );

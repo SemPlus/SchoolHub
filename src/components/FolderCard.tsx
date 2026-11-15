@@ -3,9 +3,10 @@ import { Folder as FolderIcon, MoreVertical, Trash2, Edit2, Move, ArrowLeft } fr
 import { Folder } from '../types';
 import { motion } from 'motion/react';
 import { auth } from '../firebase';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '../lib/i18n';
 import { cn } from '../lib/utils';
 
+import { t } from '../lib/i18n';
 interface FolderCardProps {
   folder: Folder;
   onClick: (folder: Folder) => void;
@@ -108,7 +109,7 @@ export default function FolderCard({
                     onRestore?.(folder);
                   }}
                   className="p-2 hover:bg-white/10 rounded-lg text-luxury-gold opacity-100"
-                  title="Restore"
+                  title={t("Restore")}
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
@@ -119,7 +120,7 @@ export default function FolderCard({
                     onMoveClick?.(folder);
                   }}
                   className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-luxury-gold"
-                  title="Move"
+                  title={t("Move")}
                 >
                   <Move className="w-4 h-4" />
                 </button>
@@ -133,7 +134,7 @@ export default function FolderCard({
                   "p-2 hover:bg-white/10 rounded-lg opacity-100",
                   isInTrash ? "text-red-500 hover:text-red-400" : "text-white/40 hover:text-red-400"
                 )}
-                title={isInTrash ? "Delete forever" : "Move to Trash"}
+                title={isInTrash ? t("Delete forever") : t("Move to Trash")}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -153,17 +154,15 @@ export default function FolderCard({
         )}
         {isInTrash && (
           <p className="text-[10px] font-bold text-red-400/80 mb-2">
-            Deleted for good in {getDaysRemaining()} days
-          </p>
+            {t("Deleted for good in ")}{getDaysRemaining()} {t(" days")}</p>
         )}
         <p className="text-[10px] uppercase tracking-widest text-white/40 font-medium">
-          Folder
-        </p>
+          {t("Folder")}</p>
       </div>
 
       <div className="mt-6 pt-4 border-t border-white/5 relative z-10 flex items-center justify-between">
         <span className="text-[10px] uppercase tracking-widest text-white/20">
-          Created {folder.createdAt ? formatDistanceToNow(folder.createdAt, { addSuffix: true }) : 'Recently'}
+          {t("Created ")}{folder.createdAt ? formatDistanceToNow(folder.createdAt, { addSuffix: true }) : t("Recently")}
         </span>
         <span className="text-[10px] uppercase tracking-widest text-luxury-gold/40">
           {folder.authorName}

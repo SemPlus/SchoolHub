@@ -4,7 +4,7 @@ import {
   Trash2, GraduationCap, School, Eye, Bookmark, HeartHandshake, BadgeCheck,
 } from 'lucide-react';
 import { Material, Folder, User } from '../types';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '../lib/i18n';
 import { doc, updateDoc, onSnapshot, query, collection, where, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -25,6 +25,7 @@ import ClassPosterModal from './ClassPosterModal';
 import { isTeacherAccount } from '../lib/schoolYear';
 import UserAvatar from './UserAvatar';
 
+import { t } from '../lib/i18n';
 interface AuthorProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -103,11 +104,11 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
 
   const handleTrash = async (e: React.MouseEvent, collectionName: 'materials' | 'folders', id: string, name: string) => {
     e.stopPropagation();
-    if (!confirm(`Move "${name}" to Trash?`)) return;
+    if (!confirm(t("Move \"{0}\" to Trash?", name))) return;
     try {
       await updateDoc(doc(db, collectionName, id), { isDeleted: true, deletedAt: serverTimestamp() });
     } catch (error) {
-      alert(firebaseErrorMessage(error, 'Could not move this to Trash.'));
+      alert(firebaseErrorMessage(error, t("Could not move this to Trash.")));
     }
   };
 
@@ -115,13 +116,13 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
     if (!authorProfile) return;
     const next = authorProfile.role === 'teacher' ? 'user' : 'teacher';
     if (!confirm(next === 'teacher'
-      ? `Confirm ${authorName} as a teacher? Confirmed teachers can verify materials from their school.`
-      : `Remove the teacher confirmation from ${authorName}?`)) return;
+      ? t("Confirm {0} as a teacher? Confirmed teachers can verify materials from their school.", authorName)
+      : t("Remove the teacher confirmation from {0}?", authorName))) return;
     setRoleBusy(true);
     try {
       await updateDoc(doc(db, 'users', authorId), { role: next });
     } catch (error) {
-      alert(firebaseErrorMessage(error, 'Could not change the role.'));
+      alert(firebaseErrorMessage(error, t("Could not change the role.")));
     } finally {
       setRoleBusy(false);
     }
@@ -157,19 +158,19 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                       <h2 className="text-3xl sm:text-5xl font-serif text-white tracking-tight">{authorName}</h2>
                       <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
                         <span className={`text-[9px] px-2 py-0.5 rounded border border-white/10 bg-white/5 font-bold tracking-widest ${rank.color}`}>
-                          {authorProfile?.customBadge || rank.label} · {rank.grade}
+                          {t(authorProfile?.customBadge || rank.label)} · {rank.grade}
                         </span>
                         {authorIsTeacher && (
                           <span
                             className={teacherConfirmed
                               ? 'flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border border-purple-400/30 bg-purple-400/10 text-purple-300 font-bold tracking-widest uppercase'
                               : 'flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border border-white/10 bg-white/5 text-white/50 font-bold tracking-widest uppercase'}
-                            title={teacherConfirmed ? 'Confirmed by the SchoolHub team' : 'Not confirmed yet'}
+                            title={teacherConfirmed ? t("Confirmed by the SchoolHub team") : t("Not confirmed yet")}
                           >
-                            <GraduationCap className="w-3 h-3" /> {teacherConfirmed ? 'Teacher' : 'Teacher · unconfirmed'}
+                            <GraduationCap className="w-3 h-3" /> {teacherConfirmed ? t("Teacher") : t("Teacher · unconfirmed")}
                           </span>
                         )}
-                        <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">{stats.impact} impact · {stats.uploads} materials</span>
+                        <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">{stats.impact} {t(" impact · ")}{stats.uploads} {t(" materials")}</span>
                       </div>
                       {authorProfile?.schoolName && (
                         <p className="text-xs text-white/50 flex items-center justify-center md:justify-start gap-1.5">
@@ -192,7 +193,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                             onClick={() => setIsEditingClass(true)}
                             className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[9px] uppercase tracking-widest text-white/60 hover:text-white"
                           >
-                            {authorIsTeacher ? 'Change school, classes or subjects' : 'Change school or class'}
+                            {authorIsTeacher ? t("Change school, classes or subjects") : t("Change school or class")}
                           </button>
                         )}
                         {isCurrentUser && myProfile?.schoolId && !authorIsTeacher && className && (
@@ -200,7 +201,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                             onClick={() => setIsPosterOpen(true)}
                             className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[9px] uppercase tracking-widest text-white/60 hover:text-white"
                           >
-                            Poster for {className}
+                            {t("Poster for ")}{className}
                           </button>
                         )}
                         {isAdmin && !isCurrentUser && authorProfile && authorProfile.role !== 'admin' && (
@@ -209,7 +210,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                             disabled={roleBusy}
                             className="px-3 py-1.5 rounded-full bg-purple-400/10 border border-purple-400/30 text-[9px] uppercase tracking-widest text-purple-200 hover:bg-purple-400/20 disabled:opacity-40"
                           >
-                            {teacherConfirmed ? 'Remove teacher confirmation' : authorIsTeacher ? 'Confirm teacher' : 'Make teacher'}
+                            {teacherConfirmed ? t("Remove teacher confirmation") : authorIsTeacher ? t("Confirm teacher") : t("Make teacher")}
                           </button>
                         )}
                       </div>
@@ -222,15 +223,15 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                   <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {statItems.map(item => (
                       <div key={item.label} className="rounded-2xl border border-white/5 bg-white/[0.02] p-3">
-                        <p className="flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-white/40">{item.icon}{item.label}</p>
+                        <p className="flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-white/40">{item.icon}{t(item.label)}</p>
                         <p className="text-xl font-serif text-white mt-1">{item.value}</p>
-                        <p className="text-[9px] text-white/25">{item.points} impact each</p>
+                        <p className="text-[9px] text-white/25">{item.points} {t(" impact each")}</p>
                       </div>
                     ))}
                   </div>
                   {nextRank && (
                     <p className="mt-3 text-[10px] text-white/40">
-                      {nextRank.missing} more impact to reach {nextRank.rank.label}.
+                      {nextRank.missing} {t(" more impact to reach ")}{t(nextRank.rank.label)}.
                     </p>
                   )}
 
@@ -248,7 +249,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
 
                 {/* Badges */}
                 <div className="p-6 sm:p-10 bg-white/[0.01] border-b border-white/5">
-                  <h3 className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-bold mb-6">Badges</h3>
+                  <h3 className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-bold mb-6">{t("Badges")}</h3>
                   <AchievementBadges stats={stats} />
                 </div>
 
@@ -268,7 +269,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                       </button>
                     )}
                     <h3 className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-bold">
-                      Materials {folderPath.length > 0 ? `› ${folderPath.map(f => f.name).join(' › ')}` : ''}
+                      {t("Materials ")}{folderPath.length > 0 ? `› ${folderPath.map(f => f.name).join(' › ')}` : ''}
                     </h3>
                   </div>
 
@@ -278,7 +279,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                     </div>
                   ) : folders.length === 0 && authorMaterials.length === 0 ? (
                     <div className="text-center py-16 border border-white/5 rounded-3xl">
-                      <p className="text-white/40 font-light">Nothing here yet.</p>
+                      <p className="text-white/40 font-light">{t("Nothing here yet.")}</p>
                     </div>
                   ) : (
                     <div className="space-y-6">
@@ -303,7 +304,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                                 <button
                                   onClick={(e) => handleTrash(e, 'folders', folder.id, folder.name)}
                                   className="sm:opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-400/10 rounded-lg text-white/30 hover:text-red-400"
-                                  title="Move to Trash"
+                                  title={t("Move to Trash")}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -331,14 +332,14 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                                       <button
                                         onClick={(e) => { e.stopPropagation(); onEditClick?.(material); }}
                                         className="text-white/30 hover:text-luxury-gold transition-colors p-2 hover:bg-white/5 rounded-lg"
-                                        title="Edit"
+                                        title={t("Edit")}
                                       >
                                         <Edit2 className="w-4 h-4" />
                                       </button>
                                       <button
                                         onClick={(e) => handleTrash(e, 'materials', material.id, material.title)}
                                         className="text-white/30 hover:text-red-400 transition-colors p-2 hover:bg-red-400/10 rounded-lg"
-                                        title="Move to Trash"
+                                        title={t("Move to Trash")}
                                       >
                                         <Trash2 className="w-4 h-4" />
                                       </button>
@@ -350,7 +351,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                                     rel="noopener noreferrer"
                                     onClick={(e) => { e.stopPropagation(); recordOpen(material); }}
                                     className="text-white/30 hover:text-luxury-gold transition-colors p-2 hover:bg-white/5 rounded-lg"
-                                    title="Open"
+                                    title={t("Open")}
                                   >
                                     <ExternalLink className="w-4 h-4" />
                                   </a>

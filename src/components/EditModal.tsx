@@ -14,6 +14,7 @@ import { useAppData } from '../context/AppData';
 import { classIdFor, formatClassName, isTeacherAccount, SECTION_PATTERN } from '../lib/schoolYear';
 import { firebaseErrorMessage } from '../lib/engagement';
 
+import { t } from '../lib/i18n';
 interface EditModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -65,11 +66,11 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
   const handleSubmit = async () => {
     setError('');
     if (!/^https?:\/\//i.test(linkUrl.trim())) {
-      setError('Please enter a valid URL starting with http:// or https://');
+      setError(t("Please enter a valid URL starting with http:// or https://"));
       return;
     }
     if (!title.trim()) {
-      setError('Give it a title.');
+      setError(t("Give it a title."));
       return;
     }
 
@@ -107,7 +108,7 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
       onClose();
     } catch (err: any) {
       console.error('Edit error:', err);
-      setError(firebaseErrorMessage(err, 'Could not save your changes.'));
+      setError(firebaseErrorMessage(err, t("Could not save your changes.")));
     } finally {
       setIsUpdating(false);
     }
@@ -120,8 +121,8 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Edit material"
-      subtitle={isEditingOthers && userRole === 'admin' ? `Editing as founder · uploaded by ${material.authorName}` : undefined}
+      title={t("Edit material")}
+      subtitle={isEditingOthers && userRole === 'admin' ? t("Editing as founder · uploaded by {0}", material.authorName) : undefined}
       size="md"
       level={3}
       footer={
@@ -133,19 +134,19 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
             disabled={isUpdating}
             className="w-full bg-white text-luxury-black font-bold py-4 rounded-full hover:bg-luxury-gold disabled:opacity-30 transition-all"
           >
-            {isUpdating ? 'Saving…' : 'Save changes'}
+            {isUpdating ? t("Saving…") : t("Save changes")}
           </button>
         </div>
       }
     >
       <div className="space-y-7">
         <div className="space-y-2">
-          <label className={labelClass}>Title</label>
+          <label className={labelClass}>{t("Title")}</label>
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} maxLength={200} />
         </div>
 
         <div className="space-y-2">
-          <label className={labelClass}>Link (URL)</label>
+          <label className={labelClass}>{t("Link (URL)")}</label>
           <div className="relative">
             <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
             <input type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} className={`${inputClass} pl-11`} placeholder="https://…" />
@@ -181,17 +182,17 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
         />
 
         <div className="space-y-2">
-          <label className={labelClass}>Type</label>
-          <Dropdown options={TYPE_OPTIONS} value={materialType} onChange={(val) => setMaterialType(val as MaterialType)} className="w-full" label="Type" />
+          <label className={labelClass}>{t("Type")}</label>
+          <Dropdown options={TYPE_OPTIONS} value={materialType} onChange={(val) => setMaterialType(val as MaterialType)} className="w-full" label={t("Type")} />
         </div>
 
         <div className="space-y-2">
-          <label className={labelClass}>Description</label>
+          <label className={labelClass}>{t("Description")}</label>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputClass} min-h-[100px]`} maxLength={2000} />
         </div>
 
         <div className="space-y-2">
-          <label className={labelClass}>Topic or chapter (comma separated)</label>
+          <label className={labelClass}>{t("Topic or chapter (comma separated)")}</label>
           <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} className={inputClass} />
         </div>
       </div>

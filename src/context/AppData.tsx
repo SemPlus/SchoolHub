@@ -171,6 +171,6 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
 export function useAppData(): AppDataValue {
   const value = useContext(AppDataContext);
-  if (!value) throw new Error('useAppData must be used inside AppDataProvider');
+  if (!value) throw new Error("useAppData must be used inside AppDataProvider");
   return value;
 }
