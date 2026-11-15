@@ -24,8 +24,14 @@
   }
 }
 
+/* Solid lacquer panels with a hairline edge (no frosted glass). */
 .glass-panel {
-  @apply bg-white/5 backdrop-blur-2xl border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)];
+  @apply bg-[#0c0c0c] border border-white/[0.08];
+}
+
+/* Finer strokes on every icon, closer to engraving than to an icon set. */
+svg.lucide {
+  stroke-width: 1.5;
 }
 
 .luxury-button {

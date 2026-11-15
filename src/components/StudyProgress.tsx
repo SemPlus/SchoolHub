@@ -36,7 +36,7 @@ export default function StudyProgress() {
   const done = rows.reduce((a, r) => a + r.done, 0);
 
   return (
-    <div className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-5 sm:p-6 border-white/5 space-y-4">
+    <div className="glass-panel rounded-[1.5rem] sm:rounded-[1.25rem] p-5 sm:p-6 border-white/5 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-luxury-gold/10 rounded-xl"><GraduationCap className="w-4 h-4 text-luxury-gold" /></div>
@@ -49,12 +49,12 @@ export default function StudyProgress() {
       </div>
       <div className="space-y-2.5">
         {rows.map(r => {
-          const { color, icon: Icon } = subjectStyle(r.subject);
+          const { color } = subjectStyle(r.subject);
           const pct = Math.round((r.done / r.total) * 100);
           return (
             <div key={r.subject} className="space-y-1">
               <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-white/75"><Icon className="w-3.5 h-3.5" style={{ color }} /> {t(r.subject)}</span>
+                <span className="flex items-center gap-1.5 text-white/75"><span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} /> {t(r.subject)}</span>
                 <span className="text-white/45">{r.done} / {r.total}</span>
               </div>
               <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">

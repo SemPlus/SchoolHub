@@ -242,7 +242,7 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
                   <p className={label}>{t("Subjects you teach")}</p>
                   <div className="flex flex-wrap gap-2">
                     {SUBJECTS.map(s => {
-                      const { color, icon: Icon } = subjectStyle(s);
+                      const { color } = subjectStyle(s);
                       const active = teacherSubjects.includes(s);
                       return (
                         <button
@@ -254,7 +254,7 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
                             ? { borderColor: color, backgroundColor: withAlpha(color, 0.15), color }
                             : { borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.55)' }}
                         >
-                          {active ? <Check className="w-3.5 h-3.5" /> : <Icon className="w-3.5 h-3.5" />}
+                          {active ? <Check className="w-3.5 h-3.5" /> : <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />}
                           {s}
                         </button>
                       );

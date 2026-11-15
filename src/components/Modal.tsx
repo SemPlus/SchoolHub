@@ -118,7 +118,7 @@ export default function Modal({
             transition={{ type: 'spring', damping: 30, stiffness: 320 }}
             className={cn(
               'relative w-full flex flex-col max-h-[92dvh] bg-[#0c0c0c] border border-white/10 shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)]',
-              'rounded-t-[1.75rem] sm:rounded-[2rem] overflow-hidden',
+              'rounded-t-[1.75rem] sm:rounded-[1.25rem] overflow-hidden',
               SIZES[size],
               className
             )}

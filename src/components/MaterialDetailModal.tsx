@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   ExternalLink, Download, Tag, Trash2, Bookmark, BookmarkCheck, Share2, BookOpen, BadgeCheck, AlertTriangle,
-  Calendar, Eye, Edit2, Layers, Maximize2, Sparkles, CornerDownRight, BookMarked,
+  Calendar, Eye, Edit2, Layers, Maximize2, CornerDownRight, BookMarked, PenLine,
 } from 'lucide-react';
 import { format } from '../lib/i18n';
 import { Material, User as UserType } from '../types';
@@ -202,7 +202,7 @@ export default function MaterialDetailModal({
             </button>
             {viewer && onImprove && (
               <button onClick={() => onImprove(material)} className={cn(secondaryButton, 'flex-1 bg-white/5 border-white/10 text-white/60 hover:text-white')} title={t("Upload a corrected or extended version")}>
-                <Sparkles className="w-4 h-4" /> {t(" Improve")}</button>
+                <PenLine className="w-4 h-4" /> {t(" Improve")}</button>
             )}
             {canEdit && onEditClick && (
               <button onClick={() => onEditClick(material)} className={cn(secondaryButton, 'flex-1 bg-white/5 border-white/10 text-white/60 hover:text-white')}>
@@ -296,7 +296,7 @@ export default function MaterialDetailModal({
                 onClick={() => onOpenMaterial?.(v)}
                 className="w-full flex items-center gap-3 p-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 hover:bg-emerald-400/10 text-left"
               >
-                <Sparkles className="w-4 h-4 text-emerald-300 shrink-0" />
+                <CornerDownRight className="w-4 h-4 text-emerald-300/80 shrink-0" />
                 <span className="text-sm text-white/70 truncate">{t("Improved version: ")}<span className="text-white">{v.title}</span> {t(" by ")}{v.authorName}</span>
               </button>
             ))}

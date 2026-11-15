@@ -34,7 +34,7 @@ export default function KindLevelFields({ kind, level, onKindChange, onLevelChan
                     active ? 'border-luxury-gold bg-luxury-gold/10 text-luxury-gold' : 'border-white/10 text-white/60 hover:text-white'
                   )}
                 >
-                  <k.icon className="w-3.5 h-3.5" /> {t(k.label)}
+                  {t(k.label)}
                 </button>
               );
             })}

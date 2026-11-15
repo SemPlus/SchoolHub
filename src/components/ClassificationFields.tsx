@@ -44,7 +44,7 @@ export default function ClassificationFields({ value, onChange, quickClasses = [
         {preferredSubjects.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">
             {preferredSubjects.map(s => {
-              const { color, icon: Icon } = subjectStyle(s);
+              const { color } = subjectStyle(s);
               const active = value.subject === s;
               return (
                 <button
@@ -54,7 +54,7 @@ export default function ClassificationFields({ value, onChange, quickClasses = [
                   className="px-3 py-2 rounded-xl border text-xs flex items-center gap-1.5 transition-all"
                   style={active ? { borderColor: color, backgroundColor: `${color}22`, color } : { borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}
                 >
-                  <Icon className="w-3.5 h-3.5" /> {t(s)}
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} /> {t(s)}
                 </button>
               );
             })}

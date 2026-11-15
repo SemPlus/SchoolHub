@@ -8,12 +8,12 @@ import { Material } from '../types';
 import { auth, db } from '../firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { deleteDoc, updateDoc } from '../lib/firestoreWrites';
-import { motion, useMotionValue, useSpring, useMotionTemplate } from 'motion/react';
 import { getRank } from '../lib/ranks';
 import { cn } from '../lib/utils';
 import { firebaseErrorMessage, recordOpen, toggleSave } from '../lib/engagement';
 import UserAvatar from './UserAvatar';
 import SubjectBadge from './SubjectBadge';
+import SubjectMark from './SubjectMark';
 import { subjectStyle, visibleTags, withAlpha } from '../lib/subjects';
 import { kindById, levelById } from '../lib/materialKinds';
 import { useAppData } from '../context/AppData';
@@ -43,6 +43,17 @@ export function linkStatusLabel(status?: string | null): string | null {
   if (status === 'broken') return 'Link broken';
   if (status === 'restricted') return 'Link needs permission';
   return null;
+}
+
+/** Monogram for a material without a subject: its format. */
+function formatMark(type: string): string {
+  switch (type) {
+    case 'pdf': return 'Pd';
+    case 'word': return 'Dc';
+    case 'canva': return 'Sl';
+    case 'link': return 'Ln';
+    default: return '·';
+  }
 }
 
 export default function MaterialCard({
@@ -83,18 +94,6 @@ export default function MaterialCard({
     }
     onCardClick?.(material);
   };
-
-  // Spotlight effect
-  const mouseXRaw = useMotionValue(0);
-  const mouseYRaw = useMotionValue(0);
-  const mouseX = useSpring(mouseXRaw, { stiffness: 500, damping: 50 });
-  const mouseY = useSpring(mouseYRaw, { stiffness: 500, damping: 50 });
-  function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
-    const { left, top } = currentTarget.getBoundingClientRect();
-    mouseXRaw.set(clientX - left);
-    mouseYRaw.set(clientY - top);
-  }
-  const background = useMotionTemplate`radial-gradient(350px circle at ${mouseX}px ${mouseY}px, rgba(212, 175, 55, 0.1), transparent 80%)`;
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -168,51 +167,27 @@ export default function MaterialCard({
     onAuthorClick?.(material.authorId, material.authorName, material.authorPhotoUrl);
   };
 
-  const getIcon = () => {
-    switch (material.type) {
-      case 'pdf': return <FileText className="w-8 h-8 text-red-500" />;
-      case 'word': return <File className="w-8 h-8 text-blue-500" />;
-      case 'canva': return <Presentation className="w-8 h-8 text-purple-500" />;
-      case 'link': return <LinkIcon className="w-8 h-8 text-green-500" />;
-      default: return <File className="w-8 h-8 text-gray-500" />;
-    }
-  };
-
   const actionButton = "transition-all p-2 rounded-xl flex items-center justify-center min-w-[36px] backdrop-blur-md opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100";
   const subject = material.subject ? subjectStyle(material.subject) : null;
-  const SubjectIcon = subject?.icon;
   const tags = visibleTags(material);
   const kind = kindById(material.kind);
   const level = levelById(material.level);
 
   return (
-    <motion.div
-      onMouseMove={handleMouseMove}
+    <div
       onClick={handleContainerClick}
       draggable={canEdit && !isInTrash}
       onDragStart={onDragStart}
-      whileHover={{ y: -4 }}
       className={cn(
-        "glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-8 hover:bg-white/[0.08] group flex flex-col h-full relative overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] hover:border-white/30 transition-all duration-500 cursor-pointer select-none",
+        "glass-panel rounded-[1.25rem] p-4 sm:p-7 hover:bg-[#111] group flex flex-col h-full relative overflow-hidden hover:border-white/20 transition-colors duration-300 cursor-pointer select-none",
         isSelected && "ring-2 ring-luxury-gold bg-luxury-gold/5 border-luxury-gold/20"
       )}
     >
-      {/* Subject colour stripe; gold while selected */}
-      <div className="absolute inset-x-0 top-0 h-1" style={{ background: isSelected ? '#D4AF37' : subject ? subject.color : 'transparent' }} />
-      <motion.div
-        className="pointer-events-none absolute -inset-px rounded-[2rem] opacity-0 transition duration-500 group-hover:opacity-100"
-        style={{ background }}
-      />
-      <div className="absolute -top-12 -right-12 w-24 h-24 bg-luxury-gold/5 rounded-full blur-2xl group-hover:bg-luxury-gold/20 transition-all duration-500 group-hover:scale-150"></div>
+      {/* Subject hairline; gold while selected */}
+      <div className="absolute inset-x-6 top-0 h-px" style={{ background: isSelected ? '#D4AF37' : subject ? subject.color : 'transparent', opacity: isSelected ? 1 : 0.7 }} />
 
       <div className="flex items-start justify-between mb-3 sm:mb-6 relative z-10">
-        <div
-          className="w-10 h-10 sm:w-12 sm:h-12 border rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0"
-          style={subject ? { borderColor: withAlpha(subject.color, 0.35), backgroundColor: withAlpha(subject.color, 0.12) } : { borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)' }}
-          title={material.subject || undefined}
-        >
-          {SubjectIcon ? <SubjectIcon className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: subject!.color }} /> : getIcon()}
-        </div>
+        <SubjectMark subject={material.subject} text={material.subject ? undefined : formatMark(material.type)} />
         <div className="flex flex-wrap justify-end gap-1">
           {isInTrash && (
             <div className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-md">
@@ -305,14 +280,13 @@ export default function MaterialCard({
         )}
         {(material.schoolName || material.className) && (
           <span className="flex items-center gap-1 bg-luxury-gold/10 border border-luxury-gold/20 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-luxury-gold font-medium max-w-full">
-            <BookOpen className="w-2.5 h-2.5 shrink-0" />
             <span className="truncate">{[material.className, material.schoolName].filter(Boolean).join(' · ')}</span>
           </span>
         )}
         <SubjectBadge subject={material.subject} />
         {kind && (
           <span className="flex items-center gap-1 bg-white/5 border border-white/15 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-white/75 font-medium">
-            <kind.icon className="w-3 h-3" /> {t(kind.label)}
+            {t(kind.label)}
           </span>
         )}
         {level && (
@@ -426,6 +400,6 @@ export default function MaterialCard({
         )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

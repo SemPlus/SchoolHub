@@ -7,7 +7,6 @@ import RequestBoard from './components/RequestBoard';
 import FounderDashboard from './components/FounderDashboard';
 import InstallButton from './components/InstallButton';
 import InstallPrompt from './components/InstallPrompt';
-import CursorGlow from './components/CursorGlow';
 import UserAvatar from './components/UserAvatar';
 import OnboardingModal from './components/OnboardingModal';
 import AuthorProfileModal from './components/AuthorProfileModal';
@@ -56,8 +55,6 @@ export default function App() {
 
   const { scrollY } = useScroll();
   const titleOpacity = useTransform(scrollY, [0, 200], [1, 0]);
-  const titleScale = useTransform(scrollY, [0, 250], [1, 0.8]);
-  const titleFilter = useTransform(scrollY, [0, 200], ["blur(0px)", "blur(10px)"]);
   const titleY = useTransform(scrollY, [0, 250], [0, -40]);
 
   useEffect(() => {
@@ -93,7 +90,7 @@ export default function App() {
   const tabClass = (id: Tab) => cn(
     'flex items-center justify-center gap-1.5 sm:gap-2 rounded-full transition-all uppercase font-medium',
     isTabActive(id)
-      ? 'bg-luxury-gold text-luxury-black shadow-lg shadow-luxury-gold/20'
+      ? 'bg-luxury-gold text-luxury-black'
       : 'text-white/40 hover:text-white'
   );
 
@@ -101,20 +98,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-luxury-black font-sans text-white/90 selection:bg-luxury-gold/30 overflow-x-hidden">
-      <CursorGlow />
-
-      <motion.nav
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ type: "spring", damping: 20, stiffness: 100 }}
-        className="sticky top-0 z-40 bg-luxury-black/60 backdrop-blur-2xl border-b border-white/10"
-      >
+      <nav className="sticky top-0 z-40 bg-luxury-black/85 backdrop-blur-md border-b border-white/[0.08]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center gap-3 h-16 sm:h-20">
             <button onClick={() => setActiveTab('archive')} className="flex items-center gap-3 sm:gap-4 shrink-0" aria-label="SchoolHub">
-              <div className="w-10 h-10 border border-white/20 rounded-full flex items-center justify-center bg-white/5">
-                <BookOpen className="h-5 w-5 text-luxury-gold" />
-              </div>
+              {/* Monogram seal */}
+              <span className="relative w-10 h-10 rounded-full border border-luxury-gold/60 flex items-center justify-center font-serif italic text-xl text-luxury-gold leading-none">
+                <span className="absolute inset-[3px] rounded-full border border-luxury-gold/20" />
+                <span className="relative -mt-0.5">S</span>
+              </span>
               <span className="hidden sm:inline text-2xl font-serif tracking-widest uppercase text-white">{t("SchoolHub")}</span>
             </button>
 
@@ -122,7 +114,6 @@ export default function App() {
               <div className="hidden md:flex items-center bg-white/5 rounded-full p-1 border border-white/10">
                 {visibleTabs.map(tab => (
                   <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn(tabClass(tab.id), 'px-5 py-2 text-[10px] tracking-[0.2em]')}>
-                    {tab.icon}
                     {t(tab.label)}
                   </button>
                 ))}
@@ -166,7 +157,7 @@ export default function App() {
             </div>
           </div>
         </div>
-      </motion.nav>
+      </nav>
 
       {isFounder && simulation.mode !== 'off' && (
         <div className="sticky top-16 sm:top-20 z-30 bg-amber-400/15 backdrop-blur-xl border-b border-amber-400/30">
@@ -186,37 +177,23 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
         <div className="relative h-[13vh] sm:h-[25vh] flex items-center justify-center pointer-events-none">
           <motion.div
-            style={{ opacity: titleOpacity, scale: titleScale, y: titleY, filter: titleFilter }}
+            style={{ opacity: titleOpacity, y: titleY }}
             className="fixed top-[8.5vh] sm:top-[12vh] left-0 right-0 z-0 text-center px-4"
           >
             <div className="overflow-hidden mb-2 sm:mb-4">
-              <h1 className="text-4xl sm:text-6xl md:text-8xl font-serif font-light text-white tracking-tight flex justify-center flex-wrap">
-                {t(TITLES[activeTab]).split("").map((char, index) => (
-                  <motion.span
-                    key={`${activeTab}-${index}`}
-                    initial={{ y: 100, opacity: 0, filter: "blur(10px)" }}
-                    animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
-                    transition={{ duration: 1.2, delay: 0.3 + index * 0.05, ease: [0.22, 1, 0.36, 1] }}
-                    className={char === " " ? "mr-4" : ""}
-                  >
-                    {char}
-                  </motion.span>
-                ))}
-              </h1>
+              <motion.h1
+                key={activeTab}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+                className="text-4xl sm:text-6xl md:text-8xl font-serif font-light text-white tracking-tight"
+              >
+                {t(TITLES[activeTab])}
+              </motion.h1>
             </div>
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: 120 }}
-              transition={{ delay: 1.2, duration: 1.5, ease: "easeInOut" }}
-              className="hidden sm:block h-px bg-luxury-gold/50 mx-auto mb-6"
-            />
-            <motion.p
-              initial={{ opacity: 0, letterSpacing: "0.5em" }}
-              animate={{ opacity: 1, letterSpacing: "0.3em" }}
-              transition={{ delay: 1.8, duration: 1.5 }}
-              className="hidden sm:block text-luxury-gold font-light max-w-lg mx-auto uppercase text-[10px]"
-            >
-              {t("By Samuel K.")}</motion.p>
+            <div className="hidden sm:block w-[120px] h-px bg-luxury-gold/50 mx-auto mb-6" />
+            <p className="hidden sm:block text-luxury-gold font-light max-w-lg mx-auto uppercase text-[10px] tracking-[0.3em]">
+              {t("By Samuel K.")}</p>
           </motion.div>
         </div>
 

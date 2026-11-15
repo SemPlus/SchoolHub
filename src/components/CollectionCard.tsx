@@ -1,9 +1,10 @@
 import React from 'react';
-import { Layers, CalendarClock } from 'lucide-react';
+import { CalendarClock } from 'lucide-react';
 import { format, formatDistanceToNow } from '../lib/i18n';
 import type { Collection } from '../types';
 import { subjectStyle, withAlpha } from '../lib/subjects';
 import SubjectBadge from './SubjectBadge';
+import SubjectMark from './SubjectMark';
 
 import { t } from '../lib/i18n';
 interface CollectionCardProps {
@@ -23,18 +24,16 @@ export default function CollectionCard({ collection, workCount, authorNames, las
   return (
     <button onClick={onOpen} className="relative w-full h-full text-left group pt-3">
       {/* The stack behind the card */}
-      <div className="absolute inset-x-6 top-0 h-6 rounded-t-[1.5rem] border border-white/5" style={{ backgroundColor: withAlpha(color, 0.08) }} />
-      <div className="absolute inset-x-3 top-1.5 h-6 rounded-t-[1.75rem] border border-white/5" style={{ backgroundColor: withAlpha(color, 0.12) }} />
+      <div className="absolute inset-x-6 top-0 h-6 rounded-t-[1rem] border border-white/[0.08] bg-[#0a0a0a]" />
+      <div className="absolute inset-x-3 top-1.5 h-6 rounded-t-[1.1rem] border border-white/[0.08] bg-[#0b0b0b]" />
 
       <div
-        className="relative h-full rounded-[2rem] p-6 sm:p-7 border bg-[#0d0d0d] flex flex-col gap-4 transition-all group-hover:bg-[#121212]"
-        style={{ borderColor: withAlpha(color, 0.35) }}
+        className="relative h-full rounded-[1.25rem] p-6 sm:p-7 border bg-[#0c0c0c] flex flex-col gap-4 transition-colors group-hover:bg-[#111]"
+        style={{ borderColor: withAlpha(color, 0.3) }}
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ backgroundColor: withAlpha(color, 0.15) }}>
-            <Layers className="w-6 h-6" style={{ color }} />
-          </div>
-          <span className="text-[10px] uppercase tracking-widest font-semibold px-3 py-1 rounded-full" style={{ color, backgroundColor: withAlpha(color, 0.1) }}>
+          <SubjectMark subject={collection.subject} />
+          <span className="text-[10px] uppercase tracking-[0.2em] pt-1" style={{ color }}>
             {workCount === 1 ? t('1 work') : t('{0} works', workCount)}
           </span>
         </div>

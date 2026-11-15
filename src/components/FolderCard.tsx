@@ -6,6 +6,7 @@ import { motion } from 'motion/react';
 import { auth } from '../firebase';
 import { formatDistanceToNow } from '../lib/i18n';
 import { cn } from '../lib/utils';
+import SubjectMark from './SubjectMark';
 
 import { t } from '../lib/i18n';
 interface FolderCardProps {
@@ -78,7 +79,6 @@ export default function FolderCard({
 
   return (
     <motion.div
-      whileHover={{ y: -5, scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={handleContainerClick}
       draggable={canModify && !isInTrash}
@@ -87,20 +87,17 @@ export default function FolderCard({
       onDragLeave={handleDragLeave}
       onDrop={handleLocalDrop}
       className={cn(
-        "glass-panel p-6 rounded-3xl hover:bg-white/5 transition-all group border-white/5 relative overflow-hidden cursor-pointer h-full flex flex-col justify-between select-none",
+        "glass-panel p-6 rounded-[1.25rem] hover:bg-[#111] transition-colors group border-white/5 relative overflow-hidden cursor-pointer h-full flex flex-col justify-between select-none",
         isSelected && "ring-2 ring-luxury-gold bg-luxury-gold/5 border-luxury-gold/20",
         isOver && "ring-2 ring-luxury-gold bg-luxury-gold/20 scale-[1.05]"
       )}
     >
       <div className="absolute inset-x-0 top-0 h-1 bg-luxury-gold opacity-0 transition-opacity" style={{ opacity: isSelected ? 1 : 0 }} />
       
-      <div className="absolute inset-0 bg-gradient-to-br from-luxury-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-4">
-          <div className="w-12 h-12 border border-white/5 rounded-2xl flex items-center justify-center bg-white/5 group-hover:border-luxury-gold/30 transition-colors">
-            <FolderIcon className="w-6 h-6 text-luxury-gold" />
-          </div>
+          <SubjectMark text={(folder.name.trim()[0] || '·').toUpperCase()} />
           
           {canModify && (
             <div className="flex gap-1 opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 transition-opacity">

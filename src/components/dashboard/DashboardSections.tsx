@@ -1,5 +1,5 @@
 import React from 'react';
-import { ExternalLink, AlertTriangle, Flame, HelpCircle, School as SchoolIcon } from 'lucide-react';
+import { ExternalLink, AlertTriangle, HelpCircle, School as SchoolIcon } from 'lucide-react';
 import type { Material, MaterialRequest } from '../../types';
 import SubjectBadge from '../SubjectBadge';
 import { formatDistanceToNow, t } from '../../lib/i18n';
@@ -137,7 +137,7 @@ export function ContentDemand({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
       <div className={panel}>
-        <p className={cn(heading, 'flex items-center gap-1.5')}><Flame className="w-3.5 h-3.5" /> {t("Most opened materials")}</p>
+        <p className={heading}>{t("Most opened materials")}</p>
         {topOpened.length === 0 ? <p className="text-xs text-white/40">{t("Nothing opened yet.")}</p> : (
           <ol className="space-y-2.5">
             {topOpened.map((m, i) => (

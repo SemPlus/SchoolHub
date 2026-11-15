@@ -899,7 +899,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       {currentView === 'personal' && currentFolderId === null && <StudyProgress />}
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-4 bg-white/[0.02] p-4 sm:p-6 md:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border border-white/5 backdrop-blur-xl relative z-40">
+      <div className="flex flex-col gap-4 bg-white/[0.02] p-4 sm:p-6 md:p-8 rounded-[1.5rem] sm:rounded-[1.5rem] border border-white/5 backdrop-blur-xl relative z-40">
         {currentView === 'archive' && currentFolderId === null && usableScopeChips.length > 1 && (
           <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1">
             {usableScopeChips.map(chip => (
@@ -1091,7 +1091,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             exit={{ opacity: 0, y: -10 }}
             className="relative z-30"
           >
-            <div className="bg-white/[0.02] border border-white/5 p-4 sm:p-6 rounded-[2rem] grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-4 md:items-end">
+            <div className="bg-white/[0.02] border border-white/5 p-4 sm:p-6 rounded-[1.25rem] grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-4 md:items-end">
               <div className="space-y-2">
                 <p className="text-[9px] uppercase tracking-widest text-white/40 ml-1">{t("School")}</p>
                 <SchoolPicker value={schoolFilter} onChange={setSchoolFilter} clearable placeholder={t("Any school – search to filter")} />
@@ -1142,7 +1142,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             initial={{ y: 50, opacity: 0, x: '-50%' }}
             animate={{ y: 0, opacity: 1, x: '-50%' }}
             exit={{ y: 50, opacity: 0, x: '-50%' }}
-            className="fixed bottom-6 sm:bottom-10 left-1/2 z-50 bg-luxury-black/90 backdrop-blur-3xl border border-white/10 px-4 sm:px-8 py-3 sm:py-4 rounded-[2rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.8)] flex items-center gap-4 sm:gap-8 max-w-[calc(100vw-2rem)]"
+            className="fixed bottom-6 sm:bottom-10 left-1/2 z-50 bg-luxury-black/90 backdrop-blur-3xl border border-white/10 px-4 sm:px-8 py-3 sm:py-4 rounded-[1.25rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.8)] flex items-center gap-4 sm:gap-8 max-w-[calc(100vw-2rem)]"
           >
             <div className="flex flex-col shrink-0">
               <span className="text-[9px] uppercase tracking-[0.2em] text-white/30 font-black">{t("Selected")}</span>
@@ -1249,7 +1249,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
             <motion.div
               layout
               key={material.id}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9 }}
               data-item-type="material"
@@ -1303,7 +1303,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       </AnimatePresence>
 
       {isEmpty && !isMaterialsLoading && (
-        <div className="text-center py-20 glass-panel rounded-[3rem] border-white/5 px-6">
+        <div className="text-center py-20 glass-panel rounded-[1.75rem] border-white/5 px-6">
           {currentView === 'trash' ? (
             <>
               <Trash2 className="w-16 h-16 text-white/5 mx-auto mb-6" />

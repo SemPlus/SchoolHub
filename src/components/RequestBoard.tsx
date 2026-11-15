@@ -59,7 +59,7 @@ export default function RequestBoard() {
 
   return (
     <div className="space-y-8">
-      <div className="glass-panel rounded-[1.5rem] sm:rounded-[2.5rem] p-5 sm:p-8 border-white/5 space-y-5">
+      <div className="glass-panel rounded-[1.5rem] sm:rounded-[1.5rem] p-5 sm:p-8 border-white/5 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-serif text-white">{t("Requests")}</h2>
@@ -106,7 +106,7 @@ export default function RequestBoard() {
       </div>
 
       {visible.length === 0 ? (
-        <div className="text-center py-20 glass-panel rounded-[2.5rem] border-white/5">
+        <div className="text-center py-20 glass-panel rounded-[1.5rem] border-white/5">
           <HandHelping className="w-14 h-14 text-white/10 mx-auto mb-4" />
           <h3 className="text-xl font-serif text-white/50">{status === 'open' ? t("No open requests here") : t("Nothing fulfilled yet")}</h3>
           <p className="text-white/30 mt-2 text-sm font-light">
@@ -319,7 +319,7 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
   };
 
   return (
-    <div className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] border-white/5 overflow-hidden">
+    <div className="glass-panel rounded-[1.5rem] sm:rounded-[1.25rem] border-white/5 overflow-hidden">
       <button onClick={onToggle} className="w-full text-left p-5 sm:p-6 flex items-start justify-between gap-4 hover:bg-white/[0.03] transition-colors">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">

@@ -246,7 +246,7 @@ export default function FounderDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="glass-panel rounded-[1.5rem] sm:rounded-[2.5rem] p-5 sm:p-8 border-white/5 space-y-6">
+      <div className="glass-panel rounded-[1.5rem] sm:rounded-[1.5rem] p-5 sm:p-8 border-white/5 space-y-6">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-luxury-gold/10 rounded-xl"><LayoutDashboard className="w-5 h-5 text-luxury-gold" /></div>
           <div className="min-w-0 flex-1">
