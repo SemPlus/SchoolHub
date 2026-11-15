@@ -3,6 +3,7 @@ import { auth } from '../firebase';
 import type { MaterialType } from '../types';
 
 import { t } from './i18n';
+import { guardWrite } from './simulation';
 // Uploads a file from the user's device to their own Google Drive, converts
 // it to a Google Docs / Slides / Sheets file where that keeps the content
 // intact, shares it as "anyone with the link can view", and returns the link.
@@ -266,6 +267,7 @@ export async function shareAndLink(token: string, uploaded: { id: string; webVie
 
 /** Signs in to Drive and finds (or creates) the SchoolHub folder. */
 export async function openDrive(): Promise<{ token: string; folderId: string }> {
+  guardWrite();
   const user = auth.currentUser;
   if (!user) throw new DriveError(t("Sign in first."));
   const token = await getDriveToken();

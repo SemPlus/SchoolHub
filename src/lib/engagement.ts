@@ -1,4 +1,5 @@
-import { doc, getDoc, increment, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { updateDoc, writeBatch } from './firestoreWrites';
 import { auth, db } from '../firebase';
 import type { Material } from '../types';
 
@@ -71,6 +72,7 @@ export async function setVerified(material: Material, verify: boolean): Promise<
 /** Readable message for a Firebase error. */
 export function firebaseErrorMessage(error: any, fallback: string): string {
   const code: string | undefined = error?.code;
+  if (code === 'simulation/read-only') return error.message;
   if (code === 'permission-denied') return `${fallback} ${t('You do not have permission for this action.')}`;
   if (code === 'unavailable') return `${fallback} ${t('The database could not be reached. Check your connection.')}`;
   return `${fallback} ${error?.message || ''}`.trim();

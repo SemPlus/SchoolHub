@@ -6,7 +6,8 @@ import {
 import { format } from '../lib/i18n';
 import { Material, User as UserType } from '../types';
 import { getRank } from '../lib/ranks';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { updateDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
 import { cn } from '../lib/utils';
 import { firebaseErrorMessage, recordOpen, setVerified, toggleSave } from '../lib/engagement';
@@ -42,7 +43,7 @@ interface MaterialDetailModalProps {
 export default function MaterialDetailModal({
   material, isOpen, onClose, onAuthorClick, onEditClick, onCollectionClick, onImprove, onOpenMaterial, authorImpact = 0, userRole, isSaved = false, level = 1,
 }: MaterialDetailModalProps) {
-  const { profile, collections, materials } = useAppData();
+  const { profile, collections, materials, user: viewer } = useAppData();
   const [authorProfile, setAuthorProfile] = React.useState<UserType | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -76,7 +77,7 @@ export default function MaterialDetailModal({
 
   if (!material) return null;
 
-  const uid = auth.currentUser?.uid;
+  const uid = viewer?.uid;
   const isOwner = uid === material.authorId;
   const isAdmin = userRole === 'admin';
   const canEdit = isOwner || isAdmin;
@@ -172,7 +173,7 @@ export default function MaterialDetailModal({
             {isExternalLink ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />}
           </a>
           <div className="flex flex-wrap gap-2">
-            {auth.currentUser && (
+            {viewer && (
               <button
                 onClick={handleSave}
                 disabled={isSaving}
@@ -189,7 +190,7 @@ export default function MaterialDetailModal({
               <Share2 className="w-4 h-4" />
               {copied ? t("Copied") : t("Share")}
             </button>
-            {auth.currentUser && onImprove && (
+            {viewer && onImprove && (
               <button onClick={() => onImprove(material)} className={cn(secondaryButton, 'flex-1 bg-white/5 border-white/10 text-white/60 hover:text-white')} title={t("Upload a corrected or extended version")}>
                 <Sparkles className="w-4 h-4" /> {t(" Improve")}</button>
             )}

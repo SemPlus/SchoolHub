@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink, Info, Layers, Plus, Pencil, Trash2, Users, CalendarClock, Clock, Trophy } from 'lucide-react';
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp } from 'firebase/firestore';
+import { updateDoc } from '../lib/firestoreWrites';
 import { format, formatDistanceToNow } from '../lib/i18n';
 import { db, auth } from '../firebase';
 import type { Collection, Material } from '../types';
@@ -134,7 +135,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
       bare
       footer={
         <div className="flex flex-wrap gap-2">
-          {auth.currentUser && (
+          {user && (
             <button
               onClick={() => onAddWork(collection)}
               className="flex-1 min-w-[10rem] flex items-center justify-center gap-2 py-3.5 rounded-full bg-luxury-gold text-luxury-black text-xs font-bold uppercase tracking-widest"

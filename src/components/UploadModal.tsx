@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link as LinkIcon, ChevronDown, Plus } from 'lucide-react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
 import { Material, MaterialType } from '../types';
 import Dropdown from './Dropdown';

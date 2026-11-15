@@ -5,7 +5,8 @@ import {
 } from 'lucide-react';
 import { Material, Folder, User } from '../types';
 import { formatDistanceToNow } from '../lib/i18n';
-import { doc, updateDoc, onSnapshot, query, collection, where, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, where, serverTimestamp } from 'firebase/firestore';
+import { updateDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { getNextRank, getRank } from '../lib/ranks';
@@ -38,7 +39,7 @@ interface AuthorProfileModalProps {
 }
 
 export default function AuthorProfileModal({ isOpen, onClose, authorId, authorName, authorPhotoUrl, onMaterialClick, onEditClick, userRole }: AuthorProfileModalProps) {
-  const { materials, getStats, profile: myProfile } = useAppData();
+  const { materials, getStats, profile: myProfile, user: viewer } = useAppData();
   const [authorProfile, setAuthorProfile] = React.useState<User | null>(null);
   const [folders, setFolders] = React.useState<Folder[]>([]);
   const [currentFolderId, setCurrentFolderId] = React.useState<string | null>(null);
@@ -52,7 +53,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
   const rank = getRank(stats.impact);
   const nextRank = getNextRank(stats.impact);
   const earnedBadges = getEarnedBadges(stats);
-  const isCurrentUser = auth.currentUser?.uid === authorId;
+  const isCurrentUser = viewer?.uid === authorId;
   const canCustomize = !!rank.canCustomize && isCurrentUser;
   const isAdmin = userRole === 'admin';
 

@@ -333,8 +333,9 @@ service cloud.firestore {
 
     // One record per user and material: {uid}_{materialId}.
     match /opens/{openId} {
-      allow get: if isAuthenticated() && openId.matches(request.auth.uid + '_.*');
-      allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      // The founder reads all opens for the dashboard's activity charts.
+      allow get: if isAuthenticated() && (openId.matches(request.auth.uid + '_.*') || isAdmin());
+      allow list: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
 
       allow create: if isAuthenticated() &&
         request.resource.data.keys().hasOnly(['userId', 'materialId', 'createdAt']) &&

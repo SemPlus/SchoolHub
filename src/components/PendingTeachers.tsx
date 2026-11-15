@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { collection, doc, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
+import { updateDoc } from '../lib/firestoreWrites';
 import { GraduationCap, Check } from 'lucide-react';
 import { db } from '../firebase';
 import type { User } from '../types';

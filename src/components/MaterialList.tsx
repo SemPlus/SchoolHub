@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { collection, query, onSnapshot, where, doc, deleteDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, where, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { deleteDoc, updateDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
 import { Material, Folder } from '../types';
 import MaterialCard from './MaterialCard';

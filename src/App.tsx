@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { signInWithGoogle, logOut } from './firebase';
-import { BookOpen, LogOut, LogIn, Library, User as UserIcon, HandHelping, Trophy, LayoutDashboard } from 'lucide-react';
+import { BookOpen, LogOut, LogIn, Library, User as UserIcon, HandHelping, Trophy, LayoutDashboard, Eye } from 'lucide-react';
+import { describeSimulation } from './lib/simulation';
 import MaterialList from './components/MaterialList';
 import RequestBoard from './components/RequestBoard';
 import LeagueBoard from './components/LeagueBoard';
@@ -32,7 +33,7 @@ const TITLES: Record<Tab, string> = {
 };
 
 export default function App() {
-  const { user, isAuthReady, profile, isProfileLoaded, userRole, getStats } = useAppData();
+  const { user, isAuthReady, profile, isProfileLoaded, userRole, getStats, isFounder, simulation, setSimulation } = useAppData();
   const [activeTab, setActiveTab] = useState<Tab>('archive');
   const [isOwnProfileOpen, setIsOwnProfileOpen] = useState(false);
   // Changing the language re-renders the app (no component here is memoised).
@@ -165,6 +166,21 @@ export default function App() {
           </div>
         </div>
       </motion.nav>
+
+      {isFounder && simulation.mode !== 'off' && (
+        <div className="sticky top-16 sm:top-20 z-30 bg-amber-400/15 backdrop-blur-xl border-b border-amber-400/30">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center gap-3">
+            <Eye className="w-4 h-4 text-amber-200 shrink-0" />
+            <p className="flex-1 min-w-0 text-[11px] sm:text-xs text-amber-100 leading-snug">
+              <span className="font-semibold">{t("Viewing as")}</span> {describeSimulation(simulation)}
+              <span className="text-amber-100/60"> · {t("nothing is saved")}</span>
+            </p>
+            <button onClick={() => setSimulation({ mode: 'off' })} className="shrink-0 px-3 py-1.5 rounded-full bg-amber-200 text-luxury-black text-[11px] font-bold">
+              {t("Exit")}
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
         <div className="relative h-[13vh] sm:h-[25vh] flex items-center justify-center pointer-events-none">

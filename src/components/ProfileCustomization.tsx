@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Check } from 'lucide-react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { updateDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
 import { cn } from '../lib/utils';
 import type { Badge } from '../lib/badges';

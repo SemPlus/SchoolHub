@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection as fsCollection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { collection as fsCollection, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { deleteDoc, setDoc, updateDoc } from './firestoreWrites';
 import { auth, db } from '../firebase';
 import type { Collection, CollectionVote, Material } from '../types';
 import { toDate } from './utils';

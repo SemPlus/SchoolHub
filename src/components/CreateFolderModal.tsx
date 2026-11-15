@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, FolderPlus } from 'lucide-react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
 import Modal from './Modal';
 import { useAppData } from '../context/AppData';

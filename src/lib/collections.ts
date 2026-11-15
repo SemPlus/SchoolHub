@@ -1,4 +1,5 @@
-import { addDoc, collection as fsCollection, serverTimestamp } from 'firebase/firestore';
+import { collection as fsCollection, serverTimestamp } from 'firebase/firestore';
+import { addDoc } from './firestoreWrites';
 import { auth, db } from '../firebase';
 import type { Collection, Material, User } from '../types';
 import { classIdFor, formatClassName } from './schoolYear';

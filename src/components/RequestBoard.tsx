@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc,
-} from 'firebase/firestore';
+import { collection, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { addDoc, deleteDoc, setDoc, updateDoc } from '../lib/firestoreWrites';
 import { formatDistanceToNow } from '../lib/i18n';
 import { motion, AnimatePresence } from 'motion/react';
 import {

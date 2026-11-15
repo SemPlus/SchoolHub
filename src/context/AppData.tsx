@@ -1,15 +1,20 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, serverTimestamp, updateDoc as updateDocUnguarded } from 'firebase/firestore';
+import { deleteDoc, setDoc } from '../lib/firestoreWrites';
 import { auth, db } from '../firebase';
 import type { Collection, Material, MaterialRequest, User } from '../types';
 import { mapCollectionDoc, mapMaterialDoc, mapRequestDoc } from '../lib/mappers';
 import { computeStats, EMPTY_STATS, UserStats } from '../lib/stats';
+import { loadSimulation, saveSimulation, setSimulationActive, SIMULATION_OFF, type Simulation } from '../lib/simulation';
+import { schoolYearStart } from '../lib/schoolYear';
+import { toDate } from '../lib/utils';
 
 // The founder's account always has full admin rights, whatever its stored role.
 export const ADMIN_EMAIL = 'sem.gk01@gmail.com';
 
 interface AppDataValue {
+  /** Who the app shows: the signed-in user, or nobody while the founder views as a visitor. */
   user: FirebaseUser | null;
   isAuthReady: boolean;
   /** The signed-in user's profile document, live. */
@@ -28,6 +33,11 @@ interface AppDataValue {
   toggleStudied: (materialId: string) => Promise<void>;
   statsByUser: Record<string, UserStats>;
   getStats: (uid: string | undefined | null) => UserStats;
+  /** The founder's own account (true even while viewing as someone else). */
+  isFounder: boolean;
+  /** Founder-only "view as"; display only, writes are refused while on. */
+  simulation: Simulation;
+  setSimulation: (simulation: Simulation) => void;
 }
 
 const AppDataContext = createContext<AppDataValue | null>(null);
@@ -43,6 +53,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [requests, setRequests] = useState<MaterialRequest[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [studied, setStudied] = useState<Set<string>>(new Set());
+  const [simulation, setSimulationState] = useState<Simulation>(loadSimulation);
 
   // Auth state and the signed-in user's profile.
   useEffect(() => {
@@ -144,27 +155,67 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   const statsByUser = useMemo(() => computeStats(materials, requests, collections), [materials, requests, collections]);
 
+  const isFounder = !!user && user.email === ADMIN_EMAIL;
+  const effectiveSimulation = isFounder ? simulation : SIMULATION_OFF;
+  const simulating = effectiveSimulation.mode !== 'off';
+  // Set during render so the write guard is on before any child can write.
+  setSimulationActive(simulating);
+
+  // "Last seen" for the founder dashboard: at most one small write per day.
+  const lastSeenWrittenFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || !profile || simulating || lastSeenWrittenFor.current === user.uid) return;
+    const last = toDate(profile.lastSeenAt);
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    if (last && last >= startOfToday) return;
+    lastSeenWrittenFor.current = user.uid;
+    updateDocUnguarded(doc(db, 'users', user.uid), { lastSeenAt: serverTimestamp() })
+      .catch(error => console.warn('Could not update last seen:', error));
+  }, [user?.uid, profile?.uid, profile?.lastSeenAt, simulating]);
+
+  const viewUser = effectiveSimulation.mode === 'visitor' ? null : user;
+  const viewProfile = useMemo<User | null>(() => {
+    if (!profile || !simulating) return profile;
+    const s = effectiveSimulation;
+    if (s.mode === 'visitor') return null;
+    const school = { schoolId: s.schoolId, schoolName: s.schoolName, schoolCity: s.schoolCity, schoolGrade: s.schoolGrade, profileSchoolYear: schoolYearStart() };
+    if (s.mode === 'teacher') {
+      return { ...profile, ...school, role: 'teacher', accountType: 'teacher', teacherClasses: s.teacherClasses || [], teacherSubjects: s.teacherSubjects || [], classYear: undefined, classSection: undefined };
+    }
+    return { ...profile, ...school, role: 'user', accountType: 'student', classYear: s.classYear, classSection: s.classSection, teacherClasses: undefined, teacherSubjects: undefined };
+  }, [profile, simulating, effectiveSimulation]);
+  const viewRole = !viewUser ? null
+    : simulating ? (effectiveSimulation.mode === 'teacher' ? 'teacher' : 'user')
+    : user!.email === ADMIN_EMAIL ? 'admin' : (profile?.role ?? 'user');
+
   const value = useMemo<AppDataValue>(() => ({
-    user,
+    user: viewUser,
     isAuthReady,
-    profile,
+    profile: viewProfile,
     isProfileLoaded,
-    userRole: !user ? null : user.email === ADMIN_EMAIL ? 'admin' : (profile?.role ?? 'user'),
+    userRole: viewRole,
     materials,
     isMaterialsLoading,
     materialsError,
     requests,
     collections,
-    studied,
+    studied: viewUser ? studied : new Set<string>(),
     toggleStudied: async (materialId: string) => {
-      if (!user) return;
+      if (!viewUser) return;
       const ref = doc(db, 'users', user.uid, 'studied', materialId);
       if (studied.has(materialId)) await deleteDoc(ref);
       else await setDoc(ref, { createdAt: serverTimestamp() });
     },
     statsByUser,
     getStats: (uid) => (uid && statsByUser[uid]) || EMPTY_STATS,
-  }), [user, isAuthReady, profile, isProfileLoaded, materials, isMaterialsLoading, materialsError, requests, collections, studied, statsByUser]);
+    isFounder,
+    simulation: effectiveSimulation,
+    setSimulation: (next: Simulation) => {
+      saveSimulation(next);
+      setSimulationState(next);
+    },
+  }), [viewUser, isAuthReady, viewProfile, isProfileLoaded, viewRole, materials, isMaterialsLoading, materialsError, requests, collections, studied, statsByUser, isFounder, effectiveSimulation]);
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }

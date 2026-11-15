@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Folder as FolderIcon, ChevronRight, Check, Move } from 'lucide-react';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
+import { updateDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
 import { Folder } from '../types';
 import Modal from './Modal';

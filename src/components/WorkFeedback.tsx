@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { deleteDoc, setDoc, updateDoc } from '../lib/firestoreWrites';
 import { formatDistanceToNow } from '../lib/i18n';
 import { Star, MessageSquare, Trash2 } from 'lucide-react';
 import { db } from '../firebase';

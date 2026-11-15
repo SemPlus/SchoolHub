@@ -6,7 +6,8 @@ import {
 import { formatDistanceToNow } from '../lib/i18n';
 import { Material } from '../types';
 import { auth, db } from '../firebase';
-import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp } from 'firebase/firestore';
+import { deleteDoc, updateDoc } from '../lib/firestoreWrites';
 import { motion, useMotionValue, useSpring, useMotionTemplate } from 'motion/react';
 import { getRank } from '../lib/ranks';
 import { cn } from '../lib/utils';
@@ -60,11 +61,11 @@ export default function MaterialCard({
   onDragStart,
   inheritedLabel,
 }: MaterialCardProps) {
-  const isOwner = auth.currentUser?.uid === material.authorId;
+  const { studied, toggleStudied, user: viewer } = useAppData();
+  const isOwner = viewer?.uid === material.authorId;
   const isAdmin = userRole === 'admin';
   const canEdit = isOwner || isAdmin;
-  const isAuthenticated = !!auth.currentUser;
-  const { studied, toggleStudied } = useAppData();
+  const isAuthenticated = !!viewer;
   const isStudied = studied.has(material.id);
   const rank = getRank(authorImpact);
   const isExternalLink = material.type === 'link' || material.type === 'canva';

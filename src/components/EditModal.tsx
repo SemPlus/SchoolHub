@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link as LinkIcon } from 'lucide-react';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp } from 'firebase/firestore';
+import { updateDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
 import { Material, MaterialType } from '../types';
 import Dropdown from './Dropdown';
@@ -22,7 +23,7 @@ interface EditModalProps {
 }
 
 export default function EditModal({ isOpen, onClose, material }: EditModalProps) {
-  const { profile, userRole } = useAppData();
+  const { profile, userRole, user: viewer } = useAppData();
   const isTeacher = isTeacherAccount(profile);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -61,7 +62,7 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
 
   if (!material) return null;
 
-  const isEditingOthers = auth.currentUser?.uid !== material.authorId;
+  const isEditingOthers = viewer?.uid !== material.authorId;
 
   const handleSubmit = async () => {
     setError('');

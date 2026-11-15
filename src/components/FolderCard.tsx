@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAppData } from '../context/AppData';
 import { Folder as FolderIcon, MoreVertical, Trash2, Edit2, Move, ArrowLeft } from 'lucide-react';
 import { Folder } from '../types';
 import { motion } from 'motion/react';
@@ -34,7 +35,8 @@ export default function FolderCard({
   onDragStart,
   onDrop
 }: FolderCardProps) {
-  const isOwner = auth.currentUser?.uid === folder.authorId;
+  const { user: viewer } = useAppData();
+  const isOwner = viewer?.uid === folder.authorId;
   const isAdmin = userRole === 'admin';
   const canModify = isOwner || isAdmin;
 

@@ -161,6 +161,8 @@ export interface User {
   /** Teacher classes as labels such as "3B". */
   teacherClasses?: string[];
   teacherSubjects?: string[];
+  /** Last day the user opened the app (updated at most once a day). */
+  lastSeenAt?: any;
   createdAt: any;
 }
 
