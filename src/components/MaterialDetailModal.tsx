@@ -296,7 +296,7 @@ export default function MaterialDetailModal({
                 onClick={() => onOpenMaterial?.(v)}
                 className="w-full flex items-center gap-3 p-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 hover:bg-emerald-400/10 text-left"
               >
-                <CornerDownRight className="w-4 h-4 text-emerald-300/80 shrink-0" />
+                <CornerDownRight className="w-4 h-4 text-emerald-300 shrink-0" />
                 <span className="text-sm text-white/70 truncate">{t("Improved version: ")}<span className="text-white">{v.title}</span> {t(" by ")}{v.authorName}</span>
               </button>
             ))}

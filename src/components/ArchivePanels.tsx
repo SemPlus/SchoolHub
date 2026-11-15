@@ -101,7 +101,7 @@ export function TeacherClassOverview({ profile, classLabel, uid, collections, ma
   if (!data) return null;
 
   return (
-    <div className="glass-panel rounded-[1.5rem] sm:rounded-[1.25rem] p-5 sm:p-6 border-white/5 space-y-4">
+    <div className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-5 sm:p-6 border-white/5 space-y-4">
       <div className="flex items-center gap-3">
         <div className="p-2 bg-luxury-gold/10 rounded-xl"><LayoutDashboard className="w-4 h-4 text-luxury-gold" /></div>
         <div>
@@ -179,7 +179,7 @@ export function FinalExamPanel({ profile, classLabel, materials, onShowYear, onF
   const examSeason = month >= 1 && month <= 5; // February to June
 
   return (
-    <div className={`rounded-[1.5rem] sm:rounded-[1.25rem] p-5 sm:p-6 border space-y-4 ${examSeason ? 'border-luxury-gold/40 bg-luxury-gold/[0.06]' : 'border-white/5 bg-white/[0.02]'}`}>
+    <div className={`rounded-[1.5rem] sm:rounded-[2rem] p-5 sm:p-6 border space-y-4 ${examSeason ? 'border-luxury-gold/40 bg-luxury-gold/[0.06]' : 'border-white/5 bg-white/[0.02]'}`}>
       <div className="flex items-center gap-3">
         <div className="p-2 bg-luxury-gold/15 rounded-xl"><GraduationCap className="w-5 h-5 text-luxury-gold" /></div>
         <div className="min-w-0">
@@ -207,7 +207,7 @@ export function FinalExamPanel({ profile, classLabel, materials, onShowYear, onF
 
       <div className="flex flex-wrap gap-2">
         <button onClick={onShowYear} className="px-4 py-2 rounded-full bg-white text-luxury-black text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5">
-          {t("All year-5 materials, every year")}</button>
+          {t(" All year-5 materials, every year")}</button>
         <a
           href="https://www.istruzione.it/esame_di_stato/"
           target="_blank"

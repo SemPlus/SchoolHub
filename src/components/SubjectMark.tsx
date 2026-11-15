@@ -28,7 +28,7 @@ export default function SubjectMark({ subject, text, color, size = 'md', classNa
         size === 'sm' ? 'w-9 h-9 text-base' : 'w-10 h-10 sm:w-12 sm:h-12 text-lg sm:text-xl',
         className,
       )}
-      style={{ color: tone, borderColor: withAlpha(tone, 0.55) }}
+      style={{ color: tone, borderColor: withAlpha(tone, 0.45), backgroundColor: withAlpha(tone, 0.12) }}
       title={subject ? t(subject) : undefined}
       aria-hidden={!subject}
     >

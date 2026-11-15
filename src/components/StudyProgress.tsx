@@ -36,7 +36,7 @@ export default function StudyProgress() {
   const done = rows.reduce((a, r) => a + r.done, 0);
 
   return (
-    <div className="glass-panel rounded-[1.5rem] sm:rounded-[1.25rem] p-5 sm:p-6 border-white/5 space-y-4">
+    <div className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-5 sm:p-6 border-white/5 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-luxury-gold/10 rounded-xl"><GraduationCap className="w-4 h-4 text-luxury-gold" /></div>

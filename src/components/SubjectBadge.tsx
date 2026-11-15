@@ -9,7 +9,7 @@ interface SubjectBadgeProps {
   className?: string;
 }
 
-/** Hairline chip with the subject's name. Renders nothing without a subject. */
+/** Coloured chip with the subject's name. Renders nothing without a subject. */
 export default function SubjectBadge({ subject, size = 'sm', className }: SubjectBadgeProps) {
   if (!subject) return null;
   const { color } = subjectStyle(subject);
@@ -20,7 +20,7 @@ export default function SubjectBadge({ subject, size = 'sm', className }: Subjec
         size === 'sm' ? 'px-2 py-0.5 text-[8px]' : 'px-3 py-1 text-[10px]',
         className
       )}
-      style={{ color, borderColor: withAlpha(color, 0.4) }}
+      style={{ color, borderColor: withAlpha(color, 0.35), backgroundColor: withAlpha(color, 0.1) }}
     >
       {t(subject)}
     </span>

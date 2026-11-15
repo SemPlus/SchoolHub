@@ -33,44 +33,42 @@ export const SUBJECTS = [
 export type Subject = typeof SUBJECTS[number];
 
 export interface SubjectStyle {
-  /** Muted enamel colour used for marks, chips and the card hairline. */
+  /** Hex colour used for chips, accents and the card stripe. */
   color: string;
-  /** Two-letter monogram shown in the subject's roundel, per language. */
+  /** Two-letter monogram shown in the subject's seal, per language. */
   mark: { it: string; en: string };
 }
 
-// Colours are deliberately muted (enamel, ink, patina) so they sit next to
-// the gold without looking like a default UI palette.
 const STYLES: Record<string, SubjectStyle> = {
-  'Italian': { color: '#8FA8CF', mark: { it: 'It', en: 'It' } },
-  'Latin': { color: '#B39BCB', mark: { it: 'La', en: 'La' } },
-  'Ancient Greek': { color: '#A39CCB', mark: { it: 'Gr', en: 'Gr' } },
-  'English': { color: '#C99AAE', mark: { it: 'In', en: 'En' } },
-  'French': { color: '#C9959A', mark: { it: 'Fr', en: 'Fr' } },
-  'Spanish': { color: '#CFA07E', mark: { it: 'Sp', en: 'Sp' } },
-  'German': { color: '#CDBB82', mark: { it: 'Te', en: 'De' } },
-  'History': { color: '#BFA27A', mark: { it: 'St', en: 'Hi' } },
-  'Geography': { color: '#86B5AA', mark: { it: 'Ge', en: 'Ge' } },
-  'Philosophy': { color: '#BC9CC0', mark: { it: 'Fl', en: 'Ph' } },
-  'Mathematics': { color: '#8DAFCB', mark: { it: 'Ma', en: 'Ma' } },
-  'Physics': { color: '#9EA3CF', mark: { it: 'Fs', en: 'Py' } },
-  'Chemistry': { color: '#8EBBA3', mark: { it: 'Ch', en: 'Ch' } },
-  'Natural Sciences': { color: '#9DBA8E', mark: { it: 'Sn', en: 'Ns' } },
-  'Computer Science': { color: '#86B6C2', mark: { it: 'If', en: 'Cs' } },
-  'Art & Art History': { color: '#CDA676', mark: { it: 'Ar', en: 'Ar' } },
-  'Music': { color: '#C493AC', mark: { it: 'Mu', en: 'Mu' } },
-  'Technology': { color: '#A6ADB6', mark: { it: 'Tc', en: 'Te' } },
-  'Law & Economics': { color: '#AFB77F', mark: { it: 'De', en: 'Le' } },
-  'Business': { color: '#C9AC74', mark: { it: 'Ea', en: 'Bu' } },
-  'Human Sciences': { color: '#C3A8C6', mark: { it: 'Su', en: 'Hs' } },
-  'Physical Education': { color: '#C79090', mark: { it: 'Sm', en: 'Pe' } },
-  'Religion': { color: '#CFC39C', mark: { it: 'Re', en: 'Re' } },
-  'Civic Education': { color: '#8DB8AE', mark: { it: 'Ec', en: 'Ce' } },
-  'Technical Subjects': { color: '#AFB5BC', mark: { it: 'Mt', en: 'Ts' } },
-  'Other': { color: '#A3A3A3', mark: { it: 'Al', en: 'Ot' } },
+  'Italian': { color: '#60A5FA', mark: { it: 'It', en: 'It' } },
+  'Latin': { color: '#C084FC', mark: { it: 'La', en: 'La' } },
+  'Ancient Greek': { color: '#A78BFA', mark: { it: 'Gr', en: 'Gr' } },
+  'English': { color: '#F472B6', mark: { it: 'In', en: 'En' } },
+  'French': { color: '#FB7185', mark: { it: 'Fr', en: 'Fr' } },
+  'Spanish': { color: '#F97316', mark: { it: 'Sp', en: 'Sp' } },
+  'German': { color: '#FACC15', mark: { it: 'Te', en: 'De' } },
+  'History': { color: '#D4AF37', mark: { it: 'St', en: 'Hi' } },
+  'Geography': { color: '#2DD4BF', mark: { it: 'Ge', en: 'Ge' } },
+  'Philosophy': { color: '#E879F9', mark: { it: 'Fl', en: 'Ph' } },
+  'Mathematics': { color: '#38BDF8', mark: { it: 'Ma', en: 'Ma' } },
+  'Physics': { color: '#818CF8', mark: { it: 'Fs', en: 'Py' } },
+  'Chemistry': { color: '#34D399', mark: { it: 'Ch', en: 'Ch' } },
+  'Natural Sciences': { color: '#4ADE80', mark: { it: 'Sn', en: 'Ns' } },
+  'Computer Science': { color: '#22D3EE', mark: { it: 'If', en: 'Cs' } },
+  'Art & Art History': { color: '#F59E0B', mark: { it: 'Ar', en: 'Ar' } },
+  'Music': { color: '#EC4899', mark: { it: 'Mu', en: 'Mu' } },
+  'Technology': { color: '#94A3B8', mark: { it: 'Tc', en: 'Te' } },
+  'Law & Economics': { color: '#A3E635', mark: { it: 'De', en: 'Le' } },
+  'Business': { color: '#FBBF24', mark: { it: 'Ea', en: 'Bu' } },
+  'Human Sciences': { color: '#F0ABFC', mark: { it: 'Su', en: 'Hs' } },
+  'Physical Education': { color: '#F87171', mark: { it: 'Sm', en: 'Pe' } },
+  'Religion': { color: '#FDE68A', mark: { it: 'Re', en: 'Re' } },
+  'Civic Education': { color: '#5EEAD4', mark: { it: 'Ec', en: 'Ce' } },
+  'Technical Subjects': { color: '#CBD5E1', mark: { it: 'Mt', en: 'Ts' } },
+  'Other': { color: '#9CA3AF', mark: { it: 'Al', en: 'Ot' } },
 };
 
-const FALLBACK: SubjectStyle = { color: '#A3A3A3', mark: { it: '·', en: '·' } };
+const FALLBACK: SubjectStyle = { color: '#9CA3AF', mark: { it: '·', en: '·' } };
 
 export function subjectStyle(subject?: string | null): SubjectStyle {
   return (subject && STYLES[subject]) || FALLBACK;

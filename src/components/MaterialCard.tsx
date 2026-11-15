@@ -8,6 +8,7 @@ import { Material } from '../types';
 import { auth, db } from '../firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { deleteDoc, updateDoc } from '../lib/firestoreWrites';
+import { motion, useMotionValue, useSpring, useMotionTemplate } from 'motion/react';
 import { getRank } from '../lib/ranks';
 import { cn } from '../lib/utils';
 import { firebaseErrorMessage, recordOpen, toggleSave } from '../lib/engagement';
@@ -95,6 +96,18 @@ export default function MaterialCard({
     onCardClick?.(material);
   };
 
+  // Spotlight effect
+  const mouseXRaw = useMotionValue(0);
+  const mouseYRaw = useMotionValue(0);
+  const mouseX = useSpring(mouseXRaw, { stiffness: 500, damping: 50 });
+  const mouseY = useSpring(mouseYRaw, { stiffness: 500, damping: 50 });
+  function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
+    const { left, top } = currentTarget.getBoundingClientRect();
+    mouseXRaw.set(clientX - left);
+    mouseYRaw.set(clientY - top);
+  }
+  const background = useMotionTemplate`radial-gradient(350px circle at ${mouseX}px ${mouseY}px, rgba(212, 175, 55, 0.1), transparent 80%)`;
+
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -174,17 +187,24 @@ export default function MaterialCard({
   const level = levelById(material.level);
 
   return (
-    <div
+    <motion.div
+      onMouseMove={handleMouseMove}
       onClick={handleContainerClick}
       draggable={canEdit && !isInTrash}
       onDragStart={onDragStart}
+      whileHover={{ y: -4 }}
       className={cn(
-        "glass-panel rounded-[1.25rem] p-4 sm:p-7 hover:bg-[#111] group flex flex-col h-full relative overflow-hidden hover:border-white/20 transition-colors duration-300 cursor-pointer select-none",
+        "glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-8 hover:bg-white/[0.08] group flex flex-col h-full relative overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] hover:border-white/30 transition-all duration-500 cursor-pointer select-none",
         isSelected && "ring-2 ring-luxury-gold bg-luxury-gold/5 border-luxury-gold/20"
       )}
     >
-      {/* Subject hairline; gold while selected */}
-      <div className="absolute inset-x-6 top-0 h-px" style={{ background: isSelected ? '#D4AF37' : subject ? subject.color : 'transparent', opacity: isSelected ? 1 : 0.7 }} />
+      {/* Subject colour stripe; gold while selected */}
+      <div className="absolute inset-x-0 top-0 h-1" style={{ background: isSelected ? '#D4AF37' : subject ? subject.color : 'transparent' }} />
+      <motion.div
+        className="pointer-events-none absolute -inset-px rounded-[2rem] opacity-0 transition duration-500 group-hover:opacity-100"
+        style={{ background }}
+      />
+      <div className="absolute -top-12 -right-12 w-24 h-24 bg-luxury-gold/5 rounded-full blur-2xl group-hover:bg-luxury-gold/20 transition-all duration-500 group-hover:scale-150"></div>
 
       <div className="flex items-start justify-between mb-3 sm:mb-6 relative z-10">
         <SubjectMark subject={material.subject} text={material.subject ? undefined : formatMark(material.type)} />
@@ -400,6 +420,6 @@ export default function MaterialCard({
         )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
