@@ -6,6 +6,7 @@ import RequestBoard from './components/RequestBoard';
 import LeagueBoard from './components/LeagueBoard';
 import FounderDashboard from './components/FounderDashboard';
 import InstallButton from './components/InstallButton';
+import InstallPrompt from './components/InstallPrompt';
 import CursorGlow from './components/CursorGlow';
 import UserAvatar from './components/UserAvatar';
 import OnboardingModal from './components/OnboardingModal';
@@ -18,7 +19,7 @@ import { getLanguage, onLanguageChange, setLanguage, Language } from './lib/i18n
 import { findSchoolById } from './lib/schools';
 import { cn } from './lib/utils';
 
-import { t } from './lib/i18n';
+import { t, tc } from './lib/i18n';
 type Tab = 'archive' | 'requests' | 'league' | 'personal' | 'trash' | 'dashboard';
 
 const TITLES: Record<Tab, string> = {
@@ -146,7 +147,7 @@ export default function App() {
                       isClickable
                     />
                   </button>
-                  <button onClick={logOut} className="text-white/40 hover:text-white transition-colors" title={t("Sign out")}>
+                  <button onClick={logOut} className="p-2 -m-2 text-white/40 hover:text-white transition-colors" title={t("Sign out")} aria-label={t("Sign out")}>
                     <LogOut className="h-5 w-5" />
                   </button>
                 </div>
@@ -223,11 +224,16 @@ export default function App() {
 
         {/* Phone tab bar */}
         <div className="md:hidden flex justify-center mb-6 relative z-20">
-          <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/10 w-full max-w-md">
+          {/* Icon above a short label, so up to five tabs fit a 320 px phone */}
+          <div className="flex items-stretch bg-white/5 rounded-[1.4rem] p-1 border border-white/10 w-full max-w-md">
             {visibleTabs.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn(tabClass(tab.id), 'flex-1 py-3 text-[9px] tracking-[0.08em]')}>
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(tabClass(tab.id), 'flex-1 min-w-0 flex-col !gap-1 py-2 px-0 !rounded-[1.1rem] text-[8.5px] tracking-[0.02em] leading-none')}
+              >
                 {tab.icon}
-                <span>{t(tab.label)}</span>
+                <span className="max-w-full truncate">{tc('short', tab.label)}</span>
               </button>
             ))}
           </div>
@@ -259,6 +265,8 @@ export default function App() {
           userRole={userRole}
         />
       )}
+
+      <InstallPrompt />
 
       {needsOnboarding && profile && <OnboardingModal profile={profile} mode="setup" invite={invite} />}
     </div>

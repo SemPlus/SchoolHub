@@ -818,7 +818,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   const archiveRoot = currentView === 'archive' && currentFolderId === null;
   const atRoot = currentFolderId === null && currentView !== 'trash';
   const shownFolders = currentView === 'personal' && currentFolderId === null && personalShow === 'saved' ? [] : sortedFolders;
-  const actionChip = 'flex items-center gap-2 px-4 py-3 bg-white/5 text-white/70 hover:text-white hover:bg-white/10 rounded-2xl border border-white/10 text-xs font-semibold transition-all';
+  const actionChip = 'flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3 bg-white/5 text-white/70 hover:text-white hover:bg-white/10 rounded-2xl border border-white/10 text-[11px] sm:text-xs font-semibold leading-tight text-center transition-all min-w-0';
 
   return (
     <div className="space-y-8 sm:space-y-10">
@@ -961,17 +961,17 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
         {/* Actions, always with a label */}
         {isAuthenticated && currentView !== 'trash' && (
-          <div className="flex flex-wrap gap-2">
+          <div className={cn('grid gap-2 sm:flex sm:flex-wrap', currentView === 'personal' ? 'grid-cols-3' : 'grid-cols-1')}>
             <button
               onClick={() => setIsUploadModalOpen(true)}
-              className="flex-1 sm:flex-none min-w-[11rem] flex items-center justify-center gap-2 px-5 py-3 bg-luxury-gold text-luxury-black rounded-2xl text-xs font-bold tracking-wide shadow-lg shadow-luxury-gold/20 hover:brightness-110 transition-all"
+              className="col-span-full sm:flex-none sm:min-w-[11rem] flex items-center justify-center gap-2 px-5 py-3 bg-luxury-gold text-luxury-black rounded-2xl text-xs font-bold tracking-wide shadow-lg shadow-luxury-gold/20 hover:brightness-110 transition-all"
             >
               <Plus className="w-4 h-4" />
               {currentView === 'archive' ? t("Share a material") : t("Add material")}
             </button>
             {currentView === 'archive' && currentFolderId === null && (
-              <button onClick={() => setIsCreateCollectionOpen(true)} className={actionChip}>
-                <Layers className="w-4 h-4" /> {isTeacher ? t("New collection or hand-in") : t("New collection")}
+              <button onClick={() => setIsCreateCollectionOpen(true)} className={cn(actionChip, '!flex-row !gap-2 !py-3')}>
+                <Layers className="w-4 h-4 shrink-0" /> {isTeacher ? t("New collection or hand-in") : t("New collection")}
               </button>
             )}
             {currentView === 'personal' && (

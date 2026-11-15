@@ -373,7 +373,7 @@ export default function MaterialCard({
           <div className="flex flex-col min-w-0">
             <button
               onClick={handleAuthorClickInternal}
-              className="text-[10px] uppercase tracking-widest text-white/60 font-medium hover:text-luxury-gold transition-colors text-left truncate"
+              className="py-2 -my-2 text-[10px] uppercase tracking-widest text-white/60 font-medium hover:text-luxury-gold transition-colors text-left truncate"
             >
               {material.authorName}
             </button>

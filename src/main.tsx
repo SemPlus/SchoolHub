@@ -1,5 +1,7 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
+// First: catches the browser's install offer before anything else renders.
+import './lib/install';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 import { AppDataProvider } from './context/AppData';
