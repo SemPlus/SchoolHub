@@ -214,7 +214,7 @@ interface RequestCardProps {
 }
 
 function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardProps) {
-  const { user, userRole } = useAppData();
+  const { user, userRole, ensureMaterials } = useAppData();
   const [answers, setAnswers] = useState<RequestAnswer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPicking, setIsPicking] = useState(false);
@@ -234,6 +234,11 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
     }, (err) => setError(firebaseErrorMessage(err, t("Could not load answers."))));
     return () => unsubscribe();
   }, [isExpanded, request.id]);
+
+  // Answers can point at materials from any school.
+  useEffect(() => {
+    if (answers.length) ensureMaterials(answers.map(a => a.materialId));
+  }, [answers, ensureMaterials]);
 
   const myMaterials = useMemo(() => {
     if (!user) return [];

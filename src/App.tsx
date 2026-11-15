@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { signInWithGoogle, logOut } from './firebase';
-import { BookOpen, LogOut, LogIn, Library, User as UserIcon, HandHelping, Trophy, LayoutDashboard, Eye } from 'lucide-react';
+import { BookOpen, LogOut, LogIn, Library, User as UserIcon, HandHelping, LayoutDashboard, Eye } from 'lucide-react';
 import { describeSimulation } from './lib/simulation';
 import MaterialList from './components/MaterialList';
 import RequestBoard from './components/RequestBoard';
-import LeagueBoard from './components/LeagueBoard';
 import FounderDashboard from './components/FounderDashboard';
 import InstallButton from './components/InstallButton';
 import InstallPrompt from './components/InstallPrompt';
@@ -19,14 +18,14 @@ import { readJoinInvite } from './lib/join';
 import { getLanguage, onLanguageChange, setLanguage, Language } from './lib/i18n';
 import { findSchoolById } from './lib/schools';
 import { cn } from './lib/utils';
+import { useUserStats } from './lib/userStats';
 
 import { t, tc } from './lib/i18n';
-type Tab = 'archive' | 'requests' | 'league' | 'personal' | 'trash' | 'dashboard';
+type Tab = 'archive' | 'requests' | 'personal' | 'trash' | 'dashboard';
 
 const TITLES: Record<Tab, string> = {
   archive: 'The Archive',
   requests: 'Requests',
-  league: 'The League',
   personal: 'My Space',
   trash: 'Trash',
   dashboard: 'Dashboard',
@@ -36,6 +35,10 @@ export default function App() {
   const { user, isAuthReady, profile, isProfileLoaded, userRole, getStats, isFounder, simulation, setSimulation } = useAppData();
   const [activeTab, setActiveTab] = useState<Tab>('archive');
   const [isOwnProfileOpen, setIsOwnProfileOpen] = useState(false);
+  // Impact from the loaded school is live; the full record also counts work elsewhere.
+  const loadedImpact = getStats(user?.uid).impact;
+  const fullStats = useUserStats(user?.uid, loadedImpact);
+  const myImpact = Math.max(loadedImpact, fullStats?.impact ?? 0);
   // Changing the language re-renders the app (no component here is memoised).
   const [language, setLanguageState] = useState<Language>(getLanguage());
   useEffect(() => {
@@ -81,7 +84,6 @@ export default function App() {
   const tabs: { id: Tab; label: string; icon: React.ReactNode; signedInOnly: boolean; adminOnly?: boolean }[] = [
     { id: 'archive', label: 'Archive', icon: <Library className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: false },
     { id: 'requests', label: 'Requests', icon: <HandHelping className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: false },
-    { id: 'league', label: 'League', icon: <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: false },
     { id: 'personal', label: 'My Space', icon: <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: true },
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: true, adminOnly: true },
   ];
@@ -96,7 +98,6 @@ export default function App() {
   );
 
   const needsOnboarding = !!user && isProfileLoaded && !!profile && !isProfileComplete(profile);
-  const myImpact = getStats(user?.uid).impact;
 
   return (
     <div className="min-h-screen bg-luxury-black font-sans text-white/90 selection:bg-luxury-gold/30 overflow-x-hidden">
@@ -258,8 +259,6 @@ export default function App() {
         <div className="relative z-10 bg-luxury-black pt-0 shadow-[0_-50px_100px_rgba(0,0,0,0.9)]">
           {activeTab === 'requests' ? (
             <RequestBoard />
-          ) : activeTab === 'league' ? (
-            <LeagueBoard />
           ) : activeTab === 'dashboard' ? (
             <FounderDashboard />
           ) : (

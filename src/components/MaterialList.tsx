@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { collection, query, onSnapshot, where, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, where, doc, serverTimestamp, getDoc, limit } from 'firebase/firestore';
 import { deleteDoc, updateDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
 import { Material, Folder } from '../types';
@@ -31,6 +31,7 @@ import { relevanceTier, worksIn } from '../lib/collections';
 import { kindsInUse } from '../lib/materialKinds';
 import { booksForClass, bookLabel, Textbook } from '../lib/textbooks';
 import { firebaseErrorMessage } from '../lib/engagement';
+import { matchesAllWords, searchToken } from '../lib/search';
 
 import { t, tc } from '../lib/i18n';
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -62,7 +63,7 @@ interface MaterialListProps {
 }
 
 export default function MaterialList({ userRole, view = 'archive', onViewChange }: MaterialListProps) {
-  const { user, profile, materials: allMaterials, isMaterialsLoading, materialsError, getStats } = useAppData();
+  const { user, profile, materials: allMaterials, isMaterialsLoading, materialsError, getStats, feed, loadMoreFeed, fetchMaterials, ensureMaterials } = useAppData();
   const uid = user?.uid;
   const isAuthenticated = !!user;
 
@@ -165,6 +166,33 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
   // ---------------------------------------------------------------- data
 
+  // Only the user's own school (and their own work) loads live. Everything
+  // else is fetched when a view needs it.
+  const showsEverything = currentView === 'archive' && currentFolderId === null && !bookFilter && !schoolFilter && effectiveScope === 'all';
+  useEffect(() => {
+    if (showsEverything && !feed.started) loadMoreFeed();
+  }, [showsEverything, feed.started, loadMoreFeed]);
+  useEffect(() => {
+    if (schoolFilter) fetchMaterials(`school:${schoolFilter.id}`, where('schoolId', '==', schoolFilter.id));
+  }, [schoolFilter?.id, fetchMaterials]);
+  useEffect(() => {
+    if (bookFilter) fetchMaterials(`book:${bookFilter}`, where('isbn', '==', bookFilter));
+  }, [bookFilter, fetchMaterials]);
+  useEffect(() => {
+    if (currentFolderId) fetchMaterials(`folder:${currentFolderId}`, where('folderId', '==', currentFolderId));
+  }, [currentFolderId, fetchMaterials]);
+
+  // Search: the longest word typed goes to the database (word-prefix index),
+  // then every word filters what is loaded.
+  const [searchQueryToken, setSearchQueryToken] = useState<string | null>(null);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQueryToken(searchToken(searchTerm)), 350);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+  useEffect(() => {
+    if (searchQueryToken) fetchMaterials(`search:${searchQueryToken}`, where('keywords', 'array-contains', searchQueryToken), limit(100));
+  }, [searchQueryToken, fetchMaterials]);
+
   // Deep link: ?material=<id>
   useEffect(() => {
     const materialId = new URLSearchParams(window.location.search).get('material');
@@ -190,6 +218,11 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     return () => unsubscribe();
   }, [uid]);
 
+  // Saved materials can come from any school.
+  useEffect(() => {
+    if (userSaves.size) ensureMaterials(userSaves);
+  }, [userSaves, ensureMaterials]);
+
   useEffect(() => {
     setCurrentView(view);
   }, [view]);
@@ -206,16 +239,21 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     clearSelection();
   }, [searchTerm, filterType, effectiveScope]);
 
-  // Folders. Everything is visible to everyone, so the archive lists every
-  // folder at the current level.
+  // Folders. Everything is visible to everyone; at the top of the archive the
+  // list is the chosen school's (or the user's own), not every school's.
   useEffect(() => {
     let foldersQuery = null;
     if (currentView === 'trash') {
       if (uid) foldersQuery = query(collection(db, 'folders'), where('authorId', '==', uid));
     } else if (currentView === 'personal') {
       if (uid) foldersQuery = query(collection(db, 'folders'), where('authorId', '==', uid), where('parentId', '==', currentFolderId));
-    } else {
+    } else if (currentFolderId !== null) {
       foldersQuery = query(collection(db, 'folders'), where('parentId', '==', currentFolderId));
+    } else {
+      const folderSchool = schoolFilter?.id || profile?.schoolId;
+      foldersQuery = folderSchool
+        ? query(collection(db, 'folders'), where('parentId', '==', null), where('schoolId', '==', folderSchool))
+        : query(collection(db, 'folders'), where('parentId', '==', null), limit(60));
     }
 
     if (!foldersQuery) {
@@ -242,7 +280,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       setErrorStatus(firebaseErrorMessage(error, t("Could not load folders.")));
     });
     return () => unsubscribe();
-  }, [currentFolderId, currentView, uid]);
+  }, [currentFolderId, currentView, uid, schoolFilter?.id, profile?.schoolId]);
 
   useEffect(() => {
     if (materialsError) setErrorStatus(t("Could not load materials: {0}", materialsError));
@@ -319,6 +357,12 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     return () => { cancelled = true; };
   }, [profile?.schoolId, bookClassLabel]);
 
+  // Materials for the class's books, from every school.
+  useEffect(() => {
+    const isbns = myBooks.map(b => b.isbn).slice(0, 30);
+    if (isbns.length) fetchMaterials(`books:${isbns.join(',')}`, where('isbn', 'in', isbns));
+  }, [myBooks, fetchMaterials]);
+
   /** The class's books that already have materials somewhere in Italy. */
   const myBooksWithMaterials = useMemo(() => {
     const counts = new Map<string, number>();
@@ -337,9 +381,8 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   };
 
   const sortedFolders = useMemo(() => {
-    const term = searchTerm.toLowerCase();
     const filtered = folders.filter(folder => {
-      if (!folder.name.toLowerCase().includes(term)) return false;
+      if (!matchesAllWords(searchTerm, folder.name)) return false;
       if (schoolFilter && folder.schoolId !== schoolFilter.id) return false;
       // Folders are not tied to a grade or subject, so hide them while those filters are on.
       if (yearFilter || subjectFilter) return false;
@@ -354,15 +397,11 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   }, [folders, searchTerm, sortBy, schoolFilter, yearFilter, subjectFilter]);
 
   const sortedMaterials = useMemo(() => {
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.trim();
     const filtered = materials.filter(m => {
-      const matchesSearch = !term ||
-        m.title.toLowerCase().includes(term) ||
-        (m.description || '').toLowerCase().includes(term) ||
-        (m.subject || '').toLowerCase().includes(term) ||
-        (m.schoolName || '').toLowerCase().includes(term) ||
-        m.tags.some(tag => tag.toLowerCase().includes(term));
-      if (!matchesSearch) return false;
+      if (term && !matchesAllWords(term, [
+        m.title, m.description, m.subject, m.subject ? t(m.subject) : '', m.schoolName, m.className, m.bookTitle, ...m.tags,
+      ].filter(Boolean).join(' '))) return false;
       // In the archive, works that belong to a collection are shown inside
       // its window instead of one by one (unless searching).
       if (currentView === 'archive' && currentFolderId === null && !term && !bookFilter && m.collectionId && liveCollectionIds.has(m.collectionId)) return false;
@@ -394,10 +433,9 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
   // Collections shown at the top of the archive, my class first.
   const visibleCollections = useMemo(() => {
     if (currentView !== 'archive' || currentFolderId !== null) return [];
-    const term = searchTerm.toLowerCase();
     return collections
       .filter(c => inScope(c))
-      .filter(c => !term || c.title.toLowerCase().includes(term) || (c.description || '').toLowerCase().includes(term))
+      .filter(c => matchesAllWords(searchTerm, `${c.title} ${c.description || ''}`))
       .filter(c => !subjectFilter || c.subject === subjectFilter)
       .filter(c => !schoolFilter || c.schoolId === schoolFilter.id)
       .filter(c => !yearFilter || String(c.classYear || '') === yearFilter)
@@ -1238,6 +1276,18 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
           ))}
         </AnimatePresence>
         </div>
+
+        {showsEverything && feed.started && (feed.hasMore || feed.loading) && (
+          <div className="flex justify-center pt-2">
+            <button
+              onClick={loadMoreFeed}
+              disabled={feed.loading}
+              className="px-6 py-3 rounded-full border border-white/15 text-xs text-white/70 hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
+            >
+              {feed.loading ? t("Loading…") : t("Load more from other schools")}
+            </button>
+          </div>
+        )}
       </div>
 
       <AnimatePresence>

@@ -6,7 +6,8 @@ import {
 import { format } from '../lib/i18n';
 import { Material, User as UserType } from '../types';
 import { getRank } from '../lib/ranks';
-import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { useUserStats } from '../lib/userStats';
+import { doc, getDoc, serverTimestamp, where } from 'firebase/firestore';
 import { updateDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
 import { cn } from '../lib/utils';
@@ -43,7 +44,7 @@ interface MaterialDetailModalProps {
 export default function MaterialDetailModal({
   material, isOpen, onClose, onAuthorClick, onEditClick, onCollectionClick, onImprove, onOpenMaterial, authorImpact = 0, userRole, isSaved = false, level = 1,
 }: MaterialDetailModalProps) {
-  const { profile, collections, materials, user: viewer } = useAppData();
+  const { profile, collections, materials, user: viewer, ensureMaterials, ensureCollection, fetchMaterials } = useAppData();
   const [authorProfile, setAuthorProfile] = React.useState<UserType | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -65,6 +66,15 @@ export default function MaterialDetailModal({
     return () => { cancelled = true; };
   }, [isOpen, material?.authorId]);
 
+  // The original, its improvements and its collection may be at another school.
+  React.useEffect(() => {
+    if (!isOpen || !material) return;
+    if (material.improvesId) ensureMaterials([material.improvesId]);
+    if (material.collectionId) ensureCollection(material.collectionId);
+    fetchMaterials(`improves:${material.id}`, where('improvesId', '==', material.id));
+  }, [isOpen, material?.id, material?.improvesId, material?.collectionId]);
+  const authorStats = useUserStats(isOpen ? material?.authorId : null);
+
   const handleClose = () => {
     // Drop a ?material= deep link from the URL.
     const url = new URL(window.location.href);
@@ -83,7 +93,7 @@ export default function MaterialDetailModal({
   const canEdit = isOwner || isAdmin;
   // Teachers verify materials from their own school, never their own uploads.
   const canVerify = !!uid && !isOwner && (isAdmin || (userRole === 'teacher' && !!profile?.schoolId && profile.schoolId === material.schoolId));
-  const rank = getRank(authorImpact);
+  const rank = getRank(Math.max(authorImpact, authorStats?.impact ?? 0));
   const isExternalLink = material.type === 'link' || material.type === 'canva';
   const linkWarning = linkStatusLabel(material.linkStatus);
   const preview = previewUrlFor(material.url);

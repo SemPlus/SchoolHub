@@ -10,6 +10,7 @@ import { updateDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { getNextRank, getRank } from '../lib/ranks';
+import { useUserStats } from '../lib/userStats';
 import { getEarnedBadges } from '../lib/badges';
 import { IMPACT_POINTS } from '../lib/stats';
 import { firebaseErrorMessage, recordOpen } from '../lib/engagement';
@@ -39,7 +40,7 @@ interface AuthorProfileModalProps {
 }
 
 export default function AuthorProfileModal({ isOpen, onClose, authorId, authorName, authorPhotoUrl, onMaterialClick, onEditClick, userRole }: AuthorProfileModalProps) {
-  const { materials, getStats, profile: myProfile, user: viewer } = useAppData();
+  const { materials, getStats, fetchMaterials, profile: myProfile, user: viewer } = useAppData();
   const [authorProfile, setAuthorProfile] = React.useState<User | null>(null);
   const [folders, setFolders] = React.useState<Folder[]>([]);
   const [currentFolderId, setCurrentFolderId] = React.useState<string | null>(null);
@@ -49,7 +50,13 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
   const [roleBusy, setRoleBusy] = React.useState(false);
   const [isPosterOpen, setIsPosterOpen] = React.useState(false);
 
-  const stats = getStats(authorId);
+  // Their materials may be at another school, which is not loaded.
+  React.useEffect(() => {
+    if (isOpen && authorId) fetchMaterials(`author:${authorId}`, where('authorId', '==', authorId));
+  }, [isOpen, authorId, fetchMaterials]);
+  const loadedStats = getStats(authorId);
+  const fullStats = useUserStats(isOpen ? authorId : null, loadedStats.impact);
+  const stats = fullStats && fullStats.impact >= loadedStats.impact ? fullStats : loadedStats;
   const rank = getRank(stats.impact);
   const nextRank = getNextRank(stats.impact);
   const earnedBadges = getEarnedBadges(stats);

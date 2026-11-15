@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, getDocsFromServer } from 'firebase/firestore';
-import { LayoutDashboard, Users, FileText, School, Layers, AlertTriangle, UserX, HandHelping, Activity, RefreshCw } from 'lucide-react';
+import { collection, doc, getDocsFromServer } from 'firebase/firestore';
+import { LayoutDashboard, Users, FileText, School, Layers, AlertTriangle, UserX, HandHelping, Activity, RefreshCw, Search } from 'lucide-react';
 import { format, formatDistanceToNow, t } from '../lib/i18n';
 import { db } from '../firebase';
-import type { User } from '../types';
-import { useAppData } from '../context/AppData';
+import type { Collection, Material, MaterialRequest, User } from '../types';
 import { toDate } from '../lib/utils';
+import { mapCollectionDoc, mapMaterialDoc, mapRequestDoc } from '../lib/mappers';
+import { keywordsFor, keywordsStale } from '../lib/search';
+import { updateDoc } from '../lib/firestoreWrites';
 import PendingTeachers from './PendingTeachers';
 import ViewAsPanel from './ViewAsPanel';
 import WeeklyBars, { countByWeek, lastWeeks, weekStart } from './dashboard/WeeklyBars';
@@ -19,7 +21,11 @@ interface ActivityEvent { userId: string; at: Date | null }
 
 /** Founder-only overview: growth, the sign-up funnel, schools, content and demand. */
 export default function FounderDashboard() {
-  const { materials, collections, requests } = useAppData();
+  // The app only keeps one school loaded; the dashboard reads every school.
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [requests, setRequests] = useState<MaterialRequest[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [indexing, setIndexing] = useState<{ done: number; failed: number; total: number } | null>(null);
   const [users, setUsers] = useState<DashboardUser[]>([]);
   const [opens, setOpens] = useState<ActivityEvent[]>([]);
   const [saves, setSaves] = useState<ActivityEvent[]>([]);
@@ -34,11 +40,17 @@ export default function FounderDashboard() {
   // client when they are started and stopped quickly.
   const load = async () => {
     setLoading(true);
-    const [u, o, s] = await Promise.allSettled([
+    const [u, o, s, m, r, c] = await Promise.allSettled([
       getDocsFromServer(collection(db, 'users')),
       getDocsFromServer(collection(db, 'opens')),
       getDocsFromServer(collection(db, 'saves')),
+      getDocsFromServer(collection(db, 'materials')),
+      getDocsFromServer(collection(db, 'requests')),
+      getDocsFromServer(collection(db, 'collections')),
     ]);
+    if (m.status === 'fulfilled') setMaterials(m.value.docs.map(d => mapMaterialDoc(d.id, d.data())));
+    if (r.status === 'fulfilled') setRequests(r.value.docs.map(d => mapRequestDoc(d.id, d.data())));
+    if (c.status === 'fulfilled') setCollections(c.value.docs.map(d => mapCollectionDoc(d.id, d.data())).filter(x => !x.isDeleted));
     if (u.status === 'fulfilled') {
       setUsers(u.value.docs.map(d => {
         const data = d.data() as any;
@@ -62,6 +74,25 @@ export default function FounderDashboard() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Materials shared before search across schools existed have no keywords.
+  const unindexed = useMemo(() => materials.filter(m => keywordsStale(m)), [materials]);
+  const rebuildIndex = async () => {
+    const list = unindexed;
+    let done = 0;
+    let failed = 0;
+    setIndexing({ done, failed, total: list.length });
+    for (let i = 0; i < list.length; i += 20) {
+      const results = await Promise.allSettled(list.slice(i, i + 20).map(m =>
+        updateDoc(doc(db, 'materials', m.id), { keywords: keywordsFor(m) })));
+      for (const result of results) {
+        if (result.status === 'fulfilled') done += 1;
+        else { failed += 1; console.warn('Could not index material:', result.reason); }
+      }
+      setIndexing({ done, failed, total: list.length });
+    }
+    await load();
+  };
 
   const data = useMemo(() => {
     const now = Date.now();
@@ -247,6 +278,26 @@ export default function FounderDashboard() {
           {tile(<AlertTriangle className="w-3.5 h-3.5" />, t("Broken or private links"), data.broken.length)}
           {tile(<HandHelping className="w-3.5 h-3.5" />, t("Materials without subject"), s.withoutSubject)}
         </div>
+
+        {(unindexed.length > 0 || indexing) && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-white/10 p-4">
+            <Search className="w-4 h-4 text-white/40 shrink-0" />
+            <p className="flex-1 text-xs text-white/60">
+              {indexing
+                ? t("Search index: {0} of {1} done", indexing.done, indexing.total) + (indexing.failed ? ' · ' + t("{0} failed", indexing.failed) : '')
+                : t("{0} materials cannot be found by search from other schools yet.", unindexed.length)}
+            </p>
+            {unindexed.length > 0 && (
+              <button
+                onClick={rebuildIndex}
+                disabled={!!indexing && indexing.done + indexing.failed < indexing.total}
+                className="shrink-0 px-4 py-2.5 rounded-full border border-white/15 text-xs text-white/80 hover:text-white disabled:opacity-50"
+              >
+                {t("Update search index")}
+              </button>
+            )}
+          </div>
+        )}
 
         <PendingTeachers />
       </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link as LinkIcon } from 'lucide-react';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { updateDoc } from '../lib/firestoreWrites';
+import { keywordsFor } from '../lib/search';
 import { db, auth } from '../firebase';
 import { Material, MaterialType } from '../types';
 import Dropdown from './Dropdown';
@@ -102,6 +103,13 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
         level: level || null,
         isbn: book?.isbn || null,
         bookTitle: book?.title || null,
+        keywords: keywordsFor({
+          title: title.trim(),
+          tags: tagList,
+          subject,
+          bookTitle: book?.title || null,
+          className: hasClass ? formatClassName(classYear, classSection) : null,
+        }),
         // A new link has not been checked, and a teacher's verification no
         // longer applies to it.
         ...(urlChanged ? { linkStatus: null, verifiedBy: null, verifiedByName: null, verifiedAt: null } : {}),

@@ -62,6 +62,8 @@ export interface Material {
   /** Textbook this material goes with (ISBN-13) and its title. */
   isbn?: string | null;
   bookTitle?: string | null;
+  /** Word prefixes for search across schools (see lib/search). */
+  keywords?: string[] | null;
 }
 
 /**

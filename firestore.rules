@@ -109,7 +109,9 @@ service cloud.firestore {
         optString(data, 'level', 20) &&
         optString(data, 'improvesId', 128) &&
         (!('isbn' in data) || data.isbn == null || (data.isbn is string && data.isbn.matches('^97[89][0-9]{10}$'))) &&
-        optString(data, 'bookTitle', 200);
+        optString(data, 'bookTitle', 200) &&
+        // Word prefixes for search (lib/search.ts).
+        (!('keywords' in data) || data.keywords == null || (data.keywords is list && data.keywords.size() <= 300));
     }
 
     function isValidFolderData(data) {

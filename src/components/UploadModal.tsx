@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link as LinkIcon, ChevronDown, Plus } from 'lucide-react';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { addDoc } from '../lib/firestoreWrites';
+import { keywordsFor } from '../lib/search';
 import { db, auth } from '../firebase';
 import { Material, MaterialType } from '../types';
 import Dropdown from './Dropdown';
@@ -191,6 +192,13 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
         className: hasClass ? formatClassName(classYear, classSection) : null,
         classId: hasClass ? classIdFor(school?.id, classYear, classSection) : null,
         subject,
+        keywords: keywordsFor({
+          title: title.trim(),
+          tags: tagList,
+          subject,
+          bookTitle: book?.title || null,
+          className: hasClass ? formatClassName(classYear, classSection) : null,
+        }),
       });
       try { window.localStorage.setItem(LAST_SUBJECT_KEY, subject); } catch { /* ignore */ }
       handleClose();

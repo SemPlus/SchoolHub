@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink, Info, Layers, Plus, Pencil, Trash2, Users, CalendarClock, Clock, Trophy } from 'lucide-react';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, where } from 'firebase/firestore';
 import { updateDoc } from '../lib/firestoreWrites';
 import { format, formatDistanceToNow } from '../lib/i18n';
 import { db, auth } from '../firebase';
@@ -30,7 +30,11 @@ interface CollectionModalProps {
  * with a preview and next/previous buttons to move between them.
  */
 export default function CollectionModal({ collection, isOpen, onClose, onAddWork, onShowDetails }: CollectionModalProps) {
-  const { materials, user, userRole } = useAppData();
+  const { materials, user, userRole, fetchMaterials } = useAppData();
+  // Works by people at other schools are not loaded until the collection opens.
+  useEffect(() => {
+    if (collection) fetchMaterials(`collection:${collection.id}`, where('collectionId', '==', collection.id));
+  }, [collection?.id, fetchMaterials]);
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
 
