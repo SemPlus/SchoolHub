@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, ExternalLink, Info, Layers, Plus, Pencil, Trash2, Users, CalendarClock, Clock, Trophy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Info, Layers, Plus, Pencil, Trash2, Users, CalendarClock, Clock, Trophy, Lock, MinusCircle, RotateCcw } from 'lucide-react';
 import { doc, serverTimestamp, where } from 'firebase/firestore';
 import { updateDoc } from '../lib/firestoreWrites';
 import { format, formatDistanceToNow } from '../lib/i18n';
@@ -15,6 +15,7 @@ import Modal from './Modal';
 import SubjectBadge from './SubjectBadge';
 import WorkFeedback from './WorkFeedback';
 import { announceWinner, castVote, leadingWork, useCollectionVotes, withdrawVote } from '../lib/useCollectionVotes';
+import { authorsLine, isAuthorOf, isClosed, isLot, RETIRE_AFTER_MS, retireDate } from '../lib/lots';
 
 import { t } from '../lib/i18n';
 interface CollectionModalProps {
@@ -73,7 +74,16 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
   const lateCount = works.filter(w => isLate(w, collection)).length;
   const iHandedIn = !!user && works.some(w => w.authorId === user.uid);
   const winner = collection.winnerMaterialId ? works.find(w => w.id === collection.winnerMaterialId) : undefined;
-  const votingOpen = !collection.winnerMaterialId && works.length >= 2;
+  // Lots: the teacher decides. "same" lots take votes as a suggestion; "different" lots have none.
+  const lot = isLot(collection);
+  const lotType = collection.lotType || 'same';
+  const closed = isClosed(collection);
+  const retireAt = retireDate(collection);
+  const canChangeLot = canManage && (!retireAt || Date.now() < retireAt.getTime());
+  const removed = new Set(collection.removedMaterialIds || []);
+  const votingOpen = lot
+    ? lotType === 'same' && !closed && works.length >= 2
+    : !collection.winnerMaterialId && works.length >= 2;
   const leader = leadingWork(works, counts);
   const totalVotes = [...counts.values()].reduce((a, b) => a + b, 0);
 
@@ -100,6 +110,40 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
     } finally {
       setVoteBusy(false);
     }
+  };
+
+  const updateLot = async (fields: Record<string, unknown>, failure: string) => {
+    setBusy(true);
+    try {
+      await updateDoc(doc(db, 'collections', collection.id), { ...fields, updatedAt: serverTimestamp() });
+    } catch (error) {
+      alert(firebaseErrorMessage(error, failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const nextRetire = () => format(new Date((collection.closedAt?.getTime() ?? Date.now()) + RETIRE_AFTER_MS), 'd MMM');
+
+  const chooseBest = (work: Material) => {
+    if (!confirm(t("Choose \"{0}\" as the best work? On {1} the other works leave the archive; their authors keep them in My Space.", work.title, nextRetire()))) return;
+    updateLot({
+      winnerMaterialId: work.id,
+      winnerAuthorId: work.authorId,
+      winnerAuthorName: work.authorName.slice(0, 100),
+      ...(collection.closedAt ? {} : { closedAt: serverTimestamp() }),
+    }, t("Could not choose the best work."));
+  };
+
+  const toggleRemoved = (work: Material) => {
+    const next = removed.has(work.id) ? [...removed].filter(id => id !== work.id) : [...removed, work.id];
+    updateLot({ removedMaterialIds: next }, t("Could not update the lot."));
+  };
+
+  const closeLot = () => {
+    const kept = works.filter(w => !removed.has(w.id)).length;
+    if (!confirm(t("Close the lot? {0} works pass to the next classes; on {1} the others leave the archive.", kept, nextRetire()))) return;
+    updateLot({ closedAt: serverTimestamp() }, t("Could not close the lot."));
   };
 
   const rename = async () => {
@@ -139,7 +183,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
       bare
       footer={
         <div className="flex flex-wrap gap-2">
-          {user && (
+          {user && !closed && (
             <button
               onClick={() => onAddWork(collection)}
               className="flex-1 min-w-[10rem] flex items-center justify-center gap-2 py-3.5 rounded-full bg-luxury-gold text-luxury-black text-xs font-bold uppercase tracking-widest"
@@ -181,7 +225,39 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
         </div>
       )}
 
-      {(winner || (canManage && votingOpen)) && (
+      {lot && (
+        <div className="px-5 sm:px-6 pt-4">
+          <div className={cn('flex flex-wrap items-center gap-3 p-3 rounded-2xl border text-sm',
+            closed ? 'border-luxury-gold/30 bg-luxury-gold/5' : 'border-white/10 bg-white/[0.03]')}>
+            {closed ? <Lock className="w-4 h-4 text-luxury-gold shrink-0" /> : <Trophy className="w-4 h-4 text-amber-300 shrink-0" />}
+            <span className="flex-1 min-w-[12rem] text-white/75">
+              {!closed
+                ? (lotType === 'same'
+                    ? t("Lot · same topic. The teacher chooses the best work: only that one passes to the next classes.")
+                    : t("Lot · different topics. Every work passes to the next classes, except the ones the teacher takes out."))
+                : retireAt && Date.now() < retireAt.getTime()
+                  ? t("Lot closed. On {0} the works not kept leave the archive; their authors keep them.", format(retireAt, 'd MMM'))
+                  : t("Lot closed: only the kept works pass to the next classes.")}
+              {canManage && votingOpen && totalVotes > 0 && (
+                <span className="block text-xs text-white/45 mt-1">
+                  {t("Class suggestion: {0}", totalVotes === 1 ? t('1 vote so far') : t('{0} votes so far', totalVotes))}{leader ? t(" · leading: {0}", leader.title) : ''}
+                </span>
+              )}
+            </span>
+            {canManage && lotType === 'different' && !closed && works.length > 0 && (
+              <button
+                onClick={closeLot}
+                disabled={busy}
+                className="px-4 py-2 rounded-full bg-luxury-gold text-luxury-black text-[10px] uppercase tracking-widest font-bold disabled:opacity-30"
+              >
+                {t("Close lot")}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {(winner || (!lot && canManage && votingOpen)) && (
         <div className="px-5 sm:px-6 pt-4">
           {winner ? (
             <button
@@ -233,7 +309,10 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                 >
                   <p className="text-[9px] uppercase tracking-widest text-white/40 mb-1">{i + 1} / {works.length}</p>
                   <p className="text-sm text-white line-clamp-2">{work.title}</p>
-                  <p className="text-[10px] text-white/40 truncate mt-1">{work.authorName}</p>
+                  <p className="text-[10px] text-white/40 truncate mt-1">{authorsLine(work, t("and"))}</p>
+                  {removed.has(work.id) && (
+                    <span className="inline-flex items-center gap-1 mt-1 mr-2 text-[9px] uppercase tracking-widest text-white/40"><MinusCircle className="w-3 h-3" /> {t("Taken out")}</span>
+                  )}
                   {(work.id === collection.winnerMaterialId || (counts.get(work.id) || 0) > 0) && (
                     <span className="inline-flex items-center gap-1 mt-1 mr-2 text-[9px] uppercase tracking-widest text-amber-300">
                       <Trophy className="w-3 h-3" /> {work.id === collection.winnerMaterialId ? t("Best") : counts.get(work.id)}
@@ -254,7 +333,7 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                 <div className="min-w-0">
                   <h4 className="text-xl sm:text-2xl font-serif text-white leading-tight">{current.title}</h4>
                   <p className="text-[10px] uppercase tracking-widest text-white/40 mt-1">
-                    {current.authorName} · {formatDistanceToNow(current.createdAt, { addSuffix: true })}
+                    {authorsLine(current, t("and"))} · {formatDistanceToNow(current.createdAt, { addSuffix: true })}
                     {isLate(current, collection) && <span className="text-red-300"> {t(" · handed in late")}</span>}
                   </p>
                 </div>
@@ -316,7 +395,32 @@ export default function CollectionModal({ collection, isOpen, onClose, onAddWork
                 </button>
               </div>
 
-              {votingOpen && user && user.uid !== current.authorId && (
+              {lot && canChangeLot && lotType === 'same' && works.length > 0 && (
+                <button
+                  onClick={() => chooseBest(current)}
+                  disabled={busy || current.id === collection.winnerMaterialId}
+                  className={cn(
+                    'w-full flex items-center justify-center gap-2 py-3 rounded-full border text-xs font-bold uppercase tracking-widest transition-all',
+                    current.id === collection.winnerMaterialId ? 'border-luxury-gold bg-luxury-gold/15 text-luxury-gold' : 'border-luxury-gold/40 text-luxury-gold hover:bg-luxury-gold/10'
+                  )}
+                >
+                  <Trophy className="w-4 h-4" />
+                  {current.id === collection.winnerMaterialId ? t("Chosen as the best work") : closed ? t("Choose this one instead") : t("Choose as the best work")}
+                </button>
+              )}
+
+              {lot && canChangeLot && lotType === 'different' && (
+                <button
+                  onClick={() => toggleRemoved(current)}
+                  disabled={busy}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-full border border-white/10 bg-white/5 text-white/70 hover:text-white text-xs font-bold uppercase tracking-widest"
+                >
+                  {removed.has(current.id) ? <RotateCcw className="w-4 h-4" /> : <MinusCircle className="w-4 h-4" />}
+                  {removed.has(current.id) ? t("Put back in the lot") : t("Take out of the lot")}
+                </button>
+              )}
+
+              {votingOpen && user && !isAuthorOf(current, user.uid) && (
                 <button
                   onClick={() => vote(current)}
                   disabled={voteBusy}

@@ -10,6 +10,7 @@ import { formatSchoolYear, schoolYearStart } from '../lib/schoolYear';
 import { worksIn } from '../lib/collections';
 import { isActive, loadActivation, parseAulaPath, presentUrlFor, recordAulaVisit } from '../lib/aula';
 import { matchesAllWords, searchToken } from '../lib/search';
+import { authorsLine, isClosed, isLot, keptWorks, retiredMaterialIds } from '../lib/lots';
 import { subjectStyle, withAlpha } from '../lib/subjects';
 import { format, t } from '../lib/i18n';
 import { cn } from '../lib/utils';
@@ -86,8 +87,11 @@ export default function ClassroomMode() {
     if (!target) return null;
     const isClass = (x: { classYear?: number | null; classSection?: string | null }) =>
       x.classYear === target.classYear && x.classSection === target.classSection;
+    // Lot works not kept have left the archive.
+    const retired = retiredMaterialIds(collections, materials);
+    const visible = materials.filter(m => !retired.has(m.id));
     const lotOf = (c: Collection): Lot => {
-      const works = worksIn(c.id, materials);
+      const works = worksIn(c.id, visible);
       const last = works.reduce((max, w) => (w.createdAt > max ? w.createdAt : max), c.createdAt);
       return { collection: c, works, lastActivity: last };
     };
@@ -98,15 +102,20 @@ export default function ClassroomMode() {
       .map(lotOf)
       .sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
 
-    // Best works of earlier years for the same grade (any section): only the winners are inherited.
+    // Earlier years, same grade (any section): closed lots pass on what was kept;
+    // older collections (before lots) pass on their best work.
     const inherited = collections
-      .filter(c => c.classYear === target.classYear && schoolYearStart(c.createdAt) < year && c.winnerMaterialId)
-      .map(c => ({ collection: c, work: materials.find(m => m.id === c.winnerMaterialId) }))
-      .filter((x): x is { collection: Collection; work: Material } => !!x.work)
+      .filter(c => c.classYear === target.classYear && schoolYearStart(c.createdAt) < year)
+      .flatMap(c => {
+        const works = isLot(c)
+          ? (isClosed(c) ? keptWorks(c, worksIn(c.id, visible)) : [])
+          : visible.filter(m => m.id === c.winnerMaterialId);
+        return works.map(work => ({ collection: c, work }));
+      })
       .sort((a, b) => b.collection.createdAt.getTime() - a.collection.createdAt.getTime());
 
     // Class materials of this year that are not part of a lot.
-    const loose = materials
+    const loose = visible
       .filter(m => isClass(m) && !m.collectionId && schoolYearStart(m.createdAt) === year)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
@@ -120,7 +129,7 @@ export default function ClassroomMode() {
     inherited.forEach(i => touch(i.collection.subject, new Date(0)));
     const subjects = [...activity.entries()].sort((a, b) => b[1] - a[1]).map(([s]) => s);
 
-    return { lots, inherited, loose, subjects };
+    return { lots, inherited, loose, subjects, visible, retired };
   }, [target, materials, collections, year]);
 
   // Without a timetable, open the subject of the most recently active lot.
@@ -189,7 +198,7 @@ export default function ClassroomMode() {
             );
           })}
           <div className="w-full lg:w-auto lg:ml-auto">
-            <SearchEverywhere target={target!} materials={materials} />
+            <SearchEverywhere target={target!} materials={data?.visible ?? materials} retired={data?.retired} />
           </div>
         </div>
 
@@ -209,7 +218,7 @@ export default function ClassroomMode() {
                   <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
                     <div className="min-w-0">
                       <p className={label}>
-                        {lot.collection.winnerMaterialId ? t("Lot closed") : t("Current lot")}
+                        {lot.collection.winnerMaterialId || isClosed(lot.collection) ? t("Lot closed") : t("Current lot")}
                         {' · '}{lot.works.length === 1 ? t('1 work') : t('{0} works', lot.works.length)}
                         {lot.collection.dueAt ? ` · ${t("due {0}", format(lot.collection.dueAt, 'd MMM'))}` : ''}
                       </p>
@@ -233,7 +242,7 @@ export default function ClassroomMode() {
                     {lot.works.map(w => (
                       <WorkTile key={w.id} work={w} chosen={w.id === lot.collection.winnerMaterialId} />
                     ))}
-                    {!lot.collection.winnerMaterialId && <AddFromPhone collectionId={lot.collection.id} />}
+                    {!lot.collection.winnerMaterialId && !isClosed(lot.collection) && <AddFromPhone collectionId={lot.collection.id} />}
                   </div>
                 </>
               ) : (
@@ -296,7 +305,7 @@ function WorkTile({ work, chosen = false, kicker }: { work: Material; chosen?: b
       )}
       <p className="font-serif text-2xl sm:text-[1.7rem] text-white leading-snug line-clamp-3">{work.title}</p>
       <p className="text-sm text-white/45 truncate">
-        {work.authorName}
+        {authorsLine(work, t("and"))}
         {work.subject && <span style={{ color }}> · {t(work.subject)}</span>}
       </p>
       <span className="mt-auto self-start flex items-center gap-2 px-4 py-2 rounded-full border border-luxury-gold/50 text-luxury-gold text-[11px] uppercase tracking-[0.2em] group-hover:bg-luxury-gold group-hover:text-luxury-black transition-colors">
@@ -323,7 +332,7 @@ function AddFromPhone({ collectionId }: { collectionId: string }) {
 }
 
 /** Search in this school first, then in every school (keyword index). */
-function SearchEverywhere({ target, materials }: { target: NonNullable<ReturnType<typeof parseAulaPath>>; materials: Material[] }) {
+function SearchEverywhere({ target, materials, retired }: { target: NonNullable<ReturnType<typeof parseAulaPath>>; materials: Material[]; retired?: Set<string> }) {
   const [term, setTerm] = useState('');
   const [remote, setRemote] = useState<Material[]>([]);
 
@@ -344,7 +353,7 @@ function SearchEverywhere({ target, materials }: { target: NonNullable<ReturnTyp
   const results = useMemo(() => {
     if (!term.trim()) return [];
     const byId = new Map<string, Material>();
-    [...materials, ...remote].forEach(m => byId.set(m.id, m));
+    [...materials, ...remote].forEach(m => { if (!retired?.has(m.id)) byId.set(m.id, m); });
     const rank = (m: Material) =>
       m.schoolId === target.schoolId && m.classYear === target.classYear ? 0 // this class and its inheritance
       : m.schoolId === target.schoolId ? 1 // this school
@@ -353,7 +362,7 @@ function SearchEverywhere({ target, materials }: { target: NonNullable<ReturnTyp
       .filter(m => matchesAllWords(term, [m.title, m.description, m.subject, m.subject ? t(m.subject) : '', m.bookTitle, ...(m.tags || [])].filter(Boolean).join(' ')))
       .sort((a, b) => rank(a) - rank(b) || b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, 12);
-  }, [term, materials, remote, target]);
+  }, [term, materials, remote, target, retired]);
 
   return (
     <div className="relative w-full lg:w-[26rem]">

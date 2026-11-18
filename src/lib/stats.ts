@@ -40,11 +40,14 @@ export function computeStats(materials: Material[], requests: MaterialRequest[],
 
   for (const material of materials) {
     if (material.isDeleted || !material.authorId) continue;
-    const s = get(material.authorId);
-    s.uploads += 1;
-    s.opensReceived += material.downloadCount || 0;
-    s.savesReceived += material.saveCount || 0;
-    if (material.verifiedBy) s.verified += 1;
+    // Group works count for every member of the group.
+    for (const uid of new Set([material.authorId, ...(material.coAuthorIds || [])])) {
+      const s = get(uid);
+      s.uploads += 1;
+      s.opensReceived += material.downloadCount || 0;
+      s.savesReceived += material.saveCount || 0;
+      if (material.verifiedBy) s.verified += 1;
+    }
   }
 
   for (const request of requests) {

@@ -63,7 +63,7 @@ interface MaterialListProps {
 }
 
 export default function MaterialList({ userRole, view = 'archive', onViewChange }: MaterialListProps) {
-  const { user, profile, materials: allMaterials, isMaterialsLoading, materialsError, getStats, feed, loadMoreFeed, fetchMaterials, ensureMaterials, ensureCollection } = useAppData();
+  const { user, profile, materials: allMaterials, isMaterialsLoading, materialsError, getStats, feed, loadMoreFeed, fetchMaterials, ensureMaterials, ensureCollection, retiredIds } = useAppData();
   const uid = user?.uid;
   const isAuthenticated = !!user;
 
@@ -317,16 +317,21 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
       if (currentView === 'personal') {
         if (!uid) return false;
-        const isMine = m.authorId === uid;
+        const isOwn = m.authorId === uid;
+        // Group works where a classmate added this user count as theirs too.
+        const isMine = isOwn || (m.coAuthorIds || []).includes(uid);
         if (!isMine && !userSaves.has(m.id)) return false;
-        // Saved materials from others live at the root of My Space.
+        // Saved materials from others (and group works published by a classmate) live at the root of My Space.
         if (currentFolderId === null) {
           if (personalShow === 'mine' && !isMine) return false;
           if (personalShow === 'saved' && isMine) return false;
-          return !m.folderId || !isMine;
+          return !m.folderId || !isOwn;
         }
-        return m.folderId === currentFolderId;
+        return isOwn && m.folderId === currentFolderId;
       }
+
+      // Lot works that were not kept have left the archive (they stay in My Space).
+      if (retiredIds.has(m.id)) return false;
 
       // Archive: inside a folder, only that folder's materials.
       if (currentFolderId !== null) return m.folderId === currentFolderId;
@@ -336,7 +341,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
 
       return inScope(m);
     });
-  }, [allMaterials, currentView, currentFolderId, userSaves, uid, personalShow, effectiveScope, bookFilter, profile?.schoolId, profile?.classYear, profile?.classSection, currentSchoolYear]);
+  }, [allMaterials, retiredIds, currentView, currentFolderId, userSaves, uid, personalShow, effectiveScope, bookFilter, profile?.schoolId, profile?.classYear, profile?.classSection, currentSchoolYear]);
 
   /** Subjects that exist in this view, most recently used first. */
   const subjectsHere = useMemo(() => subjectsInUse(materials), [materials]);
@@ -1281,7 +1286,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
                 isSelected={selectedMaterialIds.has(material.id)}
                 onSelect={(e) => handleItemSelect(material.id, 'material', sortedFolders.length + index, e)}
                 onDragStart={() => handleDragStart(material.id, 'material')}
-                inheritedLabel={currentView === 'archive' ? inheritedLabelFor(material) : undefined}
+                inheritedLabel={currentView === 'archive' ? inheritedLabelFor(material) : currentView === 'personal' && retiredIds.has(material.id) ? t("Only in your space") : undefined}
               />
             </motion.div>
           ))}

@@ -46,6 +46,7 @@ export const mapCollectionDoc = (id: string, data: any): Collection => ({
   createdAt: toDate(data.createdAt) ?? new Date(),
   updatedAt: toDate(data.updatedAt),
   dueAt: toDate(data.dueAt),
+  closedAt: toDate(data.closedAt),
 } as Collection);
 
 export const mapFeedbackDoc = (id: string, data: any): WorkFeedback => ({

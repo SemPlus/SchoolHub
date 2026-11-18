@@ -64,6 +64,9 @@ export interface Material {
   bookTitle?: string | null;
   /** Word prefixes for search across schools (see lib/search). */
   keywords?: string[] | null;
+  /** Classmates who made the work together with the author (max 5). */
+  coAuthorIds?: string[] | null;
+  coAuthorNames?: string[] | null;
 }
 
 /**
@@ -93,6 +96,16 @@ export interface Collection {
   winnerMaterialId?: string | null;
   winnerAuthorId?: string | null;
   winnerAuthorName?: string | null;
+  /** A teacher's lot (see lib/lots). Unset on collections created before lots existed. */
+  isLot?: boolean;
+  /** "same": one topic, the best work stays. "different": every work is its own topic. */
+  lotType?: 'same' | 'different' | null;
+  /** The theme this lot repeats (id of the theme's first lot), or null for a new theme. */
+  themeId?: string | null;
+  /** When the teacher closed the lot (chose the best work or closed it). */
+  closedAt?: Date | null;
+  /** "different" lots: works the teacher took out. */
+  removedMaterialIds?: string[] | null;
 }
 
 /** One person's vote for the best work in a collection (id = their uid). */

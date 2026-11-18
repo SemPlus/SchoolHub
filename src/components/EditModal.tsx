@@ -3,6 +3,7 @@ import { Link as LinkIcon } from 'lucide-react';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { updateDoc } from '../lib/firestoreWrites';
 import { keywordsFor } from '../lib/search';
+import CoAuthorPicker, { type CoAuthor } from './CoAuthorPicker';
 import { db, auth } from '../firebase';
 import { Material, MaterialType } from '../types';
 import Dropdown from './Dropdown';
@@ -36,6 +37,7 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
   const [book, setBook] = useState<{ isbn: string; title: string } | null>(null);
   const [classification, setClassification] = useState<ClassificationValue>({ school: null, subject: '' });
   const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [coAuthors, setCoAuthors] = useState<CoAuthor[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState('');
 
@@ -58,6 +60,7 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
       subject: material.subject || '',
     });
     setCollectionId(material.collectionId || null);
+    setCoAuthors((material.coAuthorIds || []).map((uid, i) => ({ uid, name: material.coAuthorNames?.[i] || '' })));
     setError('');
   }, [material, isOpen]);
 
@@ -103,6 +106,8 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
         level: level || null,
         isbn: book?.isbn || null,
         bookTitle: book?.title || null,
+        coAuthorIds: coAuthors.map(c => c.uid),
+        coAuthorNames: coAuthors.map(c => c.name.slice(0, 100)),
         keywords: keywordsFor({
           title: title.trim(),
           tags: tagList,
@@ -188,6 +193,14 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
           classYear={classification.classYear}
           classSection={classification.classSection}
           subject={classification.subject}
+        />
+
+        <CoAuthorPicker
+          schoolId={classification.school?.id}
+          classYear={classification.classYear}
+          classSection={classification.classSection}
+          value={coAuthors}
+          onChange={setCoAuthors}
         />
 
         <div className="space-y-2">

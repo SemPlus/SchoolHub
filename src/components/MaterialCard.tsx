@@ -15,6 +15,7 @@ import { firebaseErrorMessage, recordOpen, toggleSave } from '../lib/engagement'
 import UserAvatar from './UserAvatar';
 import SubjectBadge from './SubjectBadge';
 import SubjectMark from './SubjectMark';
+import { authorsLine } from '../lib/lots';
 import { subjectStyle, visibleTags, withAlpha } from '../lib/subjects';
 import { kindById, levelById } from '../lib/materialKinds';
 import { useAppData } from '../context/AppData';
@@ -370,7 +371,7 @@ export default function MaterialCard({
               onClick={handleAuthorClickInternal}
               className="py-2 -my-2 text-[10px] uppercase tracking-widest text-white/60 font-medium hover:text-luxury-gold transition-colors text-left truncate"
             >
-              {material.authorName}
+              {authorsLine(material, t("and"))}
             </button>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="text-[10px] uppercase tracking-widest text-white/30">

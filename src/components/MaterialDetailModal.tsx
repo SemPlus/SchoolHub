@@ -7,6 +7,7 @@ import { format } from '../lib/i18n';
 import { Material, User as UserType } from '../types';
 import { getRank } from '../lib/ranks';
 import { useUserStats } from '../lib/userStats';
+import { authorsLine } from '../lib/lots';
 import { doc, getDoc, serverTimestamp, where } from 'firebase/firestore';
 import { updateDoc } from '../lib/firestoreWrites';
 import { db, auth } from '../firebase';
@@ -350,7 +351,7 @@ export default function MaterialDetailModal({
               <p className="text-[9px] uppercase tracking-widest text-white/40 font-semibold flex items-center gap-1.5">
                 {t("Shared by ")}<span className={rank.color}>{t(authorProfile?.customBadge || rank.label)}</span>
               </p>
-              <p className="text-sm text-white truncate">{material.authorName}</p>
+              <p className="text-sm text-white truncate">{authorsLine(material, t("and"))}</p>
             </div>
           </button>
           {(material.schoolName || material.className) && infoItem(

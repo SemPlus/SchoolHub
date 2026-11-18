@@ -35,7 +35,7 @@ export default function CollectionPicker({ value, onChange, school, classYear, c
     const labels = targetLabel ? [targetLabel] : classLabelsOf(profile);
     const viewer = school ? { ...(profile || ({} as any)), schoolId: school.id } : profile;
     return sortCollectionsForViewer(
-      collections.filter(c => !school || c.schoolId === school.id),
+      collections.filter(c => (!school || c.schoolId === school.id) && !(c.isLot && c.closedAt && c.id !== value)),
       viewer,
       labels
     ).slice(0, 12);

@@ -110,6 +110,8 @@ service cloud.firestore {
         optString(data, 'improvesId', 128) &&
         (!('isbn' in data) || data.isbn == null || (data.isbn is string && data.isbn.matches('^97[89][0-9]{10}$'))) &&
         optString(data, 'bookTitle', 200) &&
+        (!('coAuthorIds' in data) || data.coAuthorIds == null || (data.coAuthorIds is list && data.coAuthorIds.size() <= 5)) &&
+        (!('coAuthorNames' in data) || data.coAuthorNames == null || (data.coAuthorNames is list && data.coAuthorNames.size() <= 5)) &&
         // Word prefixes for search (lib/search.ts).
         (!('keywords' in data) || data.keywords == null || (data.keywords is list && data.keywords.size() <= 300));
     }
@@ -174,7 +176,21 @@ service cloud.firestore {
         optTimestamp(data, 'dueAt') &&
         optString(data, 'winnerMaterialId', 128) &&
         optString(data, 'winnerAuthorId', 128) &&
-        optString(data, 'winnerAuthorName', 100);
+        optString(data, 'winnerAuthorName', 100) &&
+        optBool(data, 'isLot') &&
+        (!('lotType' in data) || data.lotType == null || data.lotType in ['same', 'different']) &&
+        optString(data, 'themeId', 128) &&
+        optTimestamp(data, 'closedAt') &&
+        (!('removedMaterialIds' in data) || data.removedMaterialIds == null ||
+          (data.removedMaterialIds is list && data.removedMaterialIds.size() <= 200));
+    }
+
+    // Teacher account: self-chosen at sign-up, or the role granted by the founder.
+    function isTeacherUser() {
+      return exists(userPath(request.auth.uid)) &&
+        (get(userPath(request.auth.uid)).data.get('accountType', '') == 'teacher' ||
+         get(userPath(request.auth.uid)).data.role in ['teacher', 'admin'] ||
+         isAdmin());
     }
 
     // Hand-in deadlines are a teacher feature.
@@ -412,13 +428,16 @@ service cloud.firestore {
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.createdAt == request.time &&
         request.resource.data.get('isDeleted', false) == false &&
-        canSetDeadline(request.resource.data);
+        canSetDeadline(request.resource.data) &&
+        // Lots (the teacher chooses the best work) are a teacher feature.
+        (request.resource.data.get('isLot', false) == false || isTeacherUser());
 
       allow update: if isAuthenticated() &&
         (request.auth.uid == resource.data.createdBy || isAdmin()) &&
         isValidCollectionData(request.resource.data) &&
         request.resource.data.createdBy == resource.data.createdBy &&
         request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.get('isLot', false) == resource.data.get('isLot', false) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dueAt']) || canSetDeadline(request.resource.data)) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['winnerMaterialId', 'winnerAuthorId', 'winnerAuthorName']) ||
           request.resource.data.get('winnerMaterialId', null) == null ||
@@ -437,7 +456,9 @@ service cloud.firestore {
           return request.resource.data.materialId is string &&
             work.get('collectionId', '') == collectionId &&
             work.authorId != request.auth.uid &&
-            get(collectionPath(collectionId)).data.get('winnerMaterialId', null) == null;
+            !(request.auth.uid in work.get('coAuthorIds', [])) &&
+            get(collectionPath(collectionId)).data.get('winnerMaterialId', null) == null &&
+            get(collectionPath(collectionId)).data.get('closedAt', null) == null;
         }
 
         allow create: if isAuthenticated() &&
@@ -454,6 +475,31 @@ service cloud.firestore {
 
         allow delete: if isAuthenticated() && (userId == request.auth.uid || isAdmin());
       }
+    }
+
+    // ============================================================ directory
+
+    // Class directory, so whoever publishes a group work can add classmates
+    // who already have an account. Each person writes only their own entry;
+    // only people of the same school can list it (no e-mail addresses here).
+    match /directory/{uid} {
+      allow get: if isAuthenticated();
+      allow list: if isAuthenticated() &&
+        resource.data.schoolId == get(userPath(request.auth.uid)).data.get('schoolId', '');
+      allow create, update: if isAuthenticated() && uid == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'schoolId', 'classYear', 'classSection', 'schoolYear', 'accountType', 'updatedAt']) &&
+        request.resource.data.uid == uid &&
+        optString(request.resource.data, 'displayName', 100) &&
+        optString(request.resource.data, 'photoURL', 1000) &&
+        request.resource.data.schoolId is string && request.resource.data.schoolId.size() <= 16 &&
+        request.resource.data.schoolId == get(userPath(uid)).data.get('schoolId', '') &&
+        optInt(request.resource.data, 'classYear', 1, 5) &&
+        optSection(request.resource.data) &&
+        optInt(request.resource.data, 'schoolYear', 2000, 2100) &&
+        (!('accountType' in request.resource.data) || request.resource.data.accountType == null ||
+          request.resource.data.accountType in ['student', 'teacher']) &&
+        request.resource.data.updatedAt == request.time;
+      allow delete: if isAuthenticated() && (uid == request.auth.uid || isAdmin());
     }
 
     // ============================================================== schools

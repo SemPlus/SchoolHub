@@ -85,7 +85,7 @@ Prime 10 scuole: 50% di sconto per 2 anni in cambio di una testimonianza.
 | # | Cosa | Perché | Prima di febbraio? |
 |---|---|---|---|
 | 1 | **Modalità aula** con link fisso per classe | Il cuore della visione e la parte più visibile in una presentazione al preside | ✓ Fatta (18 nov). Per ora le aule si gestiscono dal pannello del fondatore; passeranno al pannello della scuola (n. 3) |
-| 2 | **Lotti:** il professore sceglie il migliore, solo quello resta, massimo di lavori per tema, "stesso tema di…" | Lavori migliori ed eredità di qualità | Sì |
+| 2 | **Lotti:** il professore sceglie il migliore, solo quello resta, massimo di lavori per tema, "stesso tema di…" | Lavori migliori ed eredità di qualità | ✓ Fatti (18 nov), con i lavori di gruppo: chi pubblica aggiunge fino a 5 compagni di classe con account |
 | 3 | **Pannello della scuola**, con resoconto PDF annuale | È il prodotto che si vende al preside | Sì |
 | 4 | **Moderazione della scuola** e pulsante Segnala | Prima paura del preside: contenuti e copyright | Sì |
 | 5 | **Ricerca mista ordinata** (classe → scuola → resto) | Trovare subito un modello da cui partire | Sì |

@@ -3,6 +3,7 @@ import { Link as LinkIcon, ChevronDown, Plus } from 'lucide-react';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { addDoc } from '../lib/firestoreWrites';
 import { keywordsFor } from '../lib/search';
+import CoAuthorPicker, { type CoAuthor } from './CoAuthorPicker';
 import { db, auth } from '../firebase';
 import { Material, MaterialType } from '../types';
 import Dropdown from './Dropdown';
@@ -71,6 +72,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
   const [book, setBook] = useState<{ isbn: string; title: string } | null>(null);
   const [classification, setClassification] = useState<ClassificationValue>({ school: null, subject: '' });
   const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [coAuthors, setCoAuthors] = useState<CoAuthor[]>([]);
   const [mode, setMode] = useState<'file' | 'link'>('file');
   const [showMore, setShowMore] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -97,6 +99,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
       subject,
     });
     setCollectionId(defaultCollectionId || null);
+    setCoAuthors([]);
     setError('');
     // An improved version starts from the original's subject, class and kind.
     if (improves) {
@@ -192,6 +195,8 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
         className: hasClass ? formatClassName(classYear, classSection) : null,
         classId: hasClass ? classIdFor(school?.id, classYear, classSection) : null,
         subject,
+        coAuthorIds: coAuthors.map(c => c.uid),
+        coAuthorNames: coAuthors.map(c => c.name.slice(0, 100)),
         keywords: keywordsFor({
           title: title.trim(),
           tags: tagList,
@@ -321,6 +326,14 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
           classYear={classification.classYear}
           classSection={classification.classSection}
           subject={classification.subject}
+        />
+
+        <CoAuthorPicker
+          schoolId={classification.school?.id}
+          classYear={classification.classYear}
+          classSection={classification.classSection}
+          value={coAuthors}
+          onChange={setCoAuthors}
         />
 
         {/* 6. Optional details */}

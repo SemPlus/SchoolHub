@@ -15,6 +15,8 @@ export interface NewCollectionInput {
   classSection?: string;
   /** Hand-in deadline (teachers). */
   dueAt?: Date | null;
+  /** Teachers' lots (see lib/lots). */
+  lot?: { type: 'same' | 'different'; themeId: string | null } | null;
 }
 
 export async function createCollection(input: NewCollectionInput): Promise<string> {
@@ -37,6 +39,7 @@ export async function createCollection(input: NewCollectionInput): Promise<strin
     isDeleted: false,
     isHandIn: !!input.dueAt,
     dueAt: input.dueAt || null,
+    ...(input.lot ? { isLot: true, lotType: input.lot.type, themeId: input.lot.themeId, closedAt: null, removedMaterialIds: [] } : {}),
   });
   return ref.id;
 }

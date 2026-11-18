@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import {
   collection, doc, documentId, getDoc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, startAfter, where,
-  updateDoc as updateDocUnguarded,
+  updateDoc as updateDocUnguarded, setDoc as setDocUnguarded,
   type Query, type QueryConstraint, type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { deleteDoc, setDoc } from '../lib/firestoreWrites';
@@ -13,6 +13,7 @@ import { computeStats, EMPTY_STATS, UserStats } from '../lib/stats';
 import { loadSimulation, saveSimulation, setSimulationActive, SIMULATION_OFF, type Simulation } from '../lib/simulation';
 import { schoolYearStart } from '../lib/schoolYear';
 import { toDate } from '../lib/utils';
+import { isAuthorOf, retiredMaterialIds, themeKey } from '../lib/lots';
 
 // The founder's account always has full admin rights, whatever its stored role.
 export const ADMIN_EMAIL = 'sem.gk01@gmail.com';
@@ -60,6 +61,8 @@ interface AppDataValue {
   /** Shared themes and projects, excluding deleted ones (same reach as requests). */
   collections: Collection[];
   ensureCollection: (id: string) => Promise<void>;
+  /** Lot works that have left the archive; their authors still see them in My Space. */
+  retiredIds: Set<string>;
   /** Materials the signed-in user marked as studied (private). */
   studied: Set<string>;
   toggleStudied: (materialId: string) => Promise<void>;
@@ -210,6 +213,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [schoolLoadedFor, setSchoolLoadedFor] = useState<string | null>(null);
 
   useLiveSource('mine', uid, () => query(collection(db, 'materials'), where('authorId', '==', uid)), mapMaterialDoc, setMaterialSource);
+  // Group works where a classmate added this user.
+  useLiveSource('coauthored', uid, () => query(collection(db, 'materials'), where('coAuthorIds', 'array-contains', uid)), mapMaterialDoc, setMaterialSource);
   useLiveSource(
     'school',
     schoolId,
@@ -219,9 +224,9 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     () => setSchoolLoadedFor(schoolId),
   );
 
-  const materials = useMemo(() => merge(materialSources, ['mine', 'school']), [materialSources]);
+  const allMaterials = useMemo(() => merge(materialSources, ['mine', 'coauthored', 'school']), [materialSources]);
   const loadedIds = useRef(new Set<string>());
-  loadedIds.current = new Set(materials.map(m => m.id));
+  loadedIds.current = new Set(allMaterials.map(m => m.id));
 
   // Pages from every school, newest first.
   const feedCursor = useRef<QueryDocumentSnapshot | null>(null);
@@ -285,7 +290,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [addMaterials]);
 
-  const isMaterialsLoading = !profileSettled || (schoolId ? schoolLoadedFor !== schoolId : !feed.started || (feed.loading && materials.length === 0));
+  const isMaterialsLoading = !profileSettled || (schoolId ? schoolLoadedFor !== schoolId : !feed.started || (feed.loading && allMaterials.length === 0));
 
   // ------------------------------------------------------------ requests & collections
 
@@ -317,6 +322,54 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [addCollections]);
 
+  // Lots decide which works stay in the archive, so the lots of loaded works
+  // (from any school) and the other years of their themes are loaded too.
+  const requestedCollections = useRef(new Set<string>());
+  useEffect(() => {
+    const missing = [...new Set(allMaterials.map(m => m.collectionId).filter((id): id is string =>
+      !!id && !collectionIds.current.has(id) && !requestedCollections.current.has(id)))];
+    if (missing.length === 0) return;
+    missing.forEach(id => requestedCollections.current.add(id));
+    (async () => {
+      for (let i = 0; i < missing.length; i += 30) {
+        const chunk = missing.slice(i, i + 30);
+        try {
+          const snapshot = await getDocs(query(collection(db, 'collections'), where(documentId(), 'in', chunk)));
+          addCollections('ids', snapshot.docs.map(d => mapCollectionDoc(d.id, d.data())));
+        } catch (error) {
+          chunk.forEach(id => requestedCollections.current.delete(id));
+          console.error('Could not load collections:', error);
+        }
+      }
+    })();
+  }, [allMaterials, addCollections]);
+
+  const requestedThemes = useRef(new Set<string>());
+  useEffect(() => {
+    const themes = [...new Set(collections.filter(c => c.isLot).map(themeKey))].filter(k => !requestedThemes.current.has(k));
+    if (themes.length === 0) return;
+    themes.forEach(k => requestedThemes.current.add(k));
+    (async () => {
+      for (let i = 0; i < themes.length; i += 30) {
+        const chunk = themes.slice(i, i + 30);
+        try {
+          const snapshot = await getDocs(query(collection(db, 'collections'), where('themeId', 'in', chunk)));
+          addCollections('themes', snapshot.docs.map(d => mapCollectionDoc(d.id, d.data())));
+        } catch (error) {
+          chunk.forEach(k => requestedThemes.current.delete(k));
+          console.error('Could not load themes:', error);
+        }
+      }
+    })();
+  }, [collections, addCollections]);
+
+  // Works that left the archive are shown only to their authors.
+  const retiredIds = useMemo(() => retiredMaterialIds(collections, allMaterials), [collections, allMaterials]);
+  const materials = useMemo(
+    () => (retiredIds.size === 0 ? allMaterials : allMaterials.filter(m => !retiredIds.has(m.id) || isAuthorOf(m, uid))),
+    [allMaterials, retiredIds, uid],
+  );
+
   // ------------------------------------------------------------ studied & last seen
 
   // Private study checklist: users/{uid}/studied/{materialId}.
@@ -332,6 +385,28 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   }, [user?.uid]);
 
   const statsByUser = useMemo(() => computeStats(materials, requests, collections), [materials, requests, collections]);
+
+  // Class directory entry, so classmates can add this user to a group work.
+  // Written only when it changes (remembered on this device).
+  useEffect(() => {
+    if (!user || !profile || simulating || !profile.schoolId) return;
+    const entry = {
+      uid: user.uid,
+      displayName: (profile.displayName || user.displayName || '').slice(0, 100),
+      photoURL: profile.photoURL || user.photoURL || null,
+      schoolId: profile.schoolId,
+      classYear: profile.classYear ?? null,
+      classSection: profile.classSection ?? null,
+      schoolYear: profile.profileSchoolYear ?? null,
+      accountType: profile.accountType ?? null,
+    };
+    const signature = JSON.stringify(entry);
+    const key = 'schoolhub.directory.' + user.uid;
+    try { if (window.localStorage.getItem(key) === signature) return; } catch { /* storage blocked */ }
+    setDocUnguarded(doc(db, 'directory', user.uid), { ...entry, updatedAt: serverTimestamp() })
+      .then(() => { try { window.localStorage.setItem(key, signature); } catch { /* ignore */ } })
+      .catch(error => console.warn('Could not update the class directory:', error));
+  }, [user?.uid, profile?.schoolId, profile?.classYear, profile?.classSection, profile?.profileSchoolYear, profile?.accountType, profile?.displayName, simulating]);
 
   // "Last seen" for the founder dashboard: at most one small write per day.
   const lastSeenWrittenFor = useRef<string | null>(null);
@@ -362,6 +437,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     requests,
     collections,
     ensureCollection,
+    retiredIds,
     studied: viewUser ? studied : new Set<string>(),
     toggleStudied: async (materialId: string) => {
       if (!viewUser) return;
@@ -376,7 +452,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       saveSimulation(next);
       setSimulationState(next);
     },
-  }), [viewUser, isAuthReady, viewProfile, isProfileLoaded, viewRole, materials, isMaterialsLoading, materialsError, feed, loadMoreFeed, fetchMaterials, ensureMaterials, requests, collections, ensureCollection, studied, statsByUser, isFounder, effectiveSimulation]);
+  }), [viewUser, isAuthReady, viewProfile, isProfileLoaded, viewRole, materials, isMaterialsLoading, materialsError, feed, loadMoreFeed, fetchMaterials, ensureMaterials, requests, collections, ensureCollection, retiredIds, studied, statsByUser, isFounder, effectiveSimulation]);
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }

@@ -13,13 +13,14 @@ const CACHE_MS = 5 * 60_000;
 const cache = new Map<string, { at: number; version: unknown; stats: UserStats }>();
 
 async function loadStats(uid: string): Promise<UserStats> {
-  const [materials, requests, collections] = await Promise.all([
+  const [materials, coauthored, requests, collections] = await Promise.all([
     getDocs(query(collection(db, 'materials'), where('authorId', '==', uid))),
+    getDocs(query(collection(db, 'materials'), where('coAuthorIds', 'array-contains', uid))),
     getDocs(query(collection(db, 'requests'), where('acceptedUserId', '==', uid))),
     getDocs(query(collection(db, 'collections'), where('winnerAuthorId', '==', uid))),
   ]);
   const stats = computeStats(
-    materials.docs.map(d => mapMaterialDoc(d.id, d.data())),
+    [...new Map([...materials.docs, ...coauthored.docs].map(d => [d.id, mapMaterialDoc(d.id, d.data())] as const)).values()],
     requests.docs.map(d => mapRequestDoc(d.id, d.data())),
     collections.docs.map(d => mapCollectionDoc(d.id, d.data())).filter(c => !c.isDeleted),
   );
