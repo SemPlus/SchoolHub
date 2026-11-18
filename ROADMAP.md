@@ -2,6 +2,24 @@
 
 Aggiornato al 16 novembre 2026. Le voci segnate *da verificare* dipendono da regole esterne (Google, fisco, Ministero) che vanno ricontrollate quando si arriva a quel punto.
 
+## Il problema che risolve
+
+- **Presentare subito, senza perdere tempo:** i lavori sono già nell'archivio della classe e si aprono dalla LIM o dal PC dell'aula, senza cercarli.
+- **Niente credenziali sui PC della scuola:** nessuno deve entrare con il proprio account sul computer dell'aula.
+- **Lavori migliori:** quando più studenti lavorano sullo stesso tema, il professore sceglie il migliore, e solo quello resta per chi verrà dopo. Questo spinge a fare ricerche e presentazioni migliori.
+- **Ereditare dagli anni precedenti:** la classe parte dai lavori migliori sullo stesso argomento, da usare come modello o per studiare.
+- **Trovare un esempio:** cercare presentazioni già esistenti sull'argomento in tutte le scuole del Paese.
+- **Innovativo, utile e convincente:** i presidi delle private lo comprano, quelli delle statali partner lo usano. Prezzo premium ma giusto per quello che fa.
+
+## Come funziona (decisioni del 18 novembre 2026)
+
+1. **Modalità aula: un link fisso per ogni classe** (es. `schoolhub.it/aula/ROMA-4G`), impostato una volta l'anno come pagina iniziale o collegamento sul desktop del PC o della LIM. Funziona anche sui PC che si azzerano a ogni riavvio e non richiede alcun accesso: apre direttamente l'archivio della classe.
+2. **Orario della classe:** caricato una volta l'anno (o quando cambia). Prima scelta: il file esportato dal programma con cui la scuola fa l'orario. Altrimenti un'immagine letta in automatico (dopo febbraio, servono le funzioni sul server), con una griglia da controllare prima di salvare. Con l'orario, la modalità aula apre la materia dell'ora in corso e il suo ultimo lotto di lavori.
+3. **Lavori non scelti:** spariscono dall'archivio della classe e da quello nazionale, ma restano visibili all'autore in "Il mio spazio". Il file resta sempre nel Drive dello studente.
+4. **Stesso tema negli anni:** quando il professore crea un lotto (raccolta), SchoolHub propone "Stesso tema di *…· 2025/26*?" e il professore conferma con un tocco. Per ogni tema resta un **numero massimo di lavori migliori** (es. 5, da stabilire): quando arriva il successivo, esce il più vecchio.
+5. **Ricerca mista:** ricerca istantanea in locale sulla propria classe e scuola; per il resto del Paese, ricerca per parole chiave sul database. Un'unica lista ordinata: **propria classe (lavori ereditati) → propria scuola → tutte le altre**.
+6. **Il migliore lo sceglie il professore.** Il voto della classe resta solo come suggerimento visibile al professore.
+
 ## Decisioni prese
 
 - **Gratis per sempre per ogni studente, ovunque.** Studenti e genitori non pagano mai niente: niente premium, niente pubblicità, niente ripetizioni a pagamento.
@@ -66,16 +84,20 @@ Prime 10 scuole: 50% di sconto per 2 anni in cambio di una testimonianza.
 
 | # | Cosa | Perché | Prima di febbraio? |
 |---|---|---|---|
-| 1 | **Pannello della scuola**, con resoconto PDF annuale | È il prodotto che si vende al preside | Sì |
-| 2 | **Moderazione della scuola** e pulsante Segnala | Prima paura del preside: contenuti e copyright | Sì |
-| 3 | **Docenti verificati dal dominio email** della scuola (Google Workspace) | Toglie la conferma manuale del fondatore | Sì, nelle regole del database |
-| 4 | **Pacchetto privacy e pagine legali** (privacy, termini, cookie) | Serve alle scuole e anche a Google (vedi sotto) | Sì |
-| 5 | **Sito di presentazione e scuola demo** | Credibilità prima della prova | Sì |
-| 6 | **Google Classroom, fase 0–1** (vedi sotto) | I docenti vivono già in Classroom | Fase 0 sì, fase 1 dopo la verifica Google |
-| 7 | **Funzioni per studenti con DSA** | Inclusione: obbligo per le scuole, argomento forte | Sì |
-| 8 | **Notifiche push** | Riportano gli studenti nell'app | No: servono le funzioni sul server |
-| 9 | **Attestati per crediti e PCTO** | Motivano a condividere | No: serve la società |
-| 10 | **Google Workspace Marketplace** (vedi sotto) | La scuola attiva SchoolHub per tutti in un clic | Preparazione sì, pubblicazione dopo febbraio |
+| 1 | **Modalità aula** con link fisso per classe | Il cuore della visione e la parte più visibile in una presentazione al preside | Sì |
+| 2 | **Lotti:** il professore sceglie il migliore, solo quello resta, massimo di lavori per tema, "stesso tema di…" | Lavori migliori ed eredità di qualità | Sì |
+| 3 | **Pannello della scuola**, con resoconto PDF annuale | È il prodotto che si vende al preside | Sì |
+| 4 | **Moderazione della scuola** e pulsante Segnala | Prima paura del preside: contenuti e copyright | Sì |
+| 5 | **Ricerca mista ordinata** (classe → scuola → resto) | Trovare subito un modello da cui partire | Sì |
+| 6 | **Orario della classe** nella modalità aula | Apre da sola la materia dell'ora | File esportato sì; immagine letta in automatico dopo febbraio |
+| 7 | **Docenti verificati dal dominio email** della scuola (Google Workspace) | Toglie la conferma manuale del fondatore | Sì, nelle regole del database |
+| 8 | **Pacchetto privacy e pagine legali** (privacy, termini, cookie) | Serve alle scuole e anche a Google (vedi sotto) | Sì |
+| 9 | **Sito di presentazione e scuola demo** | Credibilità prima della prova | Sì |
+| 10 | **Google Classroom, fase 0–1** (vedi sotto) | I docenti vivono già in Classroom | Fase 0 sì, fase 1 dopo la verifica Google |
+| 11 | **Funzioni per studenti con DSA** | Inclusione: obbligo per le scuole, argomento forte | Sì |
+| 12 | **Notifiche push** | Riportano gli studenti nell'app | No: servono le funzioni sul server |
+| 13 | **Attestati per crediti e PCTO** | Motivano a condividere | No: serve la società |
+| 14 | **Google Workspace Marketplace** (vedi sotto) | La scuola attiva SchoolHub per tutti in un clic | Preparazione sì, pubblicazione dopo febbraio |
 
 ## Google: Marketplace e Classroom
 
@@ -115,8 +137,8 @@ Prime 10 scuole: 50% di sconto per 2 anni in cambio di una testimonianza.
 
 | Periodo | Prodotto | Commerciale |
 |---|---|---|
-| Novembre 2026 – gennaio 2027 | Funzioni 1–5 e 7; Classroom fase 0; testi legali | Scelta delle 3 statali su Eduscopio; pilota gratuito; raccolta dei numeri |
-| Febbraio 2027 | Piano Blaze; dominio; progetto Google Cloud della società; richiesta di verifica OAuth | Apertura della società (commercialista: forma giuridica e contributi INPS) |
+| Novembre 2026 – gennaio 2027 | Funzioni 1–5, orario da file esportato, 7–9 e 11; Classroom fase 0; testi legali | Scelta delle 3 statali su Eduscopio; pilota gratuito; raccolta dei numeri |
+| Febbraio 2027 | Piano Blaze; orario da immagine; dominio; progetto Google Cloud della società; richiesta di verifica OAuth | Apertura della società (commercialista: forma giuridica e contributi INPS) |
 | Marzo – giugno 2027 | Classroom fase 1; scheda Marketplace in revisione; notifiche push | Vendita alle prime private di Roma; contratti firmati per settembre |
 | Settembre 2027 | Marketplace pubblicato; attestati | Prime licenze attive; partner statali al secondo anno |
 | 2027/28 | Classroom fasi 2–3 | Altre città italiane |
