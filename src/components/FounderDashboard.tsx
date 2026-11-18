@@ -10,6 +10,7 @@ import { keywordsFor, keywordsStale } from '../lib/search';
 import { updateDoc } from '../lib/firestoreWrites';
 import PendingTeachers from './PendingTeachers';
 import ViewAsPanel from './ViewAsPanel';
+import AulePanel from './dashboard/AulePanel';
 import WeeklyBars, { countByWeek, lastWeeks, weekStart } from './dashboard/WeeklyBars';
 import { ContentDemand, Funnel, SchoolsTable, type SchoolRow, type SubjectDemand } from './dashboard/DashboardSections';
 
@@ -330,6 +331,8 @@ export default function FounderDashboard() {
           </div>
         ))}
       </div>
+
+      <AulePanel users={users} materials={materials} collections={collections} />
 
       <ViewAsPanel />
     </div>

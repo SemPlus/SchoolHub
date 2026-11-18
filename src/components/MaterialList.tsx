@@ -63,7 +63,7 @@ interface MaterialListProps {
 }
 
 export default function MaterialList({ userRole, view = 'archive', onViewChange }: MaterialListProps) {
-  const { user, profile, materials: allMaterials, isMaterialsLoading, materialsError, getStats, feed, loadMoreFeed, fetchMaterials, ensureMaterials } = useAppData();
+  const { user, profile, materials: allMaterials, isMaterialsLoading, materialsError, getStats, feed, loadMoreFeed, fetchMaterials, ensureMaterials, ensureCollection } = useAppData();
   const uid = user?.uid;
   const isAuthenticated = !!user;
 
@@ -204,6 +204,17 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         if (!material.isDeleted) handleCardClick(material);
       })
       .catch(error => console.error('Error fetching deep-linked material:', error));
+  }, []);
+
+  // Deep link: ?collection=<id>, e.g. from the QR on the classroom screen.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const collectionId = params.get('collection');
+    if (!collectionId) return;
+    ensureCollection(collectionId).then(() => setOpenCollectionId(collectionId));
+    params.delete('collection');
+    const rest = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (rest ? `?${rest}` : ''));
   }, []);
 
   useEffect(() => {

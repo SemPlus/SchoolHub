@@ -456,6 +456,39 @@ service cloud.firestore {
       }
     }
 
+    // ============================================================== schools
+
+    // Schools activated for classroom mode. Public (the classroom screen
+    // checks it without a sign-in); only the founder writes.
+    match /schools/{schoolId} {
+      allow read: if true;
+      allow write: if isAdmin() &&
+        request.resource.data.keys().hasOnly(['activated', 'plan', 'name', 'city', 'activatedUntil', 'extraClasses', 'updatedAt']) &&
+        request.resource.data.activated is bool &&
+        request.resource.data.plan in ['private', 'partner'] &&
+        request.resource.data.name is string && request.resource.data.name.size() <= 200 &&
+        optString(request.resource.data, 'city', 100) &&
+        optTimestamp(request.resource.data, 'activatedUntil') &&
+        (!('extraClasses' in request.resource.data) ||
+          (request.resource.data.extraClasses is list && request.resource.data.extraClasses.size() <= 200));
+    }
+
+    // "Last used" per classroom link: the classroom screen has no sign-in, so
+    // anyone may stamp the time, but only for an activated school and only
+    // with the server time.
+    match /aulaVisits/{visitId} {
+      allow read: if isAdmin();
+      allow create, update: if
+        request.resource.data.keys().hasOnly(['schoolId', 'classLabel', 'lastSeenAt']) &&
+        request.resource.data.schoolId is string && request.resource.data.schoolId.size() <= 16 &&
+        request.resource.data.classLabel is string && request.resource.data.classLabel.matches('^[1-5][A-Z]{1,3}$') &&
+        visitId == request.resource.data.schoolId + '_' + request.resource.data.classLabel &&
+        request.resource.data.lastSeenAt == request.time &&
+        exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)) &&
+        get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.activated == true;
+      allow delete: if isAdmin();
+    }
+
     // ================================================================= users
 
     match /users/{userId} {

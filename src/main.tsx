@@ -5,14 +5,21 @@ import './lib/install';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 import { AppDataProvider } from './context/AppData';
+import ClassroomMode from './components/ClassroomMode';
+import { AULA_PREFIX } from './lib/aula';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <AppDataProvider>
-        <App />
-      </AppDataProvider>
+      {/* Classroom link (/aula/SCHOOL-4G): its own screen, no sign-in, none of the app's data loading */}
+      {window.location.pathname.startsWith(AULA_PREFIX) ? (
+        <ClassroomMode />
+      ) : (
+        <AppDataProvider>
+          <App />
+        </AppDataProvider>
+      )}
     </ErrorBoundary>
   </StrictMode>,
 );
