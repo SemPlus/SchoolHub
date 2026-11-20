@@ -1,51 +1,45 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { collection, doc, getDocsFromServer, serverTimestamp } from 'firebase/firestore';
-import qrcode from 'qrcode-generator';
-import { Copy, Check, QrCode, Plus, Presentation } from 'lucide-react';
+import { Presentation, X, ChevronDown } from 'lucide-react';
 import { db } from '../../firebase';
-import { setDoc, updateDoc } from '../../lib/firestoreWrites';
-import type { Collection, Material, User } from '../../types';
-import { aulaUrl, endOfSchoolYear, isActive, mapActivationDoc, type SchoolActivation, type SchoolPlan } from '../../lib/aula';
-import { formatClassName, parseClassLabel, sanitizeSection } from '../../lib/schoolYear';
-import { toDate } from '../../lib/utils';
-import { format, formatDistanceToNow, t } from '../../lib/i18n';
+import { deleteDoc, setDoc, updateDoc } from '../../lib/firestoreWrites';
+import { endOfSchoolYear, isActive, mapActivationDoc, type SchoolActivation, type SchoolPlan } from '../../lib/aula';
+import { adminKey, MAX_SCHOOL_ADMINS, type SchoolAdmin } from '../../lib/schoolPanel';
+import { format, t } from '../../lib/i18n';
 import { cn } from '../../lib/utils';
 import SchoolPicker, { type PickedSchool } from '../SchoolPicker';
+import SchoolPanel from '../school/SchoolPanel';
 
 const panel = 'glass-panel rounded-[1.5rem] p-4 sm:p-5 border-white/5 space-y-4 min-w-0';
 const heading = 'text-[10px] uppercase tracking-widest text-white/50';
 
 /**
- * Founder only (until schools have their own panel): activate schools and
- * hand out the classroom links, one per class, to set once a year.
+ * Founder only: activate schools, name up to three school admins each
+ * (principal, vice-principal, digital lead) and open any school's panel.
+ * The classroom links live in the school panel.
  */
-export default function AulePanel({ users, materials, collections }: {
-  users: User[];
-  materials: Material[];
-  collections: Collection[];
-}) {
+export default function AulePanel() {
   const [schools, setSchools] = useState<SchoolActivation[]>([]);
-  const [visits, setVisits] = useState<Map<string, Date>>(new Map());
+  const [admins, setAdmins] = useState<SchoolAdmin[]>([]);
   const [unavailable, setUnavailable] = useState(false);
   const [picked, setPicked] = useState<PickedSchool | null>(null);
   const [plan, setPlan] = useState<SchoolPlan>('private');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openPanel, setOpenPanel] = useState<string | null>(null);
 
   const load = async () => {
-    const [s, v] = await Promise.allSettled([
+    const [s, a] = await Promise.allSettled([
       getDocsFromServer(collection(db, 'schools')),
-      getDocsFromServer(collection(db, 'aulaVisits')),
+      getDocsFromServer(collection(db, 'schoolAdmins')),
     ]);
     if (s.status === 'fulfilled') {
-      setSchools(s.value.docs.map(d => mapActivationDoc(d.id, d.data())).sort((a, b) => a.name.localeCompare(b.name)));
-      setUnavailable(false);
-    } else {
-      setUnavailable(true);
+      setSchools(s.value.docs.map(d => mapActivationDoc(d.id, d.data())).sort((x, y) => x.name.localeCompare(y.name)));
     }
-    if (v.status === 'fulfilled') {
-      setVisits(new Map(v.value.docs.map(d => [d.id, toDate(d.data().lastSeenAt)]).filter((e): e is [string, Date] => !!e[1])));
+    if (a.status === 'fulfilled') {
+      setAdmins(a.value.docs.map(d => ({ email: d.id, schoolId: d.data().schoolId, schoolName: d.data().schoolName || '' })));
     }
+    setUnavailable(s.status === 'rejected' || a.status === 'rejected');
   };
   useEffect(() => { load(); }, []);
 
@@ -75,7 +69,7 @@ export default function AulePanel({ users, materials, collections }: {
   return (
     <div className={panel}>
       <div className="flex items-baseline justify-between gap-3">
-        <p className={cn(heading, 'flex items-center gap-1.5')}><Presentation className="w-3.5 h-3.5" /> {t("Activated schools and classrooms")}</p>
+        <p className={cn(heading, 'flex items-center gap-1.5')}><Presentation className="w-3.5 h-3.5" /> {t("Activated schools")}</p>
         <p className="text-[10px] text-white/35">{t("Valid until {0}", format(endOfSchoolYear(), 'd MMM yyyy'))}</p>
       </div>
 
@@ -110,23 +104,24 @@ export default function AulePanel({ users, materials, collections }: {
       ) : (
         <div className="space-y-4">
           {schools.map(s => (
-            <SchoolRooms
+            <SchoolCard
               key={s.id}
               school={s}
-              users={users}
-              materials={materials}
-              collections={collections}
-              visits={visits}
+              admins={admins.filter(a => a.schoolId === s.id)}
               busy={busy}
+              panelOpen={openPanel === s.id}
+              onTogglePanel={() => setOpenPanel(openPanel === s.id ? null : s.id)}
               onToggle={() => run(() => updateDoc(doc(db, 'schools', s.id), {
                 activated: !isActive(s),
                 activatedUntil: endOfSchoolYear(),
                 updatedAt: serverTimestamp(),
               }))}
-              onAddClass={(label) => run(() => updateDoc(doc(db, 'schools', s.id), {
-                extraClasses: [...new Set([...s.extraClasses, label])].sort(),
-                updatedAt: serverTimestamp(),
+              onAddAdmin={(email) => run(() => setDoc(doc(db, 'schoolAdmins', adminKey(email)), {
+                schoolId: s.id,
+                schoolName: s.name,
+                addedAt: serverTimestamp(),
               }))}
+              onRemoveAdmin={(email) => run(() => deleteDoc(doc(db, 'schoolAdmins', email)))}
             />
           ))}
         </div>
@@ -135,48 +130,25 @@ export default function AulePanel({ users, materials, collections }: {
   );
 }
 
-function SchoolRooms({ school, users, materials, collections, visits, busy, onToggle, onAddClass }: {
+function SchoolCard({ school, admins, busy, panelOpen, onTogglePanel, onToggle, onAddAdmin, onRemoveAdmin }: {
   school: SchoolActivation;
-  users: User[];
-  materials: Material[];
-  collections: Collection[];
-  visits: Map<string, Date>;
+  admins: SchoolAdmin[];
   busy: boolean;
+  panelOpen: boolean;
+  onTogglePanel: () => void;
   onToggle: () => void;
-  onAddClass: (label: string) => void;
+  onAddAdmin: (email: string) => void;
+  onRemoveAdmin: (email: string) => void;
 }) {
   const active = isActive(school);
-  const [newClass, setNewClass] = useState('');
-  const [copied, setCopied] = useState<string | null>(null);
-  const [qrFor, setQrFor] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const valid = /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(email.trim());
+  const full = admins.length >= MAX_SCHOOL_ADMINS;
 
-  // Classes known from students, teachers, materials and lots, plus the ones added by hand.
-  const classes = useMemo(() => {
-    const set = new Set<string>(school.extraClasses);
-    for (const u of users) {
-      if (u.schoolId !== school.id) continue;
-      if (u.classYear && u.classSection) set.add(formatClassName(u.classYear, u.classSection));
-      (u.teacherClasses || []).forEach(c => set.add(c));
-    }
-    for (const x of [...materials, ...collections]) {
-      if (x.schoolId === school.id && x.classYear && x.classSection) set.add(formatClassName(x.classYear, x.classSection));
-    }
-    return [...set].filter(c => parseClassLabel(c)).sort((a, b) => a.localeCompare(b, 'it', { numeric: true }));
-  }, [school, users, materials, collections]);
-
-  const addClass = () => {
-    const match = /^([1-5])\s*([A-Za-z]{1,3})$/.exec(newClass.trim());
-    if (!match) return;
-    onAddClass(`${match[1]}${sanitizeSection(match[2])}`);
-    setNewClass('');
-  };
-
-  const copy = async (label: string) => {
-    try {
-      await navigator.clipboard.writeText(aulaUrl(school.id, label));
-      setCopied(label);
-      window.setTimeout(() => setCopied(null), 1500);
-    } catch { /* clipboard blocked */ }
+  const add = () => {
+    if (!valid || full) return;
+    onAddAdmin(email);
+    setEmail('');
   };
 
   return (
@@ -196,60 +168,43 @@ function SchoolRooms({ school, users, materials, collections, visits, busy, onTo
         </button>
       </div>
 
-      {classes.length === 0 ? (
-        <p className="text-xs text-white/40">{t("No class known yet. Add one below.")}</p>
-      ) : (
-        <div className="divide-y divide-white/5">
-          {classes.map(label => {
-            const lastUse = visits.get(`${school.id}_${label}`);
-            return (
-              <div key={label} className="py-2.5 space-y-2">
-                <div className="grid grid-cols-[3rem_minmax(0,1fr)_auto] sm:grid-cols-[3rem_minmax(0,1fr)_8rem_auto] gap-3 items-center">
-                  <span className="font-serif text-xl text-white">{label}</span>
-                  <a href={aulaUrl(school.id, label)} target="_blank" rel="noreferrer" className="text-xs text-white/55 hover:text-luxury-gold truncate">
-                    {aulaUrl(school.id, label).replace(/^https?:\/\//, '')}
-                  </a>
-                  <span className="hidden sm:block text-[11px] text-white/40 text-right">
-                    {lastUse ? formatDistanceToNow(lastUse, { addSuffix: true }) : t("never used")}
-                  </span>
-                  <span className="flex gap-1">
-                    <button onClick={() => copy(label)} className="p-2 rounded-full border border-white/10 text-white/60 hover:text-luxury-gold" title={t("Copy link")} aria-label={t("Copy link")}>
-                      {copied === label ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                    <button onClick={() => setQrFor(qrFor === label ? null : label)} className="p-2 rounded-full border border-white/10 text-white/60 hover:text-luxury-gold" title={t("QR code")} aria-label={t("QR code")}>
-                      <QrCode className="w-3.5 h-3.5" />
-                    </button>
-                  </span>
-                </div>
-                {qrFor === label && <RoomQr url={aulaUrl(school.id, label)} />}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="flex gap-2">
-        <input
-          value={newClass}
-          onChange={e => setNewClass(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') addClass(); }}
-          placeholder={t("Add a class, e.g. 4G")}
-          className="w-40 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30 outline-none"
-        />
-        <button onClick={addClass} disabled={busy} className="px-3 py-2 rounded-full border border-white/15 text-white/60 hover:text-white disabled:opacity-40" aria-label={t("Add class")}>
-          <Plus className="w-4 h-4" />
-        </button>
+      {/* School admins */}
+      <div className="space-y-2">
+        <p className="text-[10px] uppercase tracking-widest text-white/40">{t("School admins ({0} of {1})", admins.length, MAX_SCHOOL_ADMINS)}</p>
+        {admins.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {admins.map(a => (
+              <span key={a.email} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-full border border-luxury-gold/30 bg-luxury-gold/10 text-xs text-luxury-gold max-w-full">
+                <span className="truncate">{a.email}</span>
+                <button onClick={() => onRemoveAdmin(a.email)} disabled={busy} className="p-0.5 rounded-full hover:bg-white/10 disabled:opacity-40" aria-label={t("Remove {0}", a.email)}>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {!full && (
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') add(); }}
+              placeholder={t("Google e-mail of the principal, vice-principal or digital lead")}
+              className="flex-1 min-w-0 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30 outline-none"
+            />
+            <button onClick={add} disabled={!valid || busy} className="px-4 py-2 rounded-full border border-white/15 text-xs text-white/70 hover:text-white disabled:opacity-40">
+              {t("Add")}
+            </button>
+          </div>
+        )}
       </div>
+
+      <button onClick={onTogglePanel} className="flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-white/50 hover:text-luxury-gold">
+        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', panelOpen && 'rotate-180')} />
+        {panelOpen ? t("Close the school panel") : t("Open the school panel")}
+      </button>
+      {panelOpen && <SchoolPanel schoolId={school.id} />}
     </div>
   );
-}
-
-function RoomQr({ url }: { url: string }) {
-  const svg = useMemo(() => {
-    const qr = qrcode(0, 'M');
-    qr.addData(url);
-    qr.make();
-    return qr.createSvgTag({ cellSize: 6, margin: 1, scalable: true });
-  }, [url]);
-  return <div className="w-36 h-36 bg-white rounded-xl p-2 [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: svg }} />;
 }

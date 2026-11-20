@@ -99,3 +99,38 @@ button, a {
     justify-content: center;
   }
 }
+
+/* School annual report: print only the report, on as many A4 pages as it needs. */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body.printing-report {
+    background: white !important;
+  }
+  body.printing-report > *:not(.print-report) {
+    display: none !important;
+  }
+  .print-report,
+  .print-report * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-report {
+    position: static !important;
+    overflow: visible !important;
+    background: white !important;
+    backdrop-filter: none !important;
+  }
+  .print-report .no-print {
+    display: none !important;
+  }
+  .print-report .report-page {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  .print-report .break-inside-avoid {
+    break-inside: avoid;
+  }
+}

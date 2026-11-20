@@ -45,6 +45,25 @@ service cloud.firestore {
         get(userPath(request.auth.uid)).data.role == 'teacher';
     }
 
+    // School admins (principal, vice-principal, digital lead): named by the
+    // founder in schoolAdmins/{e-mail}, for one school, while it is activated.
+    function schoolAdminPath() {
+      return /databases/$(database)/documents/schoolAdmins/$(request.auth.token.email.lower());
+    }
+
+    function isSchoolAdmin() {
+      return isAuthenticated() &&
+        request.auth.token.email_verified == true &&
+        exists(schoolAdminPath()) &&
+        get(/databases/$(database)/documents/schools/$(get(schoolAdminPath()).data.schoolId)).data.activated == true &&
+        (get(/databases/$(database)/documents/schools/$(get(schoolAdminPath()).data.schoolId)).data.get('activatedUntil', null) == null ||
+         get(/databases/$(database)/documents/schools/$(get(schoolAdminPath()).data.schoolId)).data.activatedUntil > request.time);
+    }
+
+    function isSchoolAdminOf(schoolId) {
+      return isSchoolAdmin() && get(schoolAdminPath()).data.schoolId == schoolId;
+    }
+
     function isValidUrl(url) {
       return url is string && url.matches('^(https?|data):.*');
     }
@@ -485,7 +504,8 @@ service cloud.firestore {
     match /directory/{uid} {
       allow get: if isAuthenticated();
       allow list: if isAuthenticated() &&
-        resource.data.schoolId == get(userPath(request.auth.uid)).data.get('schoolId', '');
+        (resource.data.schoolId == get(userPath(request.auth.uid)).data.get('schoolId', '') ||
+         isAdmin() || isSchoolAdminOf(resource.data.schoolId));
       allow create, update: if isAuthenticated() && uid == request.auth.uid &&
         request.resource.data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'schoolId', 'classYear', 'classSection', 'schoolYear', 'accountType', 'updatedAt']) &&
         request.resource.data.uid == uid &&
@@ -517,13 +537,18 @@ service cloud.firestore {
         optTimestamp(request.resource.data, 'activatedUntil') &&
         (!('extraClasses' in request.resource.data) ||
           (request.resource.data.extraClasses is list && request.resource.data.extraClasses.size() <= 200));
+      // The school's admins add classes for the classroom links, and nothing else.
+      allow update: if isSchoolAdminOf(schoolId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['extraClasses', 'updatedAt']) &&
+        request.resource.data.extraClasses is list && request.resource.data.extraClasses.size() <= 200 &&
+        request.resource.data.updatedAt == request.time;
     }
 
     // "Last used" per classroom link: the classroom screen has no sign-in, so
     // anyone may stamp the time, but only for an activated school and only
     // with the server time.
     match /aulaVisits/{visitId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || isSchoolAdminOf(resource.data.schoolId);
       allow create, update: if
         request.resource.data.keys().hasOnly(['schoolId', 'classLabel', 'lastSeenAt']) &&
         request.resource.data.schoolId is string && request.resource.data.schoolId.size() <= 16 &&
@@ -535,13 +560,98 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ========================================================= school panel
+
+    // Who administers which school. Only the founder writes; each admin can
+    // read their own entry (to see the School tab); e-mails stay private.
+    match /schoolAdmins/{email} {
+      allow get: if isAdmin() ||
+        (isAuthenticated() && request.auth.token.email_verified == true &&
+         request.auth.token.email.lower() == email);
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() &&
+        email.matches('^[^@/ ]+@[^@/ ]+$') &&
+        request.resource.data.keys().hasOnly(['schoolId', 'schoolName', 'addedAt']) &&
+        request.resource.data.schoolId is string && request.resource.data.schoolId.size() <= 16 &&
+        optString(request.resource.data, 'schoolName', 200) &&
+        exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId));
+      allow delete: if isAdmin();
+    }
+
+    // Weeks are numbered from Monday 5 January 1970 (UTC); a count may only
+    // go to the current week (one either side for clock differences).
+    function currentWeek() {
+      return math.floor((request.time.toMillis() - 345600000) / 604800000);
+    }
+
+    function activityPath(week) {
+      return /databases/$(database)/documents/activity/$(string(week) + '_' + request.auth.uid);
+    }
+
+    // Private marker: this user was counted this week (activity/{week}_{uid}).
+    // Readable only by the user; the school sees totals, never who.
+    match /activity/{markerId} {
+      allow get: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
+
+      function isValidMarker() {
+        let d = request.resource.data;
+        let p = get(userPath(request.auth.uid)).data;
+        return d.keys().hasOnly(['userId', 'schoolId', 'week', 'bucket', 'createdAt']) &&
+          d.userId == request.auth.uid &&
+          d.week is int && d.week >= currentWeek() - 1 && d.week <= currentWeek() + 1 &&
+          markerId == string(d.week) + '_' + request.auth.uid &&
+          d.schoolId is string && d.schoolId != '' && d.schoolId == p.get('schoolId', '') &&
+          // Counted where the profile says: their class, "teachers" or "other".
+          d.bucket == (p.get('accountType', '') == 'teacher' ? 'teachers' :
+            ((p.get('classYear', null) is int && p.get('classSection', null) is string && p.get('classSection', '') != '')
+              ? string(p.classYear) + p.classSection : 'other')) &&
+          d.createdAt == request.time;
+      }
+
+      allow create: if isAuthenticated() && isValidMarker();
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // Weekly totals per school: schoolWeeks/{schoolId}_{week}, e.g.
+    // { total: 40, n_4G: 21, n_teachers: 3 }. +1 only together with creating
+    // this user's marker for the week, so nobody counts twice.
+    match /schoolWeeks/{weekId} {
+      allow read: if isAdmin() || isSchoolAdminOf(resource.data.schoolId);
+
+      function isVisitCount(before, changed) {
+        let d = request.resource.data;
+        let marker = activityPath(d.week);
+        let key = 'n_' + getAfter(marker).data.bucket;
+        return d.week is int && d.schoolId is string &&
+          weekId == d.schoolId + '_' + string(d.week) &&
+          !exists(marker) && existsAfter(marker) &&
+          getAfter(marker).data.schoolId == d.schoolId &&
+          getAfter(marker).data.week == d.week &&
+          changed.hasOnly(['schoolId', 'week', 'total', key, 'updatedAt']) &&
+          d.total == before.get('total', 0) + 1 &&
+          d.get(key, 0) == before.get(key, 0) + 1 &&
+          d.updatedAt == request.time;
+      }
+
+      allow create: if isAuthenticated() && isVisitCount({}, request.resource.data.keys());
+      allow update: if isAuthenticated() &&
+        request.resource.data.schoolId == resource.data.schoolId &&
+        request.resource.data.week == resource.data.week &&
+        isVisitCount(resource.data, request.resource.data.diff(resource.data).affectedKeys());
+      allow delete: if isAdmin();
+    }
+
     // ================================================================= users
 
     match /users/{userId} {
       // Single profiles are public (author cards read them). Listing the whole
       // collection would expose every e-mail address, so only admins may list.
       allow get: if true;
-      allow list: if isAdmin();
+      // School admins list the teacher sign-ups of their own school, to confirm them.
+      allow list: if isAdmin() ||
+        (resource.data.get('accountType', '') == 'teacher' && isSchoolAdminOf(resource.data.get('schoolId', '')));
 
       allow create: if isAuthenticated() &&
         userId == request.auth.uid &&
@@ -559,6 +669,13 @@ service cloud.firestore {
         // Admin grants or removes the teacher role, and nothing else.
         (isAdmin() &&
           userId != request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) &&
+          request.resource.data.role in ['user', 'teacher'] &&
+          resource.data.role in ['user', 'teacher']) ||
+        // A school admin confirms (or removes) the teachers who signed up for their school.
+        (isSchoolAdminOf(resource.data.get('schoolId', '')) &&
+          userId != request.auth.uid &&
+          resource.data.get('accountType', '') == 'teacher' &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) &&
           request.resource.data.role in ['user', 'teacher'] &&
           resource.data.role in ['user', 'teacher']);

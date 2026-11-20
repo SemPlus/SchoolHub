@@ -332,7 +332,7 @@ export default function FounderDashboard() {
         ))}
       </div>
 
-      <AulePanel users={users} materials={materials} collections={collections} />
+      <AulePanel />
 
       <ViewAsPanel />
     </div>

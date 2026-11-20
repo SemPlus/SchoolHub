@@ -14,6 +14,7 @@ import { loadSimulation, saveSimulation, setSimulationActive, SIMULATION_OFF, ty
 import { schoolYearStart } from '../lib/schoolYear';
 import { toDate } from '../lib/utils';
 import { isAuthorOf, retiredMaterialIds, themeKey } from '../lib/lots';
+import { loadAdminSchoolId, recordWeeklyActivity } from '../lib/schoolPanel';
 
 // The founder's account always has full admin rights, whatever its stored role.
 export const ADMIN_EMAIL = 'sem.gk01@gmail.com';
@@ -70,6 +71,8 @@ interface AppDataValue {
   getStats: (uid: string | undefined | null) => UserStats;
   /** The founder's own account (true even while viewing as someone else). */
   isFounder: boolean;
+  /** The school this user administers (principal, vice-principal, digital lead), if any. */
+  adminSchoolId: string | null;
   /** Founder-only "view as"; display only, writes are refused while on. */
   simulation: Simulation;
   setSimulation: (simulation: Simulation) => void;
@@ -408,6 +411,24 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       .catch(error => console.warn('Could not update the class directory:', error));
   }, [user?.uid, profile?.schoolId, profile?.classYear, profile?.classSection, profile?.profileSchoolYear, profile?.accountType, profile?.displayName, simulating]);
 
+  // Counted once a week as active for the school panel (totals per class only).
+  useEffect(() => {
+    if (!user || !profile?.schoolId || simulating) return;
+    recordWeeklyActivity(user.uid, profile).catch(error => console.warn('Could not record weekly activity:', error));
+  }, [user?.uid, profile?.schoolId, profile?.accountType, profile?.classYear, profile?.classSection, simulating]);
+
+  // School admins are named by the founder, by e-mail.
+  const [adminSchoolId, setAdminSchoolId] = useState<string | null>(null);
+  useEffect(() => {
+    setAdminSchoolId(null);
+    if (!user?.email) return;
+    let cancelled = false;
+    loadAdminSchoolId(user.email)
+      .then(id => { if (!cancelled) setAdminSchoolId(id); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [user?.uid, user?.email]);
+
   // "Last seen" for the founder dashboard: at most one small write per day.
   const lastSeenWrittenFor = useRef<string | null>(null);
   useEffect(() => {
@@ -447,12 +468,13 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     },
     getStats: (id) => (id && statsByUser[id]) || EMPTY_STATS,
     isFounder,
+    adminSchoolId: simulating ? null : adminSchoolId,
     simulation: effectiveSimulation,
     setSimulation: (next: Simulation) => {
       saveSimulation(next);
       setSimulationState(next);
     },
-  }), [viewUser, isAuthReady, viewProfile, isProfileLoaded, viewRole, materials, isMaterialsLoading, materialsError, feed, loadMoreFeed, fetchMaterials, ensureMaterials, requests, collections, ensureCollection, retiredIds, studied, statsByUser, isFounder, effectiveSimulation]);
+  }), [viewUser, isAuthReady, viewProfile, isProfileLoaded, viewRole, materials, isMaterialsLoading, materialsError, feed, loadMoreFeed, fetchMaterials, ensureMaterials, requests, collections, ensureCollection, retiredIds, studied, statsByUser, isFounder, adminSchoolId, simulating, effectiveSimulation]);
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }

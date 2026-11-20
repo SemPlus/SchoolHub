@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { signInWithGoogle, logOut } from './firebase';
-import { BookOpen, LogOut, LogIn, Library, User as UserIcon, HandHelping, LayoutDashboard, Eye } from 'lucide-react';
+import { BookOpen, LogOut, LogIn, Library, User as UserIcon, HandHelping, LayoutDashboard, Eye, Landmark } from 'lucide-react';
 import { describeSimulation } from './lib/simulation';
 import MaterialList from './components/MaterialList';
 import RequestBoard from './components/RequestBoard';
 import FounderDashboard from './components/FounderDashboard';
+import SchoolPanel from './components/school/SchoolPanel';
 import InstallButton from './components/InstallButton';
 import InstallPrompt from './components/InstallPrompt';
 import CursorGlow from './components/CursorGlow';
@@ -21,18 +22,19 @@ import { cn } from './lib/utils';
 import { useUserStats } from './lib/userStats';
 
 import { t, tc } from './lib/i18n';
-type Tab = 'archive' | 'requests' | 'personal' | 'trash' | 'dashboard';
+type Tab = 'archive' | 'requests' | 'personal' | 'trash' | 'school' | 'dashboard';
 
 const TITLES: Record<Tab, string> = {
   archive: 'The Archive',
   requests: 'Requests',
   personal: 'My Space',
   trash: 'Trash',
+  school: 'School',
   dashboard: 'Dashboard',
 };
 
 export default function App() {
-  const { user, isAuthReady, profile, isProfileLoaded, userRole, getStats, isFounder, simulation, setSimulation } = useAppData();
+  const { user, isAuthReady, profile, isProfileLoaded, userRole, getStats, isFounder, adminSchoolId, simulation, setSimulation } = useAppData();
   const [activeTab, setActiveTab] = useState<Tab>('archive');
   const [isOwnProfileOpen, setIsOwnProfileOpen] = useState(false);
   // Impact from the loaded school is live; the full record also counts work elsewhere.
@@ -69,8 +71,9 @@ export default function App() {
     // My Space and Trash are only reachable while signed in.
     if (isAuthReady && !user && (activeTab === 'personal' || activeTab === 'trash' || activeTab === 'dashboard')) setActiveTab('archive');
     if (isAuthReady && user && activeTab === 'dashboard' && userRole !== 'admin') setActiveTab('archive');
+    if (activeTab === 'school' && !adminSchoolId) setActiveTab('archive');
     if (!user) setIsOwnProfileOpen(false);
-  }, [user, isAuthReady, activeTab, userRole]);
+  }, [user, isAuthReady, activeTab, userRole, adminSchoolId]);
 
   if (!isAuthReady) {
     return (
@@ -81,13 +84,14 @@ export default function App() {
   }
 
   // Trash lives inside My Space (a button in its toolbar) to keep the tab bar short.
-  const tabs: { id: Tab; label: string; icon: React.ReactNode; signedInOnly: boolean; adminOnly?: boolean }[] = [
+  const tabs: { id: Tab; label: string; icon: React.ReactNode; signedInOnly: boolean; adminOnly?: boolean; schoolAdminOnly?: boolean }[] = [
     { id: 'archive', label: 'Archive', icon: <Library className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: false },
     { id: 'requests', label: 'Requests', icon: <HandHelping className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: false },
     { id: 'personal', label: 'My Space', icon: <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: true },
+    { id: 'school', label: 'School', icon: <Landmark className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: true, schoolAdminOnly: true },
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, signedInOnly: true, adminOnly: true },
   ];
-  const visibleTabs = tabs.filter(t => (!t.signedInOnly || user) && (!t.adminOnly || userRole === 'admin'));
+  const visibleTabs = tabs.filter(t => (!t.signedInOnly || user) && (!t.adminOnly || userRole === 'admin') && (!t.schoolAdminOnly || adminSchoolId));
   const isTabActive = (id: Tab) => activeTab === id || (id === 'personal' && activeTab === 'trash');
 
   const tabClass = (id: Tab) => cn(
@@ -261,6 +265,8 @@ export default function App() {
         <div className="relative z-10 bg-luxury-black pt-0 shadow-[0_-50px_100px_rgba(0,0,0,0.9)]">
           {activeTab === 'requests' ? (
             <RequestBoard />
+          ) : activeTab === 'school' ? (
+            adminSchoolId && <SchoolPanel schoolId={adminSchoolId} />
           ) : activeTab === 'dashboard' ? (
             <FounderDashboard />
           ) : (
