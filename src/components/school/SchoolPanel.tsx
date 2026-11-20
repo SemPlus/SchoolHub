@@ -12,6 +12,7 @@ import type { User } from '../../types';
 import SubjectMark from '../SubjectMark';
 import WeeklyBars from '../dashboard/WeeklyBars';
 import Classrooms from './Classrooms';
+import TimetableSection from './TimetableSection';
 import SchoolReport from './SchoolReport';
 import { useSchoolPanel } from './useSchoolPanel';
 
@@ -208,6 +209,12 @@ export default function SchoolPanel({ schoolId }: { schoolId: string }) {
             </ul>
           )}
         </div>
+      </div>
+
+      {/* Timetable */}
+      <div className={panel}>
+        <p className={heading}>{t("Class timetable")}</p>
+        <TimetableSection schoolId={schoolId} classes={data.classes.map(c => c.label)} timetable={data.timetable} onSaved={data.reload} />
       </div>
 
       {/* Classrooms */}

@@ -89,7 +89,7 @@ Prime 10 scuole: 50% di sconto per 2 anni in cambio di una testimonianza.
 | 3 | **Pannello della scuola**, con resoconto PDF annuale | È il prodotto che si vende al preside | ✓ Fatto (20 nov): fino a 3 amministratori per scuola nominati dal fondatore; solo numeri per classe e materia; il preside conferma i docenti; conteggio settimanale anonimo degli attivi; resoconto stampabile; link delle aule |
 | 4 | **Moderazione della scuola** e pulsante Segnala | Prima paura del preside: contenuti e copyright | Sì |
 | 5 | **Ricerca mista ordinata** (classe → scuola → resto) | Trovare subito un modello da cui partire | Sì |
-| 6 | **Orario della classe** nella modalità aula | Apre da sola la materia dell'ora | File esportato sì; immagine letta in automatico dopo febbraio |
+| 6 | **Orario della classe** nella modalità aula | Apre da sola la materia dell'ora | ✓ File esportato fatto (20 nov): aSc Orari XML, Untis GPU001.TXT, modello CSV, compilazione a mano; abbinamento delle materie, campanelle, griglia per classe; solo classe, giorno, ora e materia. Immagine letta in automatico dopo febbraio |
 | 7 | **Docenti verificati dal dominio email** della scuola (Google Workspace) | Toglie la conferma manuale del fondatore | Sì, nelle regole del database |
 | 8 | **Pacchetto privacy e pagine legali** (privacy, termini, cookie) | Serve alle scuole e anche a Google (vedi sotto) | Sì |
 | 9 | **Sito di presentazione e scuola demo** | Credibilità prima della prova | Sì |

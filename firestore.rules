@@ -578,6 +578,21 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Class timetables, one per school: class → day → subject per period,
+    // plus bell times. Public (the classroom screen has no sign-in), so no
+    // teacher names or rooms. Written by the school's admins or the founder.
+    match /timetables/{schoolId} {
+      allow read: if true;
+      allow create, update: if (isAdmin() || isSchoolAdminOf(schoolId)) &&
+        request.resource.data.keys().hasOnly(['periods', 'grid', 'subjectMap', 'source', 'updatedAt']) &&
+        request.resource.data.periods is list && request.resource.data.periods.size() <= 12 &&
+        request.resource.data.grid is map && request.resource.data.grid.size() <= 300 &&
+        request.resource.data.subjectMap is map && request.resource.data.subjectMap.size() <= 300 &&
+        request.resource.data.source in ['asc', 'untis', 'csv', 'manual'] &&
+        request.resource.data.updatedAt == request.time;
+      allow delete: if isAdmin() || isSchoolAdminOf(schoolId);
+    }
+
     // Weeks are numbered from Monday 5 January 1970 (UTC); a count may only
     // go to the current week (one either side for clock differences).
     function currentWeek() {

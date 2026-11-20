@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { collection, getDocsFromServer, query, where } from 'firebase/firestore';
+import { collection, doc, getDocFromServer, getDocsFromServer, query, where } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAppData } from '../../context/AppData';
 import type { Collection, Material, User } from '../../types';
@@ -9,6 +9,7 @@ import { isClosed, isLot, keptWorks, retiredMaterialIds } from '../../lib/lots';
 import { formatClassName, parseClassLabel, schoolYearStart } from '../../lib/schoolYear';
 import { mapSchoolWeek, studentsActive, weekDate, weekIndex, type SchoolWeek } from '../../lib/schoolPanel';
 import { toDate } from '../../lib/utils';
+import { mapTimetableDoc, type Timetable } from '../../lib/timetable';
 
 export interface ClassRow {
   label: string;
@@ -42,6 +43,7 @@ export function useSchoolPanel(schoolId: string) {
   const [teachers, setTeachers] = useState<User[]>([]);
   const [weeks, setWeeks] = useState<SchoolWeek[]>([]);
   const [visits, setVisits] = useState<Map<string, Date>>(new Map());
+  const [timetable, setTimetable] = useState<Timetable | null>(null);
   const [loading, setLoading] = useState(true);
   /** Some lists were refused (the database rules for the panel are not deployed yet). */
   const [unavailable, setUnavailable] = useState(false);
@@ -49,7 +51,7 @@ export function useSchoolPanel(schoolId: string) {
   const reload = useCallback(async () => {
     const bySchool = (name: string, ...more: ReturnType<typeof where>[]) =>
       getDocsFromServer(query(collection(db, name), where('schoolId', '==', schoolId), ...more));
-    const [a, d, tch, w, v, m, c] = await Promise.allSettled([
+    const [a, d, tch, w, v, m, c, tt] = await Promise.allSettled([
       loadActivation(schoolId),
       bySchool('directory'),
       bySchool('users', where('accountType', '==', 'teacher')),
@@ -57,7 +59,9 @@ export function useSchoolPanel(schoolId: string) {
       bySchool('aulaVisits'),
       own ? Promise.resolve(null) : bySchool('materials'),
       own ? Promise.resolve(null) : bySchool('collections'),
+      getDocFromServer(doc(db, 'timetables', schoolId)),
     ]);
+    if (tt.status === 'fulfilled') setTimetable(tt.value.exists() ? mapTimetableDoc(tt.value.data(), toDate) : null);
     if (a.status === 'fulfilled') setActivation(a.value);
     if (d.status === 'fulfilled') setDirectory(d.value.docs.map(x => x.data()));
     if (tch.status === 'fulfilled') setTeachers(tch.value.docs.map(x => ({ uid: x.id, ...(x.data() as any) } as User)));
@@ -126,6 +130,7 @@ export function useSchoolPanel(schoolId: string) {
     const classSet = new Set<string>(activation?.extraClasses ?? []);
     enrolledBy.forEach((_, label) => classSet.add(label));
     for (const tch of teachers) (tch.teacherClasses || []).forEach(l => classSet.add(l));
+    Object.keys(timetable?.grid ?? {}).forEach(l => classSet.add(l));
     for (const x of [...yearMaterials, ...yearLots]) { const l = labelOf(x); if (l) classSet.add(l); }
     const classes: ClassRow[] = [...classSet]
       .filter(l => parseClassLabel(l))
@@ -184,10 +189,11 @@ export function useSchoolPanel(schoolId: string) {
       classesUsedThisYear: classes.filter(c => c.lastAula && c.lastAula >= yearStart).length,
       subjects,
       visits,
+      timetable,
       pendingTeachers: teachers.filter(tch => tch.role === 'user'),
       confirmedTeachers: teachers.filter(tch => tch.role === 'teacher' || tch.role === 'admin').length,
     };
-  }, [own, liveMaterials, liveCollections, fetched, schoolId, directory, teachers, weeks, visits, activation, loading, unavailable, reload]);
+  }, [own, liveMaterials, liveCollections, fetched, schoolId, directory, teachers, weeks, visits, timetable, activation, loading, unavailable, reload]);
 }
 
 export type SchoolPanelData = ReturnType<typeof useSchoolPanel>;

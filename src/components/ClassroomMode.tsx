@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore';
 import qrcode from 'qrcode-generator';
 import { Search, X, ExternalLink, Crown } from 'lucide-react';
 import { db } from '../firebase';
@@ -13,7 +13,8 @@ import { matchesAllWords, searchToken } from '../lib/search';
 import { authorsLine, isClosed, isLot, keptWorks, retiredMaterialIds } from '../lib/lots';
 import { subjectStyle, withAlpha } from '../lib/subjects';
 import { format, t } from '../lib/i18n';
-import { cn } from '../lib/utils';
+import { cn, toDate } from '../lib/utils';
+import { currentSlot, mapTimetableDoc, type Timetable } from '../lib/timetable';
 
 type Status = 'loading' | 'active' | 'inactive' | 'invalid';
 
@@ -46,7 +47,9 @@ export default function ClassroomMode() {
     return [...byId.values()];
   }, [schoolMaterials, lotWorks]);
   const [collections, setCollections] = useState<Collection[]>([]);
-  const [subject, setSubject] = useState<string | null>(null);
+  // A subject chosen by hand lasts until the next hour of the timetable.
+  const [manual, setManual] = useState<{ subject: string; slot: string } | null>(null);
+  const [timetable, setTimetable] = useState<Timetable | null>(null);
   const [lotId, setLotId] = useState<string | null>(null);
   const [now, setNow] = useState(new Date());
 
@@ -78,7 +81,11 @@ export default function ClassroomMode() {
     const unsubCollections = onSnapshot(query(collection(db, 'collections'), where('schoolId', '==', target.schoolId)), snapshot => {
       setCollections(snapshot.docs.map(d => mapCollectionDoc(d.id, d.data())).filter(c => !c.isDeleted));
     }, error => console.error('Classroom collections error:', error));
-    return () => { unsubMaterials(); unsubCollections(); };
+    // The school's timetable (public, no teacher names).
+    const unsubTimetable = onSnapshot(doc(db, 'timetables', target.schoolId), snapshot => {
+      setTimetable(snapshot.exists() ? mapTimetableDoc(snapshot.data(), toDate) : null);
+    }, error => console.warn('Classroom timetable error:', error));
+    return () => { unsubMaterials(); unsubCollections(); unsubTimetable(); };
   }, [status]);
 
   const year = schoolYearStart();
@@ -132,9 +139,20 @@ export default function ClassroomMode() {
     return { lots, inherited, loose, subjects, visible, retired };
   }, [target, materials, collections, year]);
 
-  // Without a timetable, open the subject of the most recently active lot.
-  const activeSubject = subject && data?.subjects.includes(subject) ? subject : data?.subjects[0] ?? null;
-  const subjectLots = data?.lots.filter(l => (l.collection.subject || null) === activeSubject) ?? [];
+  // The lesson going on now opens by itself; without a timetable (or in a free
+  // hour), the subject of the most recently active lot.
+  const slot = target ? currentSlot(timetable, target.classLabel, now) : null;
+  const slotKey = slot?.key ?? 'none';
+  // A new hour (or the end of one) brings back the timetable's subject.
+  useEffect(() => { setManual(null); }, [slotKey]);
+  const subjects = slot && data && !data.subjects.includes(slot.subject) ? [slot.subject, ...data.subjects] : data?.subjects ?? [];
+  const chosen = manual && manual.slot === slotKey && subjects.includes(manual.subject) ? manual.subject : null;
+  const activeSubject = chosen ?? slot?.subject ?? subjects[0] ?? null;
+  // Open lots first, then the most recently active.
+  const subjectLots = (data?.lots.filter(l => (l.collection.subject || null) === activeSubject) ?? [])
+    .map((l, i) => ({ l, i, open: !l.collection.winnerMaterialId && !isClosed(l.collection) }))
+    .sort((a, b) => Number(b.open) - Number(a.open) || a.i - b.i)
+    .map(x => x.l);
   const lot = subjectLots.find(l => l.collection.id === lotId) ?? subjectLots[0] ?? null;
   const inheritedHere = (data?.inherited ?? []).filter(i => (i.collection.subject || null) === activeSubject).slice(0, 6);
   const looseHere = (data?.loose ?? []).filter(m => (m.subject || null) === activeSubject);
@@ -174,7 +192,9 @@ export default function ClassroomMode() {
             <p className={cn(label, 'truncate')}>{school ? `${school.name} · ${school.city}` : target!.schoolId} · {formatSchoolYear(year)}</p>
           </div>
           <div className="text-right shrink-0">
-            {activeSubject && <p className={cn(label, 'text-luxury-gold')}>{t(activeSubject)}</p>}
+            {slot && activeSubject === slot.subject ? (
+              <p className={cn(label, 'text-luxury-gold')}>{t("Period {0}", slot.period)} · {t(slot.subject)} · {t("until {0}", slot.end)}</p>
+            ) : activeSubject && <p className={cn(label, 'text-luxury-gold')}>{t(activeSubject)}</p>}
             <p className="font-serif text-2xl text-white/80 tabular-nums">{format(now, 'HH:mm')}</p>
           </div>
         </div>
@@ -183,13 +203,13 @@ export default function ClassroomMode() {
       <main className="max-w-[1600px] mx-auto px-5 sm:px-10 py-6 sm:py-8 space-y-8">
         {/* Subjects and search */}
         <div className="flex flex-wrap items-center gap-2">
-          {(data?.subjects ?? []).map(s => {
+          {subjects.map(s => {
             const { color } = subjectStyle(s);
             const on = s === activeSubject;
             return (
               <button
                 key={s}
-                onClick={() => { setSubject(s); setLotId(null); }}
+                onClick={() => { setManual({ subject: s, slot: slotKey }); setLotId(null); }}
                 className="px-4 py-2.5 rounded-full border text-xs sm:text-sm uppercase tracking-widest transition-colors"
                 style={on ? { color, borderColor: color, backgroundColor: withAlpha(color, 0.12) } : { color: 'rgba(255,255,255,0.55)', borderColor: 'rgba(255,255,255,0.12)' }}
               >
