@@ -14,6 +14,7 @@ import { loadSimulation, saveSimulation, setSimulationActive, SIMULATION_OFF, ty
 import { schoolYearStart } from '../lib/schoolYear';
 import { toDate } from '../lib/utils';
 import { isAuthorOf, retiredMaterialIds, themeKey } from '../lib/lots';
+import { isModHidden } from '../lib/moderation';
 import { loadAdminSchoolId, recordWeeklyActivity } from '../lib/schoolPanel';
 
 // The founder's account always has full admin rights, whatever its stored role.
@@ -301,7 +302,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   useLiveSource('mine', uid, () => query(collection(db, 'requests'), where('authorId', '==', uid)), mapRequestDoc, setRequestSource);
   useLiveSource('school', schoolId, () => query(collection(db, 'requests'), where('schoolId', '==', schoolId)), mapRequestDoc, setRequestSource);
   useLiveSource('recent', 'all', () => query(collection(db, 'requests'), orderBy('createdAt', 'desc'), limit(RECENT_REQUESTS)), mapRequestDoc, setRequestSource);
-  const requests = useMemo(() => merge(requestSources, ['mine', 'school']), [requestSources]);
+  // Requests hidden after reports are shown only to their authors.
+  const requests = useMemo(
+    () => merge(requestSources, ['mine', 'school']).filter(r => !isModHidden(r) || r.authorId === uid),
+    [requestSources, uid],
+  );
 
   const [collectionSources, setCollectionSource, addCollections] = useSources<Collection>();
   useLiveSource('mine', uid, () => query(collection(db, 'collections'), where('createdBy', '==', uid)), mapCollectionDoc, setCollectionSource);
@@ -366,10 +371,10 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [collections, addCollections]);
 
-  // Works that left the archive are shown only to their authors.
+  // Works that left the archive, or that were hidden after reports, are shown only to their authors.
   const retiredIds = useMemo(() => retiredMaterialIds(collections, allMaterials), [collections, allMaterials]);
   const materials = useMemo(
-    () => (retiredIds.size === 0 ? allMaterials : allMaterials.filter(m => !retiredIds.has(m.id) || isAuthorOf(m, uid))),
+    () => allMaterials.filter(m => (!retiredIds.has(m.id) && !isModHidden(m)) || isAuthorOf(m, uid)),
     [allMaterials, retiredIds, uid],
   );
 

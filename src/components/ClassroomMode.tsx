@@ -5,6 +5,7 @@ import { Search, X, ExternalLink, Crown } from 'lucide-react';
 import { db } from '../firebase';
 import type { Collection, Material } from '../types';
 import { mapCollectionDoc, mapMaterialDoc } from '../lib/mappers';
+import { isModHidden } from '../lib/moderation';
 import { findSchoolById, type SchoolOption } from '../lib/schools';
 import { formatSchoolYear, schoolYearStart } from '../lib/schoolYear';
 import { worksIn } from '../lib/collections';
@@ -76,7 +77,7 @@ export default function ClassroomMode() {
     if (!target || status !== 'active') return;
     recordAulaVisit(target);
     const unsubMaterials = onSnapshot(query(collection(db, 'materials'), where('schoolId', '==', target.schoolId)), snapshot => {
-      setSchoolMaterials(snapshot.docs.map(d => mapMaterialDoc(d.id, d.data())).filter(m => !m.isDeleted));
+      setSchoolMaterials(snapshot.docs.map(d => mapMaterialDoc(d.id, d.data())).filter(m => !m.isDeleted && !isModHidden(m)));
     }, error => console.error('Classroom materials error:', error));
     const unsubCollections = onSnapshot(query(collection(db, 'collections'), where('schoolId', '==', target.schoolId)), snapshot => {
       setCollections(snapshot.docs.map(d => mapCollectionDoc(d.id, d.data())).filter(c => !c.isDeleted));
@@ -161,7 +162,7 @@ export default function ClassroomMode() {
   useEffect(() => {
     if (!openLotId) { setLotWorks([]); return; }
     return onSnapshot(query(collection(db, 'materials'), where('collectionId', '==', openLotId)), snapshot => {
-      setLotWorks(snapshot.docs.map(d => mapMaterialDoc(d.id, d.data())).filter(m => !m.isDeleted));
+      setLotWorks(snapshot.docs.map(d => mapMaterialDoc(d.id, d.data())).filter(m => !m.isDeleted && !isModHidden(m)));
     }, error => console.error('Classroom lot error:', error));
   }, [openLotId]);
 
@@ -363,7 +364,7 @@ function SearchEverywhere({ target, materials, retired }: { target: NonNullable<
     const timer = window.setTimeout(() => {
       getDocs(query(collection(db, 'materials'), where('keywords', 'array-contains', token), limit(60)))
         .then(snapshot => {
-          if (!cancelled) setRemote(snapshot.docs.map(d => mapMaterialDoc(d.id, d.data())).filter(m => !m.isDeleted));
+          if (!cancelled) setRemote(snapshot.docs.map(d => mapMaterialDoc(d.id, d.data())).filter(m => !m.isDeleted && !isModHidden(m)));
         })
         .catch(error => console.warn('Search failed:', error));
     }, 350);

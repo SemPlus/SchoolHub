@@ -1,3 +1,5 @@
+import type { Moderated } from './lib/moderation';
+
 export type MaterialType = 'pdf' | 'word' | 'canva' | 'link' | 'other';
 
 export type LinkStatus = 'ok' | 'broken' | 'restricted';
@@ -11,7 +13,7 @@ export enum OperationType {
   WRITE = 'write',
 }
 
-export interface Material {
+export interface Material extends Moderated {
   id: string;
   title: string;
   description?: string;
@@ -67,6 +69,12 @@ export interface Material {
   /** Classmates who made the work together with the author (max 5). */
   coAuthorIds?: string[] | null;
   coAuthorNames?: string[] | null;
+  /** "I can share it": ticked at upload (works added before 21 Nov 2026 lack it). */
+  rightsConfirmed?: boolean;
+  /** When the school kept or removed it after reports. */
+  modAt?: Date | null;
+  /** When the author corrected it after the school hid or removed it. */
+  modFixedAt?: Date | null;
 }
 
 /**
@@ -117,7 +125,7 @@ export interface CollectionVote {
 }
 
 /** One person's stars and comment on a work. The document id is their uid. */
-export interface WorkFeedback {
+export interface WorkFeedback extends Moderated {
   id: string;
   userId: string;
   userName: string;
@@ -192,7 +200,7 @@ export interface Save {
 
 export type RequestStatus = 'open' | 'fulfilled' | 'closed';
 
-export interface MaterialRequest {
+export interface MaterialRequest extends Moderated {
   id: string;
   title: string;
   details?: string;

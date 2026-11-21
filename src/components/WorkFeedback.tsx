@@ -2,13 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { deleteDoc, setDoc, updateDoc } from '../lib/firestoreWrites';
 import { formatDistanceToNow } from '../lib/i18n';
-import { Star, MessageSquare, Trash2 } from 'lucide-react';
+import { Star, MessageSquare, Trash2, EyeOff } from 'lucide-react';
 import { db } from '../firebase';
 import type { Material, WorkFeedback as Feedback } from '../types';
 import { useAppData } from '../context/AppData';
 import { mapFeedbackDoc } from '../lib/mappers';
 import { firebaseErrorMessage } from '../lib/engagement';
 import { cn } from '../lib/utils';
+import { isModHidden } from '../lib/moderation';
+import ReportButton from './ReportButton';
 
 import { t } from '../lib/i18n';
 interface WorkFeedbackProps {
@@ -55,12 +57,13 @@ export default function WorkFeedback({ work }: WorkFeedbackProps) {
   useEffect(() => {
     setItems([]);
     const unsubscribe = onSnapshot(collection(db, 'materials', work.id, 'feedback'), (snapshot) => {
-      const list = snapshot.docs.map(d => mapFeedbackDoc(d.id, d.data()));
+      // Comments hidden after reports stay visible only to whoever wrote them.
+      const list = snapshot.docs.map(d => mapFeedbackDoc(d.id, d.data())).filter(f => !isModHidden(f) || f.userId === user?.uid);
       list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       setItems(list);
     }, (err) => console.error('Feedback snapshot error:', err));
     return () => unsubscribe();
-  }, [work.id]);
+  }, [work.id, user?.uid]);
 
   const mine = useMemo(() => items.find(i => i.userId === user?.uid), [items, user?.uid]);
 
@@ -71,7 +74,7 @@ export default function WorkFeedback({ work }: WorkFeedbackProps) {
     setError(null);
   }, [mine?.id, work.id]);
 
-  const ratings = items.map(i => i.rating || 0).filter(r => r > 0);
+  const ratings = items.filter(i => !isModHidden(i)).map(i => i.rating || 0).filter(r => r > 0);
   const average = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
   const canReview = !!user && user.uid !== work.authorId;
   const showForm = canReview && (!mine || editing);
@@ -171,6 +174,15 @@ export default function WorkFeedback({ work }: WorkFeedbackProps) {
                   {item.userId === user?.uid && !editing && (
                     <button onClick={() => setEditing(true)} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white px-1">{t("Edit")}</button>
                   )}
+                  {item.comment && (
+                    <ReportButton
+                      variant="text"
+                      target={{ kind: 'comment', materialId: work.id, commentUserId: item.userId }}
+                      label={item.comment.slice(0, 80)}
+                      ownerId={item.userId}
+                      level={3}
+                    />
+                  )}
                   {(item.userId === user?.uid || userRole === 'admin') && (
                     <button onClick={() => remove(item)} className="p-1 text-white/30 hover:text-red-400" aria-label={t("Delete feedback")}>
                       <Trash2 className="w-3.5 h-3.5" />
@@ -179,6 +191,11 @@ export default function WorkFeedback({ work }: WorkFeedbackProps) {
                 </div>
               </div>
               {item.comment && <p className="text-sm text-white/65 mt-1 whitespace-pre-line">{item.comment}</p>}
+              {isModHidden(item) && (
+                <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-amber-300 mt-2">
+                  <EyeOff className="w-3 h-3" /> {t("Hidden by the school: only you can see it")}
+                </p>
+              )}
             </li>
           ))}
         </ul>

@@ -6,6 +6,7 @@ import type { Collection, Material, User } from '../../types';
 import { loadActivation, type SchoolActivation } from '../../lib/aula';
 import { mapCollectionDoc, mapMaterialDoc } from '../../lib/mappers';
 import { isClosed, isLot, keptWorks, retiredMaterialIds } from '../../lib/lots';
+import { isModHidden } from '../../lib/moderation';
 import { formatClassName, parseClassLabel, schoolYearStart } from '../../lib/schoolYear';
 import { mapSchoolWeek, studentsActive, weekDate, weekIndex, type SchoolWeek } from '../../lib/schoolPanel';
 import { toDate } from '../../lib/utils';
@@ -96,8 +97,8 @@ export function useSchoolPanel(schoolId: string) {
     const sourceCollections = own ? liveCollections : fetched?.collections ?? [];
     const schoolCollections = sourceCollections.filter(c => c.schoolId === schoolId && !c.isDeleted);
     const retired = retiredMaterialIds(schoolCollections, sourceMaterials);
-    // Works in the archive (trashed and retired ones left out).
-    const schoolMaterials = sourceMaterials.filter(m => m.schoolId === schoolId && !m.isDeleted && !retired.has(m.id));
+    // Works in the archive (trashed, retired and hidden ones left out).
+    const schoolMaterials = sourceMaterials.filter(m => m.schoolId === schoolId && !m.isDeleted && !retired.has(m.id) && !isModHidden(m));
     const thisYear = (d: Date) => schoolYearStart(d) === year;
     const yearMaterials = schoolMaterials.filter(m => thisYear(m.createdAt));
     const yearLots = schoolCollections.filter(c => isLot(c) && thisYear(c.createdAt));

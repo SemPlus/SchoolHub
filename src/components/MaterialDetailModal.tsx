@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   ExternalLink, Download, Tag, Trash2, Bookmark, BookmarkCheck, Share2, BookOpen, BadgeCheck, AlertTriangle,
-  Calendar, Eye, Edit2, Layers, Maximize2, CornerDownRight, BookMarked, PenLine,
+  Calendar, Eye, Edit2, Layers, Maximize2, CornerDownRight, BookMarked, PenLine, EyeOff,
 } from 'lucide-react';
 import { format } from '../lib/i18n';
 import { Material, User as UserType } from '../types';
@@ -20,6 +20,8 @@ import { useAppData } from '../context/AppData';
 import { linkStatusLabel } from './MaterialCard';
 import Modal from './Modal';
 import SubjectBadge from './SubjectBadge';
+import ReportButton from './ReportButton';
+import { isModHidden, REASON_SHORT } from '../lib/moderation';
 import UserAvatar from './UserAvatar';
 
 import { t } from '../lib/i18n';
@@ -219,6 +221,12 @@ export default function MaterialDetailModal({
                 {material.verifiedBy ? t("Unverify") : t("Verify")}
               </button>
             )}
+            <ReportButton
+              target={{ kind: 'material', materialId: material.id }}
+              label={material.title}
+              ownerId={material.authorId}
+              level={level === 1 ? 2 : 3}
+            />
             {canEdit && (
               <button
                 onClick={handleDelete}
@@ -235,6 +243,23 @@ export default function MaterialDetailModal({
     >
       <div className="space-y-6">
         <div className="h-1 rounded-full" style={{ background: `linear-gradient(90deg, ${color}, ${withAlpha(color, 0)})` }} />
+
+        {isOwner && isModHidden(material) && (
+          <div className="flex gap-3 p-4 rounded-2xl border border-amber-400/30 bg-amber-400/5">
+            <EyeOff className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+            <div className="space-y-1 text-sm">
+              <p className="text-amber-200">
+                {material.modStatus === 'removed' ? t("Removed by the school") : t("Hidden by the school")}
+                {material.modReason && <span className="text-amber-200/70"> · {t("reason: {0}", t(REASON_SHORT[material.modReason]))}</span>}
+              </p>
+              <p className="text-white/55">
+                {material.modFixedAt && (!material.modAt || material.modFixedAt > material.modAt)
+                  ? t("Corrected: waiting for the school to look at it again.")
+                  : t("Only you can see it, and the file stays in your Drive. Correct it with Edit and the school will look at it again.")}
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2">
           <SubjectBadge subject={material.subject} size="md" />

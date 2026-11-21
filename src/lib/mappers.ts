@@ -17,6 +17,8 @@ export const mapMaterialDoc = (id: string, data: any): Material => ({
   verifiedAt: toDate(data.verifiedAt),
   linkCheckedAt: toDate(data.linkCheckedAt),
   visibleInArchiveUntil: toDate(data.visibleInArchiveUntil),
+  modAt: toDate(data.modAt),
+  modFixedAt: toDate(data.modFixedAt),
 } as Material);
 
 export const mapFolderDoc = (id: string, data: any): Folder => ({

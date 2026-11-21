@@ -14,6 +14,7 @@ import WeeklyBars from '../dashboard/WeeklyBars';
 import Classrooms from './Classrooms';
 import TimetableSection from './TimetableSection';
 import SchoolReport from './SchoolReport';
+import ModerationQueue from './ModerationQueue';
 import { useSchoolPanel } from './useSchoolPanel';
 
 const panel = 'glass-panel rounded-[1.5rem] p-4 sm:p-5 border-white/5 space-y-4 min-w-0';
@@ -104,6 +105,8 @@ export default function SchoolPanel({ schoolId }: { schoolId: string }) {
           {tile(t("Classrooms in use"), <>{data.classesInUse}<span className="text-white/35 text-xl">/{data.classes.length}</span></>, t("in the last 7 days"))}
         </div>
       </div>
+
+      <ModerationQueue schoolId={schoolId} />
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.8fr)] gap-4 sm:gap-6 items-start">
         <WeeklyBars title={t("Active students")} weeks={data.last12.weeks} values={data.last12.values} />

@@ -78,6 +78,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const [uploaderKey, setUploaderKey] = useState(0);
+  const [rightsConfirmed, setRightsConfirmed] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -128,6 +129,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
     setBook(null);
     setMode('file');
     setShowMore(false);
+    setRightsConfirmed(false);
     setUploaderKey(k => k + 1);
   };
 
@@ -161,6 +163,10 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
       setError(t("Choose a subject."));
       return;
     }
+    if (!rightsConfirmed) {
+      setError(t("Confirm that you can share it."));
+      return;
+    }
     const hasClass = !!school && !!classYear && !!classSection && SECTION_PATTERN.test(classSection);
     // The subject has its own field, so a tag that repeats it is dropped.
     const tagList = tags.split(',').map(t => t.trim()).filter(t => t && t.toLowerCase() !== subject.toLowerCase());
@@ -187,6 +193,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
         bookTitle: book?.title || null,
         createdAt: serverTimestamp(),
         isDeleted: false,
+        rightsConfirmed: true,
         schoolId: school?.id || null,
         schoolName: school?.name || null,
         schoolCity: school?.city || null,
@@ -230,11 +237,20 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
       level={2}
       footer={
         <div className="space-y-3">
+          <label className="flex items-start gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={rightsConfirmed}
+              onChange={(e) => setRightsConfirmed(e.target.checked)}
+              className="mt-0.5 w-4 h-4 shrink-0 accent-[#D4AF37]"
+            />
+            <span className="text-xs text-white/60 leading-relaxed">{t("I can share it: it is my own work or free material (not pages of a book or someone else's paid material).")}</span>
+          </label>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isUploading}
+            disabled={isUploading || !rightsConfirmed}
             className="w-full bg-white text-luxury-black font-bold py-4 rounded-full hover:bg-luxury-gold disabled:opacity-30 transition-all"
           >
             {isUploading ? t("Saving…") : t("Add material")}

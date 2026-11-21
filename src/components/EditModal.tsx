@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link as LinkIcon } from 'lucide-react';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { updateDoc } from '../lib/firestoreWrites';
+import { isModHidden } from '../lib/moderation';
 import { keywordsFor } from '../lib/search';
 import CoAuthorPicker, { type CoAuthor } from './CoAuthorPicker';
 import { db, auth } from '../firebase';
@@ -93,6 +94,8 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
         type: materialType,
         url: linkUrl.trim(),
         updatedAt: serverTimestamp(),
+        // Hidden or removed after reports: the school looks at it again.
+        ...(isModHidden(material) ? { modFixedAt: serverTimestamp() } : {}),
         schoolId: school?.id || null,
         schoolName: school?.name || null,
         schoolCity: school?.city || null,

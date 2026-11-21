@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   FileText, File, Link as LinkIcon, ExternalLink, Download, Trash2, Presentation, Share2, Edit2, Move,
-  Bookmark, BookmarkCheck, ArrowLeft, BookOpen, BadgeCheck, AlertTriangle, Eye, History, Layers, CircleCheck, Circle, BookMarked,
+  Bookmark, BookmarkCheck, ArrowLeft, BookOpen, BadgeCheck, AlertTriangle, EyeOff, Eye, History, Layers, CircleCheck, Circle, BookMarked,
 } from 'lucide-react';
 import { formatDistanceToNow } from '../lib/i18n';
 import { Material } from '../types';
@@ -13,6 +13,7 @@ import { getRank } from '../lib/ranks';
 import { cn } from '../lib/utils';
 import { firebaseErrorMessage, recordOpen, toggleSave } from '../lib/engagement';
 import UserAvatar from './UserAvatar';
+import { isModHidden, REASON_SHORT } from '../lib/moderation';
 import SubjectBadge from './SubjectBadge';
 import SubjectMark from './SubjectMark';
 import { authorsLine } from '../lib/lots';
@@ -332,6 +333,13 @@ export default function MaterialCard({
           <span className="flex items-center gap-1 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-amber-300 font-medium">
             <AlertTriangle className="w-3 h-3" />
             {linkWarning}
+          </span>
+        )}
+        {isModHidden(material) && (
+          <span className="flex items-center gap-1 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full text-[8px] uppercase tracking-widest text-amber-300 font-medium">
+            <EyeOff className="w-3 h-3" />
+            {material.modStatus === 'removed' ? t("Removed by the school") : t("Hidden by the school")}
+            {material.modReason ? ` · ${t(REASON_SHORT[material.modReason])}` : ''}
           </span>
         )}
       </div>

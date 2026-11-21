@@ -64,6 +64,46 @@ service cloud.firestore {
       return isSchoolAdmin() && get(schoolAdminPath()).data.schoolId == schoolId;
     }
 
+    // Reports (see lib/moderation.ts). Content is hidden at the third report
+    // from different people, or at once when a teacher reports copyright.
+    function reportReasons() {
+      return ['copyright', 'offensive', 'personal', 'broken', 'other'];
+    }
+
+    function reportPathFor(key) {
+      return /databases/$(database)/documents/reports/$(key + '_' + request.auth.uid);
+    }
+
+    // +1 to a content's reportCount, only together with creating this user's
+    // report on it; the owner cannot report their own content.
+    function isReportCount(key, ownerId) {
+      let rp = reportPathFor(key);
+      let before = resource.data.get('reportCount', 0);
+      let after = request.resource.data.get('reportCount', 0);
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return isAuthenticated() &&
+        request.auth.uid != ownerId &&
+        resource.data.get('modStatus', null) != 'removed' &&
+        changed.hasOnly(['reportCount', 'modStatus', 'modReason']) &&
+        after == before + 1 &&
+        !exists(rp) && existsAfter(rp) &&
+        (!changed.hasAny(['modStatus', 'modReason']) ||
+          (resource.data.get('modStatus', null) == null &&
+           request.resource.data.modStatus == 'hidden' &&
+           request.resource.data.modReason == getAfter(rp).data.reason &&
+           (after >= 3 || (getAfter(rp).data.reason == 'copyright' && (isTeacher() || isAdmin())))));
+    }
+
+    // A moderator's "Va bene": visible again, reports from zero.
+    function isModKeep() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly(['reportCount', 'modStatus', 'modReason', 'modAt']) &&
+        request.resource.data.get('reportCount', 0) == 0 &&
+        request.resource.data.get('modStatus', null) == null &&
+        request.resource.data.get('modReason', null) == null &&
+        (!changed.hasAny(['modAt']) || request.resource.data.modAt == request.time);
+    }
+
     function isValidUrl(url) {
       return url is string && url.matches('^(https?|data):.*');
     }
@@ -250,6 +290,9 @@ service cloud.firestore {
         request.resource.data.get('verifiedBy', null) == null &&
         request.resource.data.get('linkStatus', null) == null &&
         isValidCollectionLink(request.resource.data) &&
+        !request.resource.data.keys().hasAny(['reportCount', 'modStatus', 'modReason', 'modAt', 'modFixedAt']) &&
+        // "I can share it: it is my own work or free material."
+        request.resource.data.get('rightsConfirmed', false) == true &&
         request.resource.data.createdAt == request.time;
 
       function materialChanged() {
@@ -272,7 +315,9 @@ service cloud.firestore {
             request.resource.data.get('verifiedBy', null) == null) &&
           (!materialChanged().hasAny(['url']) || request.resource.data.get('verifiedBy', null) == null) &&
           (!materialChanged().hasAny(['linkStatus']) || request.resource.data.linkStatus == null) &&
-          (!materialChanged().hasAny(['collectionId']) || isValidCollectionLink(request.resource.data));
+          (!materialChanged().hasAny(['collectionId']) || isValidCollectionLink(request.resource.data)) &&
+          !materialChanged().hasAny(['reportCount', 'modStatus', 'modReason', 'modAt', 'rightsConfirmed']) &&
+          (!materialChanged().hasAny(['modFixedAt']) || request.resource.data.modFixedAt == request.time);
       }
 
       function isTrashToggle() {
@@ -332,7 +377,18 @@ service cloud.firestore {
               request.resource.data.verifiedAt == null));
       }
 
-      allow update: if isAuthorEdit() || isTrashToggle() || isOpenCount() || isSaveCount() || isVerification();
+      // The school's admins (or the founder) keep or remove reported works.
+      function isModeration() {
+        return (isAdmin() || isSchoolAdminOf(resource.data.get('schoolId', ''))) &&
+          (isModKeep() ||
+           (materialChanged().hasOnly(['modStatus', 'modReason', 'modAt']) &&
+            request.resource.data.modStatus == 'removed' &&
+            request.resource.data.modReason in reportReasons() &&
+            request.resource.data.modAt == request.time));
+      }
+
+      allow update: if isAuthorEdit() || isTrashToggle() || isOpenCount() || isSaveCount() || isVerification() ||
+        isReportCount('m_' + materialId, resource.data.authorId) || isModeration();
 
       allow delete: if isAuthorOrAdmin();
 
@@ -362,7 +418,13 @@ service cloud.firestore {
           request.resource.data.updatedAt == request.time &&
           isValidFeedback(request.resource.data);
 
-        allow delete: if isAuthenticated() && (userId == request.auth.uid || isAdmin());
+        function isWorkModerator() {
+          return isAdmin() || isSchoolAdminOf(get(materialPath(materialId)).data.get('schoolId', ''));
+        }
+
+        allow update: if isReportCount('c_' + materialId + '_' + userId, userId) || (isWorkModerator() && isModKeep());
+
+        allow delete: if isAuthenticated() && (userId == request.auth.uid || isWorkModerator());
       }
     }
 
@@ -731,7 +793,9 @@ service cloud.firestore {
         return /databases/$(database)/documents/requests/$(requestId)/answers/$(id);
       }
 
-      allow update: if isRequester() && isValidRequestData(request.resource.data) && (
+      allow update: if isReportCount('r_' + requestId, resource.data.authorId) ||
+        ((isAdmin() || isSchoolAdminOf(resource.data.get('schoolId', ''))) && isModKeep()) ||
+        isRequester() && isValidRequestData(request.resource.data) && (
         // Close or reopen
         (requestChanged().hasOnly(['status']) &&
           ((resource.data.status == 'open' && request.resource.data.status == 'closed') ||
@@ -751,7 +815,8 @@ service cloud.firestore {
 
       // A fulfilled request is part of the helper's record, so only an admin
       // can remove it.
-      allow delete: if (isRequester() && resource.data.status != 'fulfilled') || isAdmin();
+      allow delete: if (isRequester() && resource.data.status != 'fulfilled') || isAdmin() ||
+        isSchoolAdminOf(resource.data.get('schoolId', ''));
 
       // One answer per user: the document id is the answering user's uid.
       match /answers/{answerId} {
@@ -774,6 +839,101 @@ service cloud.firestore {
           request.auth.uid == get(/databases/$(database)/documents/requests/$(requestId)).data.authorId ||
           isAdmin());
       }
+    }
+
+    // =================================================== reports & moderation
+
+    // One report per person per content: reports/{targetKey}_{uid}. Only the
+    // reporter and the founder read it: the school never sees who reported.
+    match /reports/{reportId} {
+      function keyOf(d) {
+        return d.kind == 'material' ? 'm_' + d.targetId
+          : (d.kind == 'request' ? 'r_' + d.targetId : 'c_' + d.targetId + '_' + d.get('commentUserId', ''));
+      }
+
+      function targetOf(d) {
+        return d.kind == 'request' ? /databases/$(database)/documents/requests/$(d.targetId)
+          : (d.kind == 'material' ? materialPath(d.targetId)
+            : /databases/$(database)/documents/materials/$(d.targetId)/feedback/$(d.get('commentUserId', '')));
+      }
+
+      allow get: if isAuthenticated() && (reportId.matches('.*_' + request.auth.uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasOnly(['kind', 'targetId', 'commentUserId', 'targetKey', 'reason', 'note', 'reporterId', 'reporterName', 'createdAt']) &&
+        request.resource.data.kind in ['material', 'comment', 'request'] &&
+        request.resource.data.targetId is string && request.resource.data.targetId.size() > 0 &&
+        request.resource.data.targetId.size() <= 128 &&
+        (request.resource.data.kind == 'comment') == ('commentUserId' in request.resource.data) &&
+        optString(request.resource.data, 'commentUserId', 128) &&
+        request.resource.data.targetKey == keyOf(request.resource.data) &&
+        reportId == request.resource.data.targetKey + '_' + request.auth.uid &&
+        request.resource.data.reason in reportReasons() &&
+        request.resource.data.note is string && request.resource.data.note.size() <= 300 &&
+        request.resource.data.reporterId == request.auth.uid &&
+        request.resource.data.reporterName is string && request.resource.data.reporterName.size() <= 100 &&
+        request.resource.data.createdAt == request.time &&
+        getAfter(targetOf(request.resource.data)).data.get('reportCount', 0) ==
+          get(targetOf(request.resource.data)).data.get('reportCount', 0) + 1 &&
+        getAfter(/databases/$(database)/documents/moderation/$(request.resource.data.targetKey)).data.updatedAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // What the school's admins see for each reported content: totals per
+    // reason and the notes, without names. moderation/{targetKey}.
+    match /moderation/{key} {
+      allow read: if isAdmin() || isSchoolAdminOf(resource.data.get('schoolId', ''));
+
+      function schoolOfTarget(r) {
+        let s = r.kind == 'request'
+          ? get(/databases/$(database)/documents/requests/$(r.targetId)).data.get('schoolId', '')
+          : get(materialPath(r.targetId)).data.get('schoolId', '');
+        return s == null ? '' : s;
+      }
+
+      // One more report, written in the same transaction as the report.
+      function isNewReport(oldCount, oldReasons, oldNotes) {
+        let rp = reportPathFor(key);
+        let r = getAfter(rp).data;
+        let d = request.resource.data;
+        let notes = d.get('notes', []);
+        return isAuthenticated() &&
+          !exists(rp) && existsAfter(rp) &&
+          d.keys().hasOnly(['kind', 'targetId', 'commentUserId', 'schoolId', 'count', 'reasons', 'notes', 'status', 'updatedAt', 'decidedByName']) &&
+          d.kind == r.kind && d.targetId == r.targetId &&
+          d.get('commentUserId', '') == r.get('commentUserId', '') &&
+          d.schoolId == schoolOfTarget(r) &&
+          d.count == oldCount + 1 &&
+          d.reasons is map &&
+          d.reasons.diff(oldReasons).affectedKeys().hasOnly([r.reason]) &&
+          d.reasons[r.reason] == oldReasons.get(r.reason, 0) + 1 &&
+          (notes == oldNotes ||
+            (r.note.size() > 0 && notes == oldNotes.concat([r.note]) && notes.size() <= 50)) &&
+          d.status == 'open' &&
+          d.updatedAt == request.time;
+      }
+
+      // "Va bene" (counts from zero) or "Rimuovi".
+      function isDecision() {
+        let d = request.resource.data;
+        let changed = d.diff(resource.data).affectedKeys();
+        return (isAdmin() || isSchoolAdminOf(resource.data.get('schoolId', ''))) &&
+          d.updatedAt == request.time &&
+          d.decidedByName is string && d.decidedByName.size() <= 100 &&
+          ((d.status == 'kept' &&
+              changed.hasOnly(['count', 'reasons', 'notes', 'status', 'updatedAt', 'decidedByName']) &&
+              d.count == 0 && d.reasons == {} && d.get('notes', []) == []) ||
+           (d.status == 'removed' && changed.hasOnly(['status', 'updatedAt', 'decidedByName'])));
+      }
+
+      allow create: if isNewReport(0, {}, []);
+      allow update: if
+        (resource.data.status != 'removed' &&
+          request.resource.data.get('decidedByName', null) == resource.data.get('decidedByName', null) &&
+          isNewReport(resource.data.count, resource.data.reasons, resource.data.get('notes', []))) ||
+        isDecision();
+      allow delete: if isAdmin();
     }
   }
 }

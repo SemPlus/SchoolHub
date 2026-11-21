@@ -4,7 +4,7 @@ import { addDoc, deleteDoc, setDoc, updateDoc } from '../lib/firestoreWrites';
 import { formatDistanceToNow } from '../lib/i18n';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  HandHelping, Plus, CheckCircle2, ChevronDown, ExternalLink, Trash2, X, Search, RotateCcw, Lock,
+  HandHelping, Plus, CheckCircle2, ChevronDown, ExternalLink, Trash2, X, Search, RotateCcw, Lock, EyeOff,
 } from 'lucide-react';
 import { db } from '../firebase';
 import { useAppData } from '../context/AppData';
@@ -16,6 +16,8 @@ import { firebaseErrorMessage, recordOpen } from '../lib/engagement';
 import { IMPACT_POINTS } from '../lib/stats';
 import { cn } from '../lib/utils';
 import Dropdown from './Dropdown';
+import ReportButton from './ReportButton';
+import { isModHidden } from '../lib/moderation';
 
 import { t, tc } from '../lib/i18n';
 type Scope = 'class' | 'school' | 'all';
@@ -342,6 +344,11 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
             )}
           </div>
           <h3 className="text-lg font-serif text-white">{request.title}</h3>
+          {isModHidden(request) && (
+            <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-amber-300">
+              <EyeOff className="w-3 h-3" /> {t("Hidden by the school: only you can see it")}
+            </p>
+          )}
           <p className="text-[10px] uppercase tracking-widest text-white/30">
             {request.authorName} · {formatDistanceToNow(request.createdAt, { addSuffix: true })}
           </p>
@@ -448,6 +455,19 @@ function RequestCard({ request, isExpanded, onToggle, materials }: RequestCardPr
                     <button disabled={busy} onClick={deleteRequest} className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-red-400/10 text-red-400 hover:bg-red-400/20 text-[9px] uppercase tracking-widest">
                       <Trash2 className="w-3 h-3" /> {t(" Delete")}</button>
                   )}
+                </div>
+              )}
+
+              {user && !isRequester && (
+                <div className="flex justify-end">
+                  <ReportButton
+                    variant="text"
+                    target={{ kind: 'request', requestId: request.id }}
+                    label={request.title}
+                    ownerId={request.authorId}
+                    level={2}
+                    className="flex items-center gap-1.5"
+                  />
                 </div>
               )}
 
