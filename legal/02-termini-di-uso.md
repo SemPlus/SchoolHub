@@ -80,7 +80,7 @@ Se cambiamo questi termini in modo importante, te lo diciamo nell'app almeno 15 
 ## 10. Legge applicabile
 
 - Si applica la legge italiana.
-- Se sei un consumatore, è competente il giudice del luogo in cui risiedi.
+- Se usi SchoolHub come consumatore, è competente il giudice del luogo in cui risiedi.
 
 ## 11. Contatti
 

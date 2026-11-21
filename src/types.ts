@@ -162,8 +162,14 @@ export type AccountType = 'student' | 'teacher';
 
 export interface User {
   uid: string;
-  email: string | null;
+  /** Not on public profiles any more (it lives in userEmails/{uid}); filled in where loaded. */
+  email?: string | null;
   displayName: string | null;
+  /** When the person accepted the terms, and which version. */
+  termsAcceptedAt?: unknown;
+  termsVersion?: string;
+  /** Set while the account is being deleted. */
+  deletingAt?: unknown;
   photoURL: string | null;
   role: UserRole;
   customColor?: string;

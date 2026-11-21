@@ -5,6 +5,7 @@ import { GraduationCap, Check } from 'lucide-react';
 import { db } from '../firebase';
 import type { User } from '../types';
 import { firebaseErrorMessage } from '../lib/engagement';
+import { loadUserEmails } from '../lib/userEmails';
 
 import { t } from '../lib/i18n';
 /**
@@ -15,6 +16,9 @@ export default function PendingTeachers() {
   const [pending, setPending] = useState<User[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // E-mails are private (userEmails/{uid}); the founder reads them once.
+  const [emails, setEmails] = useState<Map<string, string>>(new Map());
+  useEffect(() => { loadUserEmails().then(setEmails).catch(() => undefined); }, []);
 
   useEffect(() => {
     const q = query(collection(db, 'users'), where('accountType', '==', 'teacher'));
@@ -51,7 +55,7 @@ export default function PendingTeachers() {
           <div className="min-w-0">
             <p className="text-sm text-white truncate">{u.displayName || t("Unnamed")}</p>
             <p className="text-[10px] text-white/40 truncate">
-              {u.email}{u.schoolName ? ` · ${u.schoolName}` : ''}{u.teacherClasses?.length ? ` · ${u.teacherClasses.join(', ')}` : ''}
+              {emails.get(u.uid) ?? u.email}{u.schoolName ? ` · ${u.schoolName}` : ''}{u.teacherClasses?.length ? ` · ${u.teacherClasses.join(', ')}` : ''}
             </p>
           </div>
           <button

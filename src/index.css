@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+/* Fonts are served with the app (src/fonts.ts), not from Google Fonts: no visitor IP goes to Google. */
 @import "tailwindcss";
 
 @theme {
@@ -134,3 +134,22 @@ button, a {
     break-inside: avoid;
   }
 }
+
+/* Legal pages (/legal/…), rendered from legal/*.md. */
+.legal-text { color: rgba(255, 255, 255, 0.78); font-size: 0.9375rem; line-height: 1.7; overflow-wrap: anywhere; }
+.legal-text h1 { font-family: var(--font-serif); font-size: 2.25rem; line-height: 1.15; color: #fff; margin: 0 0 0.75rem; }
+.legal-text h2 { font-family: var(--font-serif); font-size: 1.6rem; color: #fff; margin: 2.25rem 0 0.75rem; }
+.legal-text h3 { font-size: 1rem; font-weight: 600; color: #fff; margin: 1.5rem 0 0.5rem; }
+.legal-text p, .legal-text ul, .legal-text ol, .legal-text blockquote, .legal-text table { margin: 0 0 1rem; }
+.legal-text ul { list-style: disc; padding-left: 1.25rem; }
+.legal-text ol { list-style: decimal; padding-left: 1.25rem; }
+.legal-text li { margin: 0.25rem 0; }
+.legal-text strong { color: #fff; font-weight: 600; }
+.legal-text em { color: rgba(255, 255, 255, 0.5); }
+.legal-text a { color: var(--color-luxury-gold); text-decoration: underline; text-underline-offset: 3px; }
+.legal-text blockquote { border-left: 2px solid rgba(212, 175, 55, 0.5); padding-left: 1rem; color: rgba(255, 255, 255, 0.65); }
+.legal-text hr { border: 0; border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 2rem 0; }
+.legal-text table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 0.8125rem; }
+.legal-text th, .legal-text td { border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.5rem 0.75rem; text-align: left; vertical-align: top; min-width: 7rem; }
+.legal-text th { color: #fff; font-weight: 600; background: rgba(255, 255, 255, 0.03); }
+.legal-text code { font-size: 0.85em; background: rgba(255, 255, 255, 0.06); padding: 0.1em 0.35em; border-radius: 0.35em; }

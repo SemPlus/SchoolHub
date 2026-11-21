@@ -31,18 +31,23 @@ Le parti tra parentesi quadre, es. `[RAGIONE SOCIALE]`, vanno completate quando 
 
   Per queste funzioni serve l'accordo 06.
 
-## Da sistemare nell'app prima del lancio
+## Cosa fa già l'app (21 novembre 2026)
 
-Le bozze descrivono come l'app **deve** funzionare al lancio. Oggi ci sono queste differenze:
+- **Email private:** stanno in `userEmails/{uid}`, leggibili solo dalla persona, dal fondatore e, per i docenti, dagli amministratori della loro scuola. I profili pubblici non le contengono più.
+- **"Elimina il mio account"** in fondo al proprio profilo:
+  - i lavori fatti senza compagni vengono cancellati; quelli di gruppo passano al primo coautore;
+  - commenti, voti, richieste, cartelle, salvataggi, aperture e attività vengono cancellati;
+  - temi e lotti restano, firmati "Account eliminato";
+  - le segnalazioni fatte restano fino a 12 mesi.
+- **Spunta "Ho almeno 14 anni e accetto…"** alla prima iscrizione. Chi era già iscritto la accetta una volta. Si salvano data e versione (`termsAcceptedAt`, `termsVersion`).
+- **Pagine** `/legal/privacy`, `/legal/termini`, `/legal/cookie`, `/legal/regole`, generate da questi file. Sono linkate in fondo all'app, nel proprio profilo e nella spunta. I dati della società si inseriscono in `src/lib/legal.ts` (`LEGAL_INFO`): finché mancano, la pagina dice che è una versione di prova.
+- **Caratteri ospitati con l'app**, non più da Google Fonts.
+- **Pulizia dei dati vecchi** (marcatori di attività, segnalazioni e decisioni chiuse oltre 12 mesi): pulsante nella dashboard del fondatore. Da febbraio può diventare automatica con le funzioni sul server.
 
-1. **Email leggibili da chiunque (urgente).** Il profilo `users/{uid}` è leggibile da tutti (`allow get: if true`) e contiene l'email. Chi conosce l'identificativo di un utente, che compare nei materiali, può leggerne l'indirizzo: anche quello di uno studente minorenne. Va spostato in un documento privato. **Riguarda già la tua classe.**
-2. **Eliminazione dell'account.** Nell'app non c'è un pulsante "Elimina il mio account". La bozza promette la cancellazione entro 30 giorni: serve il pulsante, oppure almeno la procedura via email descritta nell'informativa.
-3. **Età minima.** Manca la spunta "Ho almeno 14 anni" all'iscrizione (art. 2-quinquies del Codice privacy).
-4. **Pagine nell'app.** Informativa, termini, cookie e regole sui contenuti, con link all'accesso e in fondo alle pagine. All'iscrizione va accettato il testo breve (in fondo al documento 01).
-5. **Caratteri Google Fonts.** Oggi sono scaricati dai server di Google (`src/index.css`), che così ricevono l'indirizzo IP di chi apre l'app. Vanno ospitati insieme all'app.
-6. **Tempi di conservazione.** I marcatori settimanali di attività e le segnalazioni chiuse oggi restano per sempre. La bozza dice 12 mesi: serve una pulizia periodica, che si può fare con le funzioni sul server (piano Blaze, da febbraio).
-7. **Contatti.** Servono un'email per l'assistenza e la privacy e una per le segnalazioni legali, sul punto di contatto previsto dal Digital Services Act. Possono essere la stessa.
-8. **Dove stanno i dati.** Il database è a Londra (Google Cloud `europe-west2`) e non si può spostare. È lecito, perché il Regno Unito ha una decisione di adeguatezza dell'UE, ma alcune scuole preferiscono dati nell'UE. Se una scuola lo chiede, l'unica strada è un nuovo database in UE con il trasferimento dei dati: va deciso prima del lancio, quando il progetto passa alla società.
+## Ancora da fare
+
+1. **Contatti.** Servono un'email per l'assistenza e la privacy e una per le segnalazioni legali, il punto di contatto previsto dal Digital Services Act. Possono essere la stessa.
+2. **Dove stanno i dati.** Il database è a Londra (Google Cloud `europe-west2`) e non si può spostare. È lecito, perché il Regno Unito ha una decisione di adeguatezza dell'UE, ma alcune scuole preferiscono dati nell'UE. Se una scuola lo chiede, l'unica strada è un nuovo database in UE con il trasferimento dei dati: va deciso prima del lancio, quando il progetto passa alla società.
 
 ## Da verificare con l'avvocato
 

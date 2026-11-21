@@ -28,7 +28,8 @@
 
 Vedi l'allegato B del documento 06. In più, per i trattamenti da titolare:
 - l'archivio è pubblico per scelta di prodotto; i dati non necessari alla pubblicazione (email, attività, salvataggi, segnalazioni) sono privati e protetti dalle regole del database;
-- [da completare dopo la correzione: le email non sono leggibili pubblicamente – vedi README, punto 1].
+- le email stanno in un documento privato per account (`userEmails/{uid}`), non nei profili pubblici;
+- i caratteri tipografici sono ospitati con l'app (nessun dato a Google Fonts).
 
 ## Registro delle violazioni
 

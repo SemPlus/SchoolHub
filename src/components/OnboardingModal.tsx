@@ -24,6 +24,7 @@ import { clearJoinInvite, JoinInvite } from '../lib/join';
 import { findSchoolById } from '../lib/schools';
 
 import { t } from '../lib/i18n';
+import { TermsCheckbox, termsAcceptance } from './TermsConsent';
 interface OnboardingModalProps {
   profile: User;
   /** 'setup' cannot be dismissed; 'edit' is opened from the profile. */
@@ -79,7 +80,11 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
 
   const hasStudentClass = !!classYear && SECTION_PATTERN.test(classSection);
   const draftLabel = draftYear && SECTION_PATTERN.test(draftSection) ? formatClassName(draftYear, draftSection) : '';
-  const canSave = !!school && (
+  // First sign-up: "I am at least 14 and accept the terms" (people who signed
+  // up earlier accept them once in TermsModal).
+  const needsTerms = mode === 'setup' && !profile.termsAcceptedAt;
+  const [termsChecked, setTermsChecked] = useState(false);
+  const canSave = !!school && (!needsTerms || termsChecked) && (
     accountType === 'student' ? hasStudentClass
     : accountType === 'teacher' ? teacherClasses.length > 0 && teacherSubjects.length > 0
     : false
@@ -112,6 +117,7 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
       await updateDoc(doc(db, 'users', profile.uid), {
         // The database rules ask for this in the same write.
         ...(losesTeacherRole ? { role: 'user' } : {}),
+        ...(needsTerms ? termsAcceptance() : {}),
         accountType,
         schoolId: school.id,
         schoolName: school.name,
@@ -153,6 +159,7 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
       footer={
         <div className="space-y-3">
           {error && <p className="text-xs text-red-400">{error}</p>}
+          {needsTerms && <TermsCheckbox checked={termsChecked} onChange={setTermsChecked} />}
           {losesTeacherRole && (
             <p className="text-xs text-amber-200">{t("Saving removes your teacher confirmation. At a new school it comes back once that school confirms you.")}</p>
           )}

@@ -11,6 +11,7 @@ import { formatClassName, parseClassLabel, schoolYearStart } from '../../lib/sch
 import { mapSchoolWeek, studentsActive, weekDate, weekIndex, type SchoolWeek } from '../../lib/schoolPanel';
 import { toDate } from '../../lib/utils';
 import { mapTimetableDoc, type Timetable } from '../../lib/timetable';
+import { loadUserEmails } from '../../lib/userEmails';
 
 export interface ClassRow {
   label: string;
@@ -53,7 +54,7 @@ export function useSchoolPanel(schoolId: string) {
   const reload = useCallback(async () => {
     const bySchool = (name: string, ...more: ReturnType<typeof where>[]) =>
       getDocsFromServer(query(collection(db, name), where('schoolId', '==', schoolId), ...more));
-    const [a, d, tch, w, v, m, c, tt, te] = await Promise.allSettled([
+    const [a, d, tch, w, v, m, c, tt, te, ue] = await Promise.allSettled([
       loadActivation(schoolId),
       bySchool('directory'),
       bySchool('users', where('accountType', '==', 'teacher')),
@@ -63,12 +64,17 @@ export function useSchoolPanel(schoolId: string) {
       own ? Promise.resolve(null) : bySchool('collections'),
       getDocFromServer(doc(db, 'timetables', schoolId)),
       bySchool('teacherEmails'),
+      // Teachers' e-mails are private (userEmails/{uid}).
+      loadUserEmails(schoolId),
     ]);
+    const emailOf = ue.status === 'fulfilled' ? ue.value : new Map<string, string>();
     if (te.status === 'fulfilled') setTeacherEmails(te.value.docs.map(x => x.data().email as string).sort());
     if (tt.status === 'fulfilled') setTimetable(tt.value.exists() ? mapTimetableDoc(tt.value.data(), toDate) : null);
     if (a.status === 'fulfilled') setActivation(a.value);
     if (d.status === 'fulfilled') setDirectory(d.value.docs.map(x => x.data()));
-    if (tch.status === 'fulfilled') setTeachers(tch.value.docs.map(x => ({ uid: x.id, ...(x.data() as any) } as User)));
+    if (tch.status === 'fulfilled') {
+      setTeachers(tch.value.docs.map(x => ({ uid: x.id, ...(x.data() as any), email: emailOf.get(x.id) ?? (x.data() as any).email ?? null } as User)));
+    }
     if (w.status === 'fulfilled') setWeeks(w.value.docs.map(x => mapSchoolWeek(x.data())));
     if (v.status === 'fulfilled') {
       setVisits(new Map(v.value.docs

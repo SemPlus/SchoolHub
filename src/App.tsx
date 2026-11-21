@@ -22,6 +22,8 @@ import { cn } from './lib/utils';
 import { useUserStats } from './lib/userStats';
 
 import { t, tc } from './lib/i18n';
+import { TermsModal } from './components/TermsConsent';
+import { LEGAL_PAGES } from './lib/legal';
 type Tab = 'archive' | 'requests' | 'personal' | 'trash' | 'school' | 'dashboard';
 
 const TITLES: Record<Tab, string> = {
@@ -102,6 +104,8 @@ export default function App() {
   );
 
   const needsOnboarding = !!user && isProfileLoaded && !!profile && !isProfileComplete(profile);
+  // Signed up before the terms existed: accept them once (not while viewing as someone else).
+  const needsTerms = !!user && isProfileLoaded && !!profile && !needsOnboarding && !profile.termsAcceptedAt && !isFounder && !profile.deletingAt;
 
   return (
     <div className="min-h-screen bg-luxury-black font-sans text-white/90 selection:bg-luxury-gold/30 overflow-x-hidden">
@@ -275,6 +279,11 @@ export default function App() {
         </div>
         <footer className="relative z-10 mt-20 pt-8 border-t border-white/5 text-center text-[10px] uppercase tracking-[0.3em] text-white/30">
           SchoolHub · {t("By Samuel K.")}
+          <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 normal-case tracking-widest">
+            {LEGAL_PAGES.map(p => (
+              <a key={p.slug} href={`/legal/${p.slug}`} target="_blank" rel="noopener noreferrer" className="hover:text-luxury-gold">{t(p.title)}</a>
+            ))}
+          </div>
         </footer>
       </main>
 
@@ -292,6 +301,7 @@ export default function App() {
       <InstallPrompt />
 
       {needsOnboarding && profile && <OnboardingModal profile={profile} mode="setup" invite={invite} />}
+      {needsTerms && profile && <TermsModal uid={profile.uid} />}
     </div>
   );
 }

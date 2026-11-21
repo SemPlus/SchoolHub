@@ -26,6 +26,7 @@ import SubjectBadge from './SubjectBadge';
 import ClassPosterModal from './ClassPosterModal';
 import { isTeacherAccount } from '../lib/schoolYear';
 import UserAvatar from './UserAvatar';
+import AccountSection from './AccountSection';
 
 import { t } from '../lib/i18n';
 interface AuthorProfileModalProps {
@@ -382,6 +383,8 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                     </div>
                   )}
                 </div>
+
+                {isCurrentUser && <AccountSection />}
               </div>
       </Modal>
 

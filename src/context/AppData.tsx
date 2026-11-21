@@ -17,6 +17,8 @@ import { isAuthorOf, retiredMaterialIds, themeKey } from '../lib/lots';
 import { isModHidden } from '../lib/moderation';
 import { loadAdminSchoolId, recordWeeklyActivity } from '../lib/schoolPanel';
 import { verifyTeacherByEmail } from '../lib/teacherVerification';
+import { syncUserEmail } from '../lib/userEmails';
+import { isAccountDeletionRunning } from '../lib/accountDeletion';
 
 // The founder's account always has full admin rights, whatever its stored role.
 export const ADMIN_EMAIL = 'sem.gk01@gmail.com';
@@ -159,11 +161,12 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
           setIsProfileLoaded(true);
           return;
         }
+        // The account was just deleted: do not create it again.
+        if (isAccountDeletionRunning()) return;
         // First sign-in: create the profile. The snapshot fires again once it exists.
+        // The e-mail is private: it goes to userEmails/{uid} (see syncUserEmail).
         setDoc(userRef, {
           uid: currentUser.uid,
-          // The security rules require email to be a string.
-          email: currentUser.email ?? '',
           displayName: currentUser.displayName,
           photoURL: currentUser.photoURL,
           role: currentUser.email === ADMIN_EMAIL ? 'admin' : 'user',
@@ -422,6 +425,13 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (!user || !profile?.schoolId || simulating) return;
     recordWeeklyActivity(user.uid, profile).catch(error => console.warn('Could not record weekly activity:', error));
   }, [user?.uid, profile?.schoolId, profile?.accountType, profile?.classYear, profile?.classSection, simulating]);
+
+  // The private e-mail entry follows the profile's school and account type.
+  useEffect(() => {
+    if (!user || !profile || simulating || isAccountDeletionRunning() || profile.deletingAt) return;
+    syncUserEmail(profile, user.email, user.emailVerified)
+      .catch(error => console.warn('Could not update the private e-mail:', error));
+  }, [user?.uid, user?.email, profile?.schoolId, profile?.accountType, (profile as any)?.email, simulating]);
 
   // Teacher sign-ups with their school's staff address are confirmed by
   // themselves (once per school and account type, per session).

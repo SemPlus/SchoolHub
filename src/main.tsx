@@ -7,13 +7,21 @@ import ErrorBoundary from './components/ErrorBoundary.tsx';
 import { AppDataProvider } from './context/AppData';
 import ClassroomMode from './components/ClassroomMode';
 import { AULA_PREFIX } from './lib/aula';
+import LegalPage from './components/LegalPage';
+import { legalPageFor } from './lib/legal';
+import './fonts';
 import './index.css';
+
+const legalPage = legalPageFor(window.location.pathname);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      {/* Classroom link (/aula/SCHOOL-4G): its own screen, no sign-in, none of the app's data loading */}
-      {window.location.pathname.startsWith(AULA_PREFIX) ? (
+      {/* Legal pages (/legal/privacy…) and classroom links (/aula/SCHOOL-4G): their own
+          screens, no sign-in, none of the app's data loading */}
+      {legalPage ? (
+        <LegalPage page={legalPage} />
+      ) : window.location.pathname.startsWith(AULA_PREFIX) ? (
         <ClassroomMode />
       ) : (
         <AppDataProvider>

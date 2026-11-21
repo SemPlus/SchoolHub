@@ -22,6 +22,15 @@ service cloud.firestore {
       return /databases/$(database)/documents/materials/$(id);
     }
 
+    // The signed-in user started deleting their account (users.deletingAt):
+    // they may then remove records that are otherwise kept (opens, counted
+    // saves, fulfilled requests, activity markers).
+    function isDeletingAccount() {
+      return isAuthenticated() &&
+        exists(userPath(request.auth.uid)) &&
+        get(userPath(request.auth.uid)).data.get('deletingAt', null) != null;
+    }
+
     function collectionPath(id) {
       return /databases/$(database)/documents/collections/$(id);
     }
@@ -239,9 +248,13 @@ service cloud.firestore {
     }
 
     function isValidUserData(data) {
-      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+      return data.keys().hasAll(['uid', 'role', 'createdAt']) &&
         data.uid is string &&
-        (data.email == null || data.email is string) &&
+        // The e-mail is private (userEmails/{uid}); old profiles still carry it.
+        (!('email' in data) || data.email == null || data.email is string) &&
+        optTimestamp(data, 'deletingAt') &&
+        optTimestamp(data, 'termsAcceptedAt') &&
+        optString(data, 'termsVersion', 10) &&
         optString(data, 'displayName', 100) &&
         optString(data, 'photoURL', 1000) &&
         optString(data, 'customColor', 20) &&
@@ -433,8 +446,33 @@ service cloud.firestore {
             request.resource.data.modAt == request.time));
       }
 
+      // The author leaves (account deletion): the first co-author becomes the
+      // author, and nothing else changes.
+      function isHandOver() {
+        let co = resource.data.get('coAuthorIds', []);
+        return isAuthenticated() &&
+          request.auth.uid == resource.data.authorId &&
+          co.size() > 0 &&
+          request.resource.data.authorId == co[0] &&
+          request.resource.data.authorName == resource.data.get('coAuthorNames', [])[0] &&
+          request.resource.data.get('authorPhotoUrl', null) == null &&
+          request.resource.data.get('coAuthorIds', []) == co.removeAll([co[0]]) &&
+          request.resource.data.get('coAuthorNames', []).size() == co.size() - 1 &&
+          materialChanged().hasOnly(['authorId', 'authorName', 'authorPhotoUrl', 'coAuthorIds', 'coAuthorNames']);
+      }
+
+      // A co-author takes their name off a group work.
+      function isLeaveGroup() {
+        let co = resource.data.get('coAuthorIds', []);
+        return isAuthenticated() &&
+          request.auth.uid in co &&
+          request.resource.data.get('coAuthorIds', []) == co.removeAll([request.auth.uid]) &&
+          request.resource.data.get('coAuthorNames', []).size() == co.size() - 1 &&
+          materialChanged().hasOnly(['coAuthorIds', 'coAuthorNames']);
+      }
+
       allow update: if isAuthorEdit() || isTrashToggle() || isOpenCount() || isSaveCount() || isVerification() ||
-        isReportCount('m_' + materialId, resource.data.authorId) || isModeration();
+        isReportCount('m_' + materialId, resource.data.authorId) || isModeration() || isHandOver() || isLeaveGroup();
 
       allow delete: if isAuthorOrAdmin();
 
@@ -491,7 +529,8 @@ service cloud.firestore {
         getAfter(materialPath(request.resource.data.materialId)).data.downloadCount ==
           get(materialPath(request.resource.data.materialId)).data.downloadCount + 1;
 
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid && isDeletingAccount();
     }
 
     // ================================================================= saves
@@ -515,6 +554,7 @@ service cloud.firestore {
       allow delete: if isAuthenticated() &&
         (resource.data.userId == request.auth.uid || isAdmin()) &&
         (resource.data.get('counted', false) == false ||
+          (resource.data.userId == request.auth.uid && isDeletingAccount()) ||
           !exists(materialPath(resource.data.materialId)) ||
           getAfter(materialPath(resource.data.materialId)).data.get('saveCount', 0) ==
             get(materialPath(resource.data.materialId)).data.get('saveCount', 0) - 1);
@@ -737,7 +777,7 @@ service cloud.firestore {
     // Readable only by the user; the school sees totals, never who.
     match /activity/{markerId} {
       allow get: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isAdmin();
+      allow list: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
 
       function isValidMarker() {
         let d = request.resource.data;
@@ -756,7 +796,8 @@ service cloud.firestore {
 
       allow create: if isAuthenticated() && isValidMarker();
       allow update: if false;
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() ||
+        (isAuthenticated() && resource.data.userId == request.auth.uid && isDeletingAccount());
     }
 
     // Weekly totals per school: schoolWeeks/{schoolId}_{week}, e.g.
@@ -789,6 +830,41 @@ service cloud.firestore {
     }
 
     // ================================================================= users
+
+    // Private e-mail of each account: userEmails/{uid}. Readable by the person,
+    // the founder, and (for teachers) the admins of the school in the profile,
+    // to confirm them. Written only by the person, matching their profile.
+    function profileField(p, key) {
+      return p.get(key, '') == null ? '' : p.get(key, '');
+    }
+
+    match /userEmails/{uid} {
+      allow get: if isAuthenticated() && (uid == request.auth.uid || isAdmin() ||
+        (resource.data.accountType == 'teacher' && isSchoolAdminOf(resource.data.schoolId)));
+      allow list: if isAdmin() ||
+        (resource.data.accountType == 'teacher' && isSchoolAdminOf(resource.data.schoolId));
+      allow create, update: if isAuthenticated() &&
+        uid == request.auth.uid &&
+        request.auth.token.email_verified == true &&
+        request.resource.data.keys().hasOnly(['email', 'schoolId', 'accountType', 'updatedAt']) &&
+        request.resource.data.email == request.auth.token.email.lower() &&
+        request.resource.data.schoolId == profileField(get(userPath(uid)).data, 'schoolId') &&
+        request.resource.data.accountType == profileField(get(userPath(uid)).data, 'accountType') &&
+        request.resource.data.updatedAt == request.time;
+      allow delete: if isAuthenticated() && (uid == request.auth.uid || isAdmin());
+    }
+
+    // Collection-group reads, used to find one's own comments, votes and
+    // answers when deleting the account (they are public anyway).
+    match /{path=**}/feedback/{userId} {
+      allow list: if true;
+    }
+    match /{path=**}/votes/{userId} {
+      allow list: if true;
+    }
+    match /{path=**}/answers/{answerId} {
+      allow list: if true;
+    }
 
     // The role after a user edits their own profile.
     function ownRoleAfter() {
@@ -847,7 +923,8 @@ service cloud.firestore {
           resource.data.get('accountType', '') == 'teacher' &&
           isStaffEmailOf(resource.data.get('schoolId', '')));
 
-      allow delete: if isAdmin();
+      // The account owner deletes their profile (last step of account deletion).
+      allow delete: if isAdmin() || (isAuthenticated() && userId == request.auth.uid);
 
       // Materials this user marked as studied. Private to the user.
       match /studied/{materialId} {
@@ -905,7 +982,7 @@ service cloud.firestore {
 
       // A fulfilled request is part of the helper's record, so only an admin
       // can remove it.
-      allow delete: if (isRequester() && resource.data.status != 'fulfilled') || isAdmin() ||
+      allow delete: if (isRequester() && (resource.data.status != 'fulfilled' || isDeletingAccount())) || isAdmin() ||
         isSchoolAdminOf(resource.data.get('schoolId', ''));
 
       // One answer per user: the document id is the answering user's uid.

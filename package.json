@@ -12,6 +12,8 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@fontsource/cormorant-garamond": "^5.2.6",
+    "@fontsource/inter": "^5.2.6",
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
@@ -24,6 +26,7 @@
     "firebase-admin": "^13.8.0",
     "lucide-react": "^0.546.0",
     "mammoth": "1.8.0",
+    "marked": "^15.0.12",
     "motion": "^12.23.24",
     "pdf-lib": "1.17.1",
     "pptxgenjs": "3.12.0",

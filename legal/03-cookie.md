@@ -8,7 +8,7 @@ SchoolHub **non usa cookie di profilazione, pubblicità o statistiche di terze p
 
 | Cosa | A cosa serve | Quanto dura |
 |---|---|---|
-| Sessione di accesso (Firebase Authentication, nella memoria del browser) | Tenerti collegato | Finché esci o cancelli i dati del browser |
+| Sessione di accesso (Firebase Authentication, nella memoria del browser) | Mantenere l'accesso | Finché esci o cancelli i dati del browser |
 | Copia locale dell'archivio (Firestore, nella memoria del browser) | Velocità e consultazione senza connessione | Finché cancelli i dati del browser |
 | Preferenze (lingua, ultima materia scelta, filtri, invito di classe in corso) | Ricordare le tue scelte | Finché cancelli i dati del browser |
 | Promemoria tecnici (es. "attività di questa settimana già registrata", "ultimo uso del link dell'aula") | Evitare conteggi doppi | Fino alla settimana o al giorno dopo |
@@ -20,7 +20,7 @@ Nessuno di questi strumenti serve a seguirti su altri siti.
 
 Quando apri l'anteprima di un lavoro, l'anteprima viene caricata da chi lo ospita: Google Drive/Documenti, Canva, YouTube o altri. Quei servizi possono usare propri cookie, secondo le loro regole. Se non vuoi, apri il lavoro con il pulsante "Apri" solo quando ti serve.
 
-[Fino a quando i caratteri non saranno ospitati con l'app: i caratteri tipografici sono scaricati da Google Fonts, che riceve l'indirizzo IP del dispositivo.]
+I caratteri tipografici sono ospitati insieme all'app: aprendo SchoolHub non contatti Google Fonts né altri servizi di terzi.
 
 ## Come cancellarli
 
