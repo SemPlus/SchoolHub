@@ -64,6 +64,52 @@ service cloud.firestore {
       return isSchoolAdmin() && get(schoolAdminPath()).data.schoolId == schoolId;
     }
 
+    // Teachers verified by their school's e-mail (decided 2026-11-21). A
+    // teacher sign-up of an active school is confirmed when the Google
+    // address is on one of the school's staff domains (schools.teacherDomains,
+    // at most 3) or on its list of teachers' e-mails
+    // (teacherEmails/{schoolId}_{email}). Both are set in the school panel.
+    function schoolPath(id) {
+      return /databases/$(database)/documents/schools/$(id);
+    }
+
+    function isActiveSchool(id) {
+      return exists(schoolPath(id)) &&
+        get(schoolPath(id)).data.activated == true &&
+        (get(schoolPath(id)).data.get('activatedUntil', null) == null ||
+         get(schoolPath(id)).data.activatedUntil > request.time);
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isStaffEmailOf(schoolId) {
+      return request.auth.token.email_verified == true &&
+        schoolId is string && schoolId != '' &&
+        isActiveSchool(schoolId) &&
+        (get(schoolPath(schoolId)).data.get('teacherDomains', []).hasAny([myEmail().split('@')[1]]) ||
+         exists(/databases/$(database)/documents/teacherEmails/$(schoolId + '_' + myEmail())));
+    }
+
+    // A staff domain: lower case, and never a public mail service.
+    function isStaffDomain(x) {
+      return x is string && x.size() <= 100 &&
+        x.matches('^[a-z0-9-]+([.][a-z0-9-]+)*[.][a-z]{2,}$') &&
+        !(x in ['gmail.com', 'googlemail.com', 'outlook.com', 'outlook.it', 'hotmail.com', 'hotmail.it',
+          'live.com', 'live.it', 'msn.com', 'yahoo.com', 'yahoo.it', 'icloud.com', 'me.com', 'libero.it',
+          'virgilio.it', 'alice.it', 'tiscali.it', 'tin.it', 'fastwebnet.it', 'email.it', 'proton.me',
+          'protonmail.com', 'pec.it', 'aruba.it']);
+    }
+
+    function optStaffDomains(data) {
+      let d = data.get('teacherDomains', []);
+      return d is list && d.size() <= 3 &&
+        (d.size() < 1 || isStaffDomain(d[0])) &&
+        (d.size() < 2 || isStaffDomain(d[1])) &&
+        (d.size() < 3 || isStaffDomain(d[2]));
+    }
+
     // Reports (see lib/moderation.ts). Content is hidden at the third report
     // from different people, or at once when a teacher reports copyright.
     function reportReasons() {
@@ -591,7 +637,8 @@ service cloud.firestore {
     match /schools/{schoolId} {
       allow read: if true;
       allow write: if isAdmin() &&
-        request.resource.data.keys().hasOnly(['activated', 'plan', 'name', 'city', 'activatedUntil', 'extraClasses', 'updatedAt']) &&
+        request.resource.data.keys().hasOnly(['activated', 'plan', 'name', 'city', 'activatedUntil', 'extraClasses', 'teacherDomains', 'updatedAt']) &&
+        optStaffDomains(request.resource.data) &&
         request.resource.data.activated is bool &&
         request.resource.data.plan in ['private', 'partner'] &&
         request.resource.data.name is string && request.resource.data.name.size() <= 200 &&
@@ -599,10 +646,13 @@ service cloud.firestore {
         optTimestamp(request.resource.data, 'activatedUntil') &&
         (!('extraClasses' in request.resource.data) ||
           (request.resource.data.extraClasses is list && request.resource.data.extraClasses.size() <= 200));
-      // The school's admins add classes for the classroom links, and nothing else.
+      // The school's admins add classes for the classroom links and set the
+      // staff domains, and nothing else.
       allow update: if isSchoolAdminOf(schoolId) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['extraClasses', 'updatedAt']) &&
-        request.resource.data.extraClasses is list && request.resource.data.extraClasses.size() <= 200 &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['extraClasses', 'teacherDomains', 'updatedAt']) &&
+        (!('extraClasses' in request.resource.data) ||
+          (request.resource.data.extraClasses is list && request.resource.data.extraClasses.size() <= 200)) &&
+        optStaffDomains(request.resource.data) &&
         request.resource.data.updatedAt == request.time;
     }
 
@@ -638,6 +688,24 @@ service cloud.firestore {
         optString(request.resource.data, 'schoolName', 200) &&
         exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId));
       allow delete: if isAdmin();
+    }
+
+    // Teachers' e-mails pasted by a school's admins, one entry per address:
+    // teacherEmails/{schoolId}_{email}. Private: each person can read only
+    // their own entry; the school's admins and the founder see the list.
+    match /teacherEmails/{entryId} {
+      allow get: if isAuthenticated() && request.auth.token.email_verified == true &&
+        entryId == entryId.split('_')[0] + '_' + myEmail();
+      allow list: if isAdmin() || isSchoolAdminOf(resource.data.schoolId);
+      allow create, update: if (isAdmin() || isSchoolAdminOf(request.resource.data.schoolId)) &&
+        request.resource.data.keys().hasOnly(['schoolId', 'email', 'addedAt']) &&
+        request.resource.data.schoolId is string &&
+        request.resource.data.schoolId.matches('^[A-Z0-9]{6,16}$') &&
+        request.resource.data.email is string && request.resource.data.email.size() <= 200 &&
+        request.resource.data.email.matches('^[a-z0-9._%+-]+@[a-z0-9-]+([.][a-z0-9-]+)*[.][a-z]{2,}$') &&
+        entryId == request.resource.data.schoolId + '_' + request.resource.data.email &&
+        request.resource.data.addedAt == request.time;
+      allow delete: if isAdmin() || isSchoolAdminOf(resource.data.schoolId);
     }
 
     // Class timetables, one per school: class → day → subject per period,
@@ -755,7 +823,16 @@ service cloud.firestore {
           resource.data.get('accountType', '') == 'teacher' &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) &&
           request.resource.data.role in ['user', 'teacher'] &&
-          resource.data.role in ['user', 'teacher']);
+          resource.data.role in ['user', 'teacher']) ||
+        // A teacher sign-up confirms itself with a staff address of the
+        // school in the profile (see isStaffEmailOf), changing only the role.
+        (isAuthenticated() &&
+          userId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) &&
+          resource.data.role == 'user' &&
+          request.resource.data.role == 'teacher' &&
+          resource.data.get('accountType', '') == 'teacher' &&
+          isStaffEmailOf(resource.data.get('schoolId', '')));
 
       allow delete: if isAdmin();
 

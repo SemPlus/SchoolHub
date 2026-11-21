@@ -63,6 +63,7 @@ export default function AulePanel() {
     city: picked.city || '',
     activatedUntil: endOfSchoolYear(),
     extraClasses: schools.find(s => s.id === picked.id)?.extraClasses ?? [],
+    teacherDomains: schools.find(s => s.id === picked.id)?.teacherDomains ?? [],
     updatedAt: serverTimestamp(),
   }).then(() => setPicked(null)));
 

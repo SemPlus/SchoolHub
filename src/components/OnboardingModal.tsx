@@ -263,7 +263,7 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
                 </div>
 
                 <p className="text-[11px] text-white/35 leading-relaxed">
-                  {t("Teacher accounts can add materials for any of these classes right away. Verifying other people's materials unlocks once the SchoolHub team confirms you are a teacher.")}</p>
+                  {t("Teacher accounts can add materials for any of these classes right away. Verifying other people's materials unlocks once you are confirmed as a teacher: at once if your school has registered your school e-mail, otherwise by your school or the SchoolHub team.")}</p>
               </>
             )}
           </>

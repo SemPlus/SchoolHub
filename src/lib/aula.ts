@@ -48,6 +48,8 @@ export interface SchoolActivation {
   activatedUntil: Date | null;
   /** Classes added by hand, e.g. ["1A", "4G"]. */
   extraClasses: string[];
+  /** Staff e-mail domains: teachers signing up with them are confirmed at once (max 3). */
+  teacherDomains: string[];
 }
 
 export function mapActivationDoc(id: string, data: any): SchoolActivation {
@@ -59,6 +61,7 @@ export function mapActivationDoc(id: string, data: any): SchoolActivation {
     city: data.city || '',
     activatedUntil: toDate(data.activatedUntil),
     extraClasses: Array.isArray(data.extraClasses) ? data.extraClasses : [],
+    teacherDomains: Array.isArray(data.teacherDomains) ? data.teacherDomains : [],
   };
 }
 

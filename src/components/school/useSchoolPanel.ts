@@ -45,6 +45,7 @@ export function useSchoolPanel(schoolId: string) {
   const [weeks, setWeeks] = useState<SchoolWeek[]>([]);
   const [visits, setVisits] = useState<Map<string, Date>>(new Map());
   const [timetable, setTimetable] = useState<Timetable | null>(null);
+  const [teacherEmails, setTeacherEmails] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   /** Some lists were refused (the database rules for the panel are not deployed yet). */
   const [unavailable, setUnavailable] = useState(false);
@@ -52,7 +53,7 @@ export function useSchoolPanel(schoolId: string) {
   const reload = useCallback(async () => {
     const bySchool = (name: string, ...more: ReturnType<typeof where>[]) =>
       getDocsFromServer(query(collection(db, name), where('schoolId', '==', schoolId), ...more));
-    const [a, d, tch, w, v, m, c, tt] = await Promise.allSettled([
+    const [a, d, tch, w, v, m, c, tt, te] = await Promise.allSettled([
       loadActivation(schoolId),
       bySchool('directory'),
       bySchool('users', where('accountType', '==', 'teacher')),
@@ -61,7 +62,9 @@ export function useSchoolPanel(schoolId: string) {
       own ? Promise.resolve(null) : bySchool('materials'),
       own ? Promise.resolve(null) : bySchool('collections'),
       getDocFromServer(doc(db, 'timetables', schoolId)),
+      bySchool('teacherEmails'),
     ]);
+    if (te.status === 'fulfilled') setTeacherEmails(te.value.docs.map(x => x.data().email as string).sort());
     if (tt.status === 'fulfilled') setTimetable(tt.value.exists() ? mapTimetableDoc(tt.value.data(), toDate) : null);
     if (a.status === 'fulfilled') setActivation(a.value);
     if (d.status === 'fulfilled') setDirectory(d.value.docs.map(x => x.data()));
@@ -193,8 +196,14 @@ export function useSchoolPanel(schoolId: string) {
       timetable,
       pendingTeachers: teachers.filter(tch => tch.role === 'user'),
       confirmedTeachers: teachers.filter(tch => tch.role === 'teacher' || tch.role === 'admin').length,
+      /** Confirmed teachers the school can remove (not the founder's admins). */
+      teacherList: teachers
+        .filter(tch => tch.role === 'teacher')
+        .sort((x, y) => (x.displayName || '').localeCompare(y.displayName || '', 'it')),
+      /** The school's list of teachers' e-mails (lower case). */
+      teacherEmails,
     };
-  }, [own, liveMaterials, liveCollections, fetched, schoolId, directory, teachers, weeks, visits, timetable, activation, loading, unavailable, reload]);
+  }, [own, liveMaterials, liveCollections, fetched, schoolId, directory, teachers, weeks, visits, timetable, teacherEmails, activation, loading, unavailable, reload]);
 }
 
 export type SchoolPanelData = ReturnType<typeof useSchoolPanel>;

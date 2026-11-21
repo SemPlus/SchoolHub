@@ -15,6 +15,8 @@ import Classrooms from './Classrooms';
 import TimetableSection from './TimetableSection';
 import SchoolReport from './SchoolReport';
 import ModerationQueue from './ModerationQueue';
+import TeacherVerification from './TeacherVerification';
+import { onStaffDomain, removeTeacher } from '../../lib/teacherVerification';
 import { useSchoolPanel } from './useSchoolPanel';
 
 const panel = 'glass-panel rounded-[1.5rem] p-4 sm:p-5 border-white/5 space-y-4 min-w-0';
@@ -46,6 +48,17 @@ export default function SchoolPanel({ schoolId }: { schoolId: string }) {
   };
 
   const confirmTeacher = (u: User) => run(u.uid, () => updateDoc(doc(db, 'users', u.uid), { role: 'teacher' }), t("Could not confirm this teacher."));
+  const unconfirmTeacher = (u: User) => {
+    const name = u.displayName || t("Unnamed");
+    const onList = !!u.email && data.teacherEmails.includes(u.email.toLowerCase());
+    const message = onStaffDomain(u.email, a)
+      ? t("Remove the teacher confirmation from {0}? Their address is on a staff domain of the school: they will be confirmed again at their next visit, unless you remove the domain.", name)
+      : onList
+        ? t("Remove the teacher confirmation from {0}? Their e-mail is also removed from the list of teachers.", name)
+        : t("Remove the teacher confirmation from {0}?", name);
+    if (!window.confirm(message)) return;
+    run(u.uid, () => removeTeacher(schoolId, u, onList), t("Could not change the role."));
+  };
   const addClass = (label: string) => a && run('class', () => updateDoc(doc(db, 'schools', a.id), {
     extraClasses: [...new Set([...a.extraClasses, label])].sort(),
     updatedAt: serverTimestamp(),
@@ -182,6 +195,28 @@ export default function SchoolPanel({ schoolId }: { schoolId: string }) {
               </button>
             </div>
           ))}
+          {data.teacherList.length > 0 && (
+            <div className="space-y-2 pt-1">
+              <p className="text-[10px] uppercase tracking-widest text-white/35">{t("Confirmed")}</p>
+              <ul className="max-h-64 overflow-y-auto divide-y divide-white/5">
+                {data.teacherList.map(u => (
+                  <li key={u.uid} className="flex items-center justify-between gap-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm text-white/85 truncate">{u.displayName || t("Unnamed")}</p>
+                      <p className="text-[10px] text-white/35 truncate">{u.email}</p>
+                    </div>
+                    <button
+                      onClick={() => unconfirmTeacher(u)}
+                      disabled={busy === u.uid}
+                      className="shrink-0 px-3 py-1.5 rounded-full border border-white/10 text-[10px] uppercase tracking-widest text-white/50 hover:text-white hover:border-white/25 disabled:opacity-40"
+                    >
+                      {t("Remove")}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <p className="text-[10px] text-white/30">{t("Confirmed teachers can verify materials and choose the best work of their lots.")}</p>
         </div>
 
@@ -213,6 +248,8 @@ export default function SchoolPanel({ schoolId }: { schoolId: string }) {
           )}
         </div>
       </div>
+
+      <TeacherVerification schoolId={schoolId} activation={a} emails={data.teacherEmails} onChanged={data.reload} />
 
       {/* Timetable */}
       <div className={panel}>

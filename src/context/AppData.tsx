@@ -16,6 +16,7 @@ import { toDate } from '../lib/utils';
 import { isAuthorOf, retiredMaterialIds, themeKey } from '../lib/lots';
 import { isModHidden } from '../lib/moderation';
 import { loadAdminSchoolId, recordWeeklyActivity } from '../lib/schoolPanel';
+import { verifyTeacherByEmail } from '../lib/teacherVerification';
 
 // The founder's account always has full admin rights, whatever its stored role.
 export const ADMIN_EMAIL = 'sem.gk01@gmail.com';
@@ -421,6 +422,19 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (!user || !profile?.schoolId || simulating) return;
     recordWeeklyActivity(user.uid, profile).catch(error => console.warn('Could not record weekly activity:', error));
   }, [user?.uid, profile?.schoolId, profile?.accountType, profile?.classYear, profile?.classSection, simulating]);
+
+  // Teacher sign-ups with their school's staff address are confirmed by
+  // themselves (once per school and account type, per session).
+  const teacherCheckedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || !profile || simulating) return;
+    if (profile.accountType !== 'teacher' || profile.role !== 'user' || !profile.schoolId) return;
+    const key = `${user.uid}|${profile.schoolId}`;
+    if (teacherCheckedFor.current === key) return;
+    teacherCheckedFor.current = key;
+    verifyTeacherByEmail(profile, user.email, user.emailVerified)
+      .catch(error => console.warn('Could not check the teacher e-mail:', error));
+  }, [user?.uid, profile?.schoolId, profile?.accountType, profile?.role, simulating]);
 
   // School admins are named by the founder, by e-mail.
   const [adminSchoolId, setAdminSchoolId] = useState<string | null>(null);

@@ -173,7 +173,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                             className={teacherConfirmed
                               ? 'flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border border-purple-400/30 bg-purple-400/10 text-purple-300 font-bold tracking-widest uppercase'
                               : 'flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border border-white/10 bg-white/5 text-white/50 font-bold tracking-widest uppercase'}
-                            title={teacherConfirmed ? t("Confirmed by the SchoolHub team") : t("Not confirmed yet")}
+                            title={teacherConfirmed ? t("Confirmed teacher") : t("Not confirmed yet")}
                           >
                             <GraduationCap className="w-3 h-3" /> {teacherConfirmed ? t("Teacher") : t("Teacher · unconfirmed")}
                           </span>
