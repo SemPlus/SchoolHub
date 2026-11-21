@@ -10,7 +10,7 @@ import { doc, serverTimestamp } from 'firebase/firestore';
 import { deleteDoc, updateDoc } from '../lib/firestoreWrites';
 import { motion, useMotionValue, useSpring, useMotionTemplate } from 'motion/react';
 import { getRank } from '../lib/ranks';
-import { cn } from '../lib/utils';
+import { cn, materialLink } from '../lib/utils';
 import { firebaseErrorMessage, recordOpen, toggleSave } from '../lib/engagement';
 import UserAvatar from './UserAvatar';
 import { isModHidden, REASON_SHORT } from '../lib/moderation';
@@ -113,7 +113,7 @@ export default function MaterialCard({
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(`https://school-hub-iota.vercel.app/?material=${material.id}`);
+      await navigator.clipboard.writeText(materialLink(material.id));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {

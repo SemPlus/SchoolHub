@@ -95,6 +95,14 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
     setTeacherSubjects(list => list.includes(subject) ? list.filter(s => s !== subject) : [...list, subject]);
   };
 
+  // A confirmed teacher who moves to another school, or becomes a student,
+  // loses the confirmation (it comes back by itself if the new school
+  // registered their address).
+  const losesTeacherRole = profile.role === 'teacher' && !!school && (
+    (!!profile.schoolId && profile.schoolId !== school.id) ||
+    (accountType === 'student' && profile.accountType !== 'student')
+  );
+
   const handleSave = async () => {
     if (!school || !canSave || !accountType) return;
     setIsSaving(true);
@@ -102,6 +110,8 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
     try {
       const isTeacher = accountType === 'teacher';
       await updateDoc(doc(db, 'users', profile.uid), {
+        // The database rules ask for this in the same write.
+        ...(losesTeacherRole ? { role: 'user' } : {}),
         accountType,
         schoolId: school.id,
         schoolName: school.name,
@@ -143,6 +153,9 @@ export default function OnboardingModal({ profile, mode, onClose, invite }: Onbo
       footer={
         <div className="space-y-3">
           {error && <p className="text-xs text-red-400">{error}</p>}
+          {losesTeacherRole && (
+            <p className="text-xs text-amber-200">{t("Saving removes your teacher confirmation. At a new school it comes back once that school confirms you.")}</p>
+          )}
           <button
             onClick={handleSave}
             disabled={!canSave || isSaving}

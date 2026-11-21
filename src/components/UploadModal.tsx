@@ -210,6 +210,7 @@ export default function UploadModal({ isOpen, onClose, currentFolderId, defaultC
           subject,
           bookTitle: book?.title || null,
           className: hasClass ? formatClassName(classYear, classSection) : null,
+          description: description.trim() || null,
         }),
       });
       try { window.localStorage.setItem(LAST_SUBJECT_KEY, subject); } catch { /* ignore */ }

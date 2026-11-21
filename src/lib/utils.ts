@@ -34,3 +34,18 @@ export function toDate(value: unknown): Date | null {
 
   return null;
 }
+
+/** The app's public address: change it here when SchoolHub moves to its own domain. */
+export const APP_ORIGIN = 'https://school-hub-iota.vercel.app';
+
+/** Link that opens a material in SchoolHub. */
+export function materialLink(materialId: string): string {
+  return `${APP_ORIGIN}/?material=${encodeURIComponent(materialId)}`;
+}
+
+/** Google Classroom's public "share to Classroom" page (no Google permissions needed). */
+export function classroomShareUrl(url: string, title?: string): string {
+  const params = new URLSearchParams({ url });
+  if (title) params.set('title', title);
+  return `https://classroom.google.com/share?${params.toString()}`;
+}

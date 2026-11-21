@@ -916,4 +916,7 @@ export const IT: Record<string, string> = {
   '{0} already on the list': '{0} già nell\'elenco',
   '{0} is a public e-mail service: anyone can have an address there.': '{0} è un servizio email pubblico: chiunque può avere un indirizzo lì.',
   '{0} not valid: {1}': '{0} non valide: {1}',
+  // Classroom share, teacher moving school
+  'Post it in a Google Classroom course': 'Pubblicalo in un corso di Google Classroom',
+  'Saving removes your teacher confirmation. At a new school it comes back once that school confirms you.': 'Salvando perdi la conferma di docente. In una nuova scuola torna quando quella scuola ti conferma.',
 };

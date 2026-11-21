@@ -2,6 +2,8 @@
 // The invitation is remembered for the session, so it survives the Google
 // sign-in popup and prefills the school and class during setup.
 
+import { APP_ORIGIN } from './utils';
+
 const KEY = 'schoolhub.join';
 const PATTERN = /^([A-Z0-9]{10})-([1-5][A-Z]{1,3})$/;
 
@@ -11,7 +13,7 @@ export interface JoinInvite {
 }
 
 export function joinLinkFor(schoolId: string, classLabel: string): string {
-  return `https://school-hub-iota.vercel.app/?join=${encodeURIComponent(`${schoolId}-${classLabel}`)}`;
+  return `${APP_ORIGIN}/?join=${encodeURIComponent(`${schoolId}-${classLabel}`)}`;
 }
 
 /** Reads ?join= from the address bar (once) or from this session. */

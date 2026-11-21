@@ -1,8 +1,10 @@
 import React from 'react';
 import {
   ExternalLink, Download, Tag, Trash2, Bookmark, BookmarkCheck, Share2, BookOpen, BadgeCheck, AlertTriangle,
-  Calendar, Eye, Edit2, Layers, Maximize2, CornerDownRight, BookMarked, PenLine, EyeOff,
+  Calendar, Eye, Edit2, Layers, Maximize2, CornerDownRight, BookMarked, PenLine, EyeOff, GraduationCap,
 } from 'lucide-react';
+import { isTeacherAccount } from '../lib/schoolYear';
+import { classroomShareUrl, materialLink } from '../lib/utils';
 import { format } from '../lib/i18n';
 import { Material, User as UserType } from '../types';
 import { getRank } from '../lib/ranks';
@@ -110,7 +112,7 @@ export default function MaterialDetailModal({
 
   const handleShare = async () => {
     try {
-      await navigator.clipboard.writeText(`https://school-hub-iota.vercel.app/?material=${material.id}`);
+      await navigator.clipboard.writeText(materialLink(material.id));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -203,6 +205,17 @@ export default function MaterialDetailModal({
               <Share2 className="w-4 h-4" />
               {copied ? t("Copied") : t("Share")}
             </button>
+            {isTeacherAccount(profile) && (
+              <a
+                href={classroomShareUrl(materialLink(material.id), material.title)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(secondaryButton, 'flex-1 bg-white/5 border-white/10 text-white/60 hover:text-white')}
+                title={t("Post it in a Google Classroom course")}
+              >
+                <GraduationCap className="w-4 h-4" /> Classroom
+              </a>
+            )}
             {viewer && onImprove && (
               <button onClick={() => onImprove(material)} className={cn(secondaryButton, 'flex-1 bg-white/5 border-white/10 text-white/60 hover:text-white')} title={t("Upload a corrected or extended version")}>
                 <PenLine className="w-4 h-4" /> {t(" Improve")}</button>

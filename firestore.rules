@@ -790,6 +790,16 @@ service cloud.firestore {
 
     // ================================================================= users
 
+    // The role after a user edits their own profile.
+    function ownRoleAfter() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let oldSchool = before.get('schoolId', '');
+      let moved = (oldSchool is string && oldSchool != '' && after.get('schoolId', '') != oldSchool) ||
+        (after.get('accountType', '') == 'student' && before.get('accountType', '') != 'student');
+      return (before.role == 'teacher' && moved) ? 'user' : before.role;
+    }
+
     match /users/{userId} {
       // Single profiles are public (author cards read them). Listing the whole
       // collection would expose every e-mail address, so only admins may list.
@@ -805,12 +815,15 @@ service cloud.firestore {
         (request.resource.data.role == 'user' || (request.resource.data.role == 'admin' && isAdmin()));
 
       allow update: if
-        // Own profile: anything valid except the role.
+        // Own profile: anything valid except the role. A confirmed teacher
+        // who moves to another school, or becomes a student, loses the
+        // confirmation in the same write (it comes back by itself if the new
+        // school registered their address).
         (isAuthenticated() &&
           userId == request.auth.uid &&
           request.resource.data.uid == request.auth.uid &&
           isValidUserData(request.resource.data) &&
-          request.resource.data.role == resource.data.role) ||
+          request.resource.data.role == ownRoleAfter()) ||
         // Admin grants or removes the teacher role, and nothing else.
         (isAdmin() &&
           userId != request.auth.uid &&

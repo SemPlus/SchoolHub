@@ -117,6 +117,7 @@ export default function EditModal({ isOpen, onClose, material }: EditModalProps)
           subject,
           bookTitle: book?.title || null,
           className: hasClass ? formatClassName(classYear, classSection) : null,
+          description: description.trim() || null,
         }),
         // A new link has not been checked, and a teacher's verification no
         // longer applies to it.

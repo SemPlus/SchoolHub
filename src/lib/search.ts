@@ -1,8 +1,9 @@
 import { IT } from './i18n.it';
 
 // Search across schools without a search service: every material stores the
-// prefixes of the words in its title, tags, subject and textbook
-// (`keywords`), so one `array-contains` query finds it while someone types.
+// prefixes of the words in its title, tags, subject, textbook, class and
+// description (`keywords`), so one `array-contains` query finds it while
+// someone types. Description words come last, so they are the first cut.
 
 /** Longest prefix stored per word; longer typed words are cut to this. */
 const MAX_PREFIX = 15;
@@ -28,7 +29,16 @@ export interface Searchable {
   subject?: string | null;
   bookTitle?: string | null;
   className?: string | null;
+  description?: string | null;
 }
+
+/** Common Italian and English words left out of the description's keywords. */
+const STOP_WORDS = new Set((
+  'il lo la le gli un una uno di del dello della dei degli delle da dal dallo dalla dai dagli dalle in nel nello nella nei negli nelle ' +
+  'su sul sullo sulla sui sugli sulle con per tra fra che chi cui non come anche piu ma se ed et al allo alla ai agli alle ' +
+  'questo questa questi queste quello quella quelli quelle sono stato stata essere ha hanno era molto tutto tutti tutte ' +
+  'the and of to in for on with from by is are was this that these those an or at as it its be'
+).split(' '));
 
 /** The `keywords` field for a material. */
 export function keywordsFor(m: Searchable): string[] {
@@ -45,6 +55,7 @@ export function keywordsFor(m: Searchable): string[] {
   if (m.subject) add(IT[m.subject]);
   add(m.bookTitle);
   add(m.className);
+  for (const w of wordsOf(m.description)) if (w.length >= MIN_PREFIX && !STOP_WORDS.has(w)) add(w);
   return [...out].slice(0, MAX_KEYWORDS);
 }
 
