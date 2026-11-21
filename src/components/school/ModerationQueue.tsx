@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { collection, doc, getDoc, getDocs, getDocsFromServer, query, where } from 'firebase/firestore';
 import { ExternalLink, EyeOff, Flag, MessageSquare, FileText, HandHelping } from 'lucide-react';
 import { db } from '../../firebase';
 import { useAppData } from '../../context/AppData';
@@ -62,18 +62,25 @@ export default function ModerationQueue({ schoolId, showReporters = false }: Mod
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setItems(null);
-    setUnavailable(false);
+  // One-off reads, not a live listener: Firestore 12 can crash when a live
+  // query the rules refuse is started and stopped quickly.
+  const load = useCallback(async () => {
     const q = schoolId ? query(collection(db, 'moderation'), where('schoolId', '==', schoolId)) : collection(db, 'moderation');
-    return onSnapshot(q, snapshot => {
+    try {
+      const snapshot = await getDocsFromServer(q);
       setItems(snapshot.docs.map(d => mapModerationDoc(d.id, d.data())));
-    }, err => {
-      console.error('Moderation snapshot error:', err);
+      setUnavailable(false);
+    } catch (err) {
+      console.error('Could not load reports:', err);
       setUnavailable(true);
       setItems([]);
-    });
+    }
   }, [schoolId]);
+
+  useEffect(() => {
+    setItems(null);
+    load();
+  }, [load]);
 
   // Load the content of the entries that may need a decision, again whenever the entry changes.
   useEffect(() => {
@@ -112,6 +119,7 @@ export default function ModerationQueue({ schoolId, showReporters = false }: Mod
       if (action === 'keep') await keepContent(item, moderatorName);
       else if (action === 'remove') await removeContent(item, moderatorName);
       else await closeMissing(item, moderatorName);
+      await load();
     } catch (err) {
       setError(firebaseErrorMessage(err, t("Could not save the decision.")));
     } finally {
