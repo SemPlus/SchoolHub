@@ -877,4 +877,15 @@ export const IT: Record<string, string> = {
   'The comment will be deleted for good. Continue?': 'Il commento verrà cancellato per sempre. Continuare?',
   'The request will be deleted for good. Continue?': 'La richiesta verrà cancellata per sempre. Continuare?',
   'This content no longer exists.': 'Questo contenuto non esiste più.',
+  // Mixed search
+  'Your class': 'La tua classe',
+  'Your classes': 'Le tue classi',
+  'Your school': 'La tua scuola',
+  'Other schools': 'Altre scuole',
+  '{0} in your class': '{0} nella tua classe',
+  '{0} in your classes': '{0} nelle tue classi',
+  '{0} in your school': '{0} nella tua scuola',
+  '{0} in other schools': '{0} in altre scuole',
+  'Show more ({0})': 'Mostra altri ({0})',
+  'Nothing at your school: here is what the rest of Italy has.': 'Niente nella tua scuola: ecco cosa c’è nel resto d’Italia.',
 };

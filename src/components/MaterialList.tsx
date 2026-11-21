@@ -32,6 +32,7 @@ import { kindsInUse } from '../lib/materialKinds';
 import { booksForClass, bookLabel, Textbook } from '../lib/textbooks';
 import { firebaseErrorMessage } from '../lib/engagement';
 import { matchesAllWords, searchToken } from '../lib/search';
+import { compareBySearch, groupResults, OTHER_SCHOOLS_PAGE, searchGroup, SEARCH_GROUPS, SearchGroup, SearchViewer } from '../lib/searchRank';
 
 import { t, tc } from '../lib/i18n';
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -304,6 +305,16 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     return year < currentSchoolYear ? `Inherited · ${formatSchoolYear(year)}` : undefined;
   };
 
+  // While searching the archive, results come from everywhere (the scope
+  // chips stop limiting them) and are grouped class → school → other schools.
+  const searching = currentView === 'archive' && currentFolderId === null && !bookFilter && searchTerm.trim().length > 0;
+  const searchViewer: SearchViewer = useMemo(
+    () => ({ schoolId: profile?.schoolId, classLabels: myClassLabels, schoolYear: currentSchoolYear }),
+    [profile?.schoolId, myClassLabels, currentSchoolYear],
+  );
+  const [otherShown, setOtherShown] = useState(OTHER_SCHOOLS_PAGE);
+  useEffect(() => { setOtherShown(OTHER_SCHOOLS_PAGE); }, [searchTerm]);
+
   // Materials for the current view, before search and filters.
   const materials = useMemo(() => {
     const now = Date.now();
@@ -339,9 +350,9 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       // A chosen textbook shows its materials from every school.
       if (bookFilter) return m.isbn === bookFilter;
 
-      return inScope(m);
+      return searching || inScope(m);
     });
-  }, [allMaterials, retiredIds, currentView, currentFolderId, userSaves, uid, personalShow, effectiveScope, bookFilter, profile?.schoolId, profile?.classYear, profile?.classSection, currentSchoolYear]);
+  }, [allMaterials, retiredIds, currentView, currentFolderId, userSaves, uid, personalShow, effectiveScope, bookFilter, searching, profile?.schoolId, profile?.classYear, profile?.classSection, currentSchoolYear]);
 
   /** Subjects that exist in this view, most recently used first. */
   const subjectsHere = useMemo(() => subjectsInUse(materials), [materials]);
@@ -428,7 +439,16 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       if (subjectFilter && m.subject !== subjectFilter) return false;
       return true;
     });
+    const grouped = searching && !!profile?.schoolId;
+    const groupRank = (m: Material) => SEARCH_GROUPS.indexOf(searchGroup(m, searchViewer));
+    const bestIds = new Set(collections.map(c => c.winnerMaterialId).filter((id): id is string => !!id));
+    const bySearch = compareBySearch(term, bestIds);
     return [...filtered].sort((a, b) => {
+      if (grouped) {
+        const g = groupRank(a) - groupRank(b);
+        if (g) return g;
+      }
+      if (searching && sortBy === 'foryou') return bySearch(a, b);
       if (sortBy === 'oldest') return a.createdAt.getTime() - b.createdAt.getTime();
       if (sortBy === 'az') return a.title.localeCompare(b.title);
       if (sortBy === 'za') return b.title.localeCompare(a.title);
@@ -444,13 +464,19 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
       }
       return b.createdAt.getTime() - a.createdAt.getTime();
     });
-  }, [materials, searchTerm, filterType, kindFilter, bookFilter, sortBy, schoolFilter, yearFilter, subjectFilter, liveCollectionIds, currentView, currentFolderId, subjectsFirst, teacherViewClass, myClassLabels, profile]);
+  }, [materials, searchTerm, filterType, kindFilter, bookFilter, sortBy, schoolFilter, yearFilter, subjectFilter, liveCollectionIds, currentView, currentFolderId, subjectsFirst, teacherViewClass, myClassLabels, profile, searching, searchViewer, collections]);
+
+  /** Search results by group (null when not searching or without a school). */
+  const searchGroups = useMemo(
+    () => (searching && profile?.schoolId ? groupResults(sortedMaterials, searchViewer) : null),
+    [searching, profile?.schoolId, sortedMaterials, searchViewer],
+  );
 
   // Collections shown at the top of the archive, my class first.
   const visibleCollections = useMemo(() => {
     if (currentView !== 'archive' || currentFolderId !== null) return [];
     return collections
-      .filter(c => inScope(c))
+      .filter(c => searching || inScope(c))
       .filter(c => matchesAllWords(searchTerm, `${c.title} ${c.description || ''}`))
       .filter(c => !subjectFilter || c.subject === subjectFilter)
       .filter(c => !schoolFilter || c.schoolId === schoolFilter.id)
@@ -467,7 +493,7 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         forYouRank(a.collection) - forYouRank(b.collection) ||
         b.lastActivity.getTime() - a.lastActivity.getTime()
       );
-  }, [collections, allMaterials, currentView, currentFolderId, searchTerm, subjectFilter, schoolFilter, yearFilter, effectiveScope, subjectsFirst, profile]);
+  }, [collections, allMaterials, currentView, currentFolderId, searchTerm, subjectFilter, schoolFilter, yearFilter, effectiveScope, subjectsFirst, profile, searching]);
 
   // ---------------------------------------------------------------- selection
 
@@ -865,6 +891,41 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
     );
   }
 
+  const materialIndex = new Map(sortedMaterials.map((m, i) => [m.id, i]));
+  const groupTitle = (group: SearchGroup) =>
+    group === 'class' ? (isTeacher ? t("Your classes") : t("Your class"))
+    : group === 'school' ? t("Your school")
+    : t("Other schools");
+  const renderMaterial = (material: Material, index: number) => (
+    <motion.div
+      layout
+      key={material.id}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      data-item-type="material"
+      data-item-id={material.id}
+      onContextMenu={(e) => handleContextMenu(e, 'material', material)}
+    >
+      <MaterialCard
+        material={material}
+        onAuthorClick={handleAuthorClick}
+        onCardClick={selectMode ? (m) => toggleSelected(m.id, 'material') : currentView === 'trash' ? () => {} : handleCardClick}
+        onEditClick={handleEditClick}
+        onMoveClick={handleMoveMaterial}
+        userRole={userRole}
+        authorImpact={getStats(material.authorId).impact}
+        isSaved={userSaves.has(material.id)}
+        isInTrash={currentView === 'trash'}
+        onRestore={(m) => handleRestore('materials', m.id)}
+        isSelected={selectedMaterialIds.has(material.id)}
+        onSelect={(e) => handleItemSelect(material.id, 'material', sortedFolders.length + index, e)}
+        onDragStart={() => handleDragStart(material.id, 'material')}
+        inheritedLabel={currentView === 'archive' ? inheritedLabelFor(material) : currentView === 'personal' && retiredIds.has(material.id) ? t("Only in your space") : undefined}
+      />
+    </motion.div>
+  );
+
   const isEmpty = (currentView === 'personal' && currentFolderId === null && personalShow === 'saved' ? 0 : sortedFolders.length) === 0 && sortedMaterials.length === 0 && visibleCollections.length === 0;
 
   const finalExamClass = isTeacher
@@ -1259,41 +1320,55 @@ export default function MaterialList({ userRole, view = 'archive', onViewChange 
         </div>
         )}
 
+        {searchGroups ? (
+          <div className="space-y-8">
+            <p className="text-[10px] uppercase tracking-widest text-white/40">
+              {[
+                searchGroups.class.length ? (isTeacher ? t("{0} in your classes", searchGroups.class.length) : t("{0} in your class", searchGroups.class.length)) : null,
+                searchGroups.school.length ? t("{0} in your school", searchGroups.school.length) : null,
+                searchGroups.other.length ? t("{0} in other schools", searchGroups.other.length) : null,
+              ].filter(Boolean).join(' · ')}
+            </p>
+            {SEARCH_GROUPS.map(group => {
+              const list = searchGroups[group];
+              if (!list.length) return null;
+              const shown = group === 'other' ? list.slice(0, otherShown) : list;
+              const nothingAtSchool = group === 'other' && !searchGroups.class.length && !searchGroups.school.length;
+              return (
+                <section key={group} className="space-y-4">
+                  <div className="flex items-baseline gap-3 border-b border-white/5 pb-2">
+                    <h3 className="font-serif text-xl text-white">{groupTitle(group)}</h3>
+                    <span className="text-xs text-white/35 tabular-nums">{list.length}</span>
+                  </div>
+                  {nothingAtSchool && <p className="text-sm text-white/50">{t("Nothing at your school: here is what the rest of Italy has.")}</p>}
+                  <div onMouseDown={handleMouseDown} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
+                    <AnimatePresence mode="popLayout">
+                      {shown.map(material => renderMaterial(material, materialIndex.get(material.id) ?? 0))}
+                    </AnimatePresence>
+                  </div>
+                  {shown.length < list.length && (
+                    <div className="flex justify-center">
+                      <button
+                        onClick={() => setOtherShown(n => n + OTHER_SCHOOLS_PAGE)}
+                        className="px-6 py-3 rounded-full border border-white/15 text-xs text-white/70 hover:text-white hover:border-white/30 transition-colors"
+                      >
+                        {t("Show more ({0})", list.length - shown.length)}
+                      </button>
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        ) : (
         <div onMouseDown={handleMouseDown} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
         <AnimatePresence mode="popLayout">
-          {sortedMaterials.map((material, index) => (
-            <motion.div
-              layout
-              key={material.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              data-item-type="material"
-              data-item-id={material.id}
-              onContextMenu={(e) => handleContextMenu(e, 'material', material)}
-            >
-              <MaterialCard
-                material={material}
-                onAuthorClick={handleAuthorClick}
-                onCardClick={selectMode ? (m) => toggleSelected(m.id, 'material') : currentView === 'trash' ? () => {} : handleCardClick}
-                onEditClick={handleEditClick}
-                onMoveClick={handleMoveMaterial}
-                userRole={userRole}
-                authorImpact={getStats(material.authorId).impact}
-                isSaved={userSaves.has(material.id)}
-                isInTrash={currentView === 'trash'}
-                onRestore={(m) => handleRestore('materials', m.id)}
-                isSelected={selectedMaterialIds.has(material.id)}
-                onSelect={(e) => handleItemSelect(material.id, 'material', sortedFolders.length + index, e)}
-                onDragStart={() => handleDragStart(material.id, 'material')}
-                inheritedLabel={currentView === 'archive' ? inheritedLabelFor(material) : currentView === 'personal' && retiredIds.has(material.id) ? t("Only in your space") : undefined}
-              />
-            </motion.div>
-          ))}
+          {sortedMaterials.map((material, index) => renderMaterial(material, index))}
         </AnimatePresence>
         </div>
+        )}
 
-        {showsEverything && feed.started && (feed.hasMore || feed.loading) && (
+        {showsEverything && !searching && feed.started && (feed.hasMore || feed.loading) && (
           <div className="flex justify-center pt-2">
             <button
               onClick={loadMoreFeed}
