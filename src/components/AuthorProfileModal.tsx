@@ -27,6 +27,7 @@ import ClassPosterModal from './ClassPosterModal';
 import { isTeacherAccount } from '../lib/schoolYear';
 import UserAvatar from './UserAvatar';
 import AccountSection from './AccountSection';
+import ReadabilitySection from './ReadabilitySection';
 
 import { t } from '../lib/i18n';
 interface AuthorProfileModalProps {
@@ -384,6 +385,7 @@ export default function AuthorProfileModal({ isOpen, onClose, authorId, authorNa
                   )}
                 </div>
 
+                {isCurrentUser && <ReadabilitySection />}
                 {isCurrentUser && <AccountSection />}
               </div>
       </Modal>

@@ -153,3 +153,17 @@ button, a {
 .legal-text th, .legal-text td { border: 1px solid rgba(255, 255, 255, 0.08); padding: 0.5rem 0.75rem; text-align: left; vertical-align: top; min-width: 7rem; }
 .legal-text th { color: #fff; font-weight: 600; background: rgba(255, 255, 255, 0.03); }
 .legal-text code { font-size: 0.85em; background: rgba(255, 255, 255, 0.06); padding: 0.1em 0.35em; border-radius: 0.35em; }
+
+/* Readability (own profile → Readability): chosen by each person, saved on the
+   device, applied as classes on <html> (src/lib/readability.ts). Colours, effects
+   and layout stay the same. */
+html.rd-font {
+  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+}
+html.rd-large { font-size: 112.5%; }
+html.rd-large :is(.text-\[6px\], .text-\[8px\], .text-\[8\.5px\], .text-\[9px\]) { font-size: 11px; }
+html.rd-large .text-\[10px\] { font-size: 12px; }
+html.rd-large .text-\[11px\] { font-size: 13px; }
+html.rd-spacing body { letter-spacing: 0.03em; word-spacing: 0.12em; }
+html.rd-spacing :is(p, li, label, td, textarea, input, .legal-text) { line-height: 1.8; }

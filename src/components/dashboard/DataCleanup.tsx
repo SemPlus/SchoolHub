@@ -9,6 +9,7 @@ import { t } from '../../lib/i18n';
 // Retention (legal/01-informativa-privacy.md): activity markers and reports
 // are kept 12 months. Without server functions (until February 2027) the
 // founder clears them from here; later a scheduled function does it.
+// Requests from the page for schools are kept 24 months.
 
 const YEAR_MS = 365 * 86_400_000;
 
@@ -16,14 +17,16 @@ interface Stale {
   markers: DocumentReference[];
   reports: DocumentReference[];
   moderation: DocumentReference[];
+  contacts: DocumentReference[];
 }
 
 async function findStale(): Promise<Stale> {
   const cutoff = Timestamp.fromMillis(Date.now() - YEAR_MS);
-  const [markers, reports, moderation] = await Promise.all([
+  const [markers, reports, moderation, contacts] = await Promise.all([
     getDocsFromServer(query(collection(db, 'activity'), where('week', '<', weekIndex() - 52))),
     getDocsFromServer(query(collection(db, 'reports'), where('createdAt', '<', cutoff))),
     getDocsFromServer(query(collection(db, 'moderation'), where('updatedAt', '<', cutoff))),
+    getDocsFromServer(query(collection(db, 'contactRequests'), where('createdAt', '<', Timestamp.fromMillis(Date.now() - 2 * YEAR_MS)))),
   ]);
   // Reports on content still waiting for a decision stay.
   const open = new Set(moderation.docs.filter(d => d.data().status === 'open').map(d => d.id));
@@ -31,6 +34,7 @@ async function findStale(): Promise<Stale> {
     markers: markers.docs.map(d => d.ref),
     reports: reports.docs.filter(d => !open.has(d.data().targetKey)).map(d => d.ref),
     moderation: moderation.docs.filter(d => d.data().status !== 'open').map(d => d.ref),
+    contacts: contacts.docs.map(d => d.ref),
   };
 }
 
@@ -42,13 +46,13 @@ export default function DataCleanup() {
   const load = () => findStale().then(setStale).catch(() => setStale(null));
   useEffect(() => { load(); }, []);
 
-  const total = stale ? stale.markers.length + stale.reports.length + stale.moderation.length : 0;
+  const total = stale ? stale.markers.length + stale.reports.length + stale.moderation.length + stale.contacts.length : 0;
   if (!stale || (total === 0 && !message)) return null;
 
   const clean = async () => {
     setBusy(true);
     setMessage(null);
-    const refs = [...stale.markers, ...stale.reports, ...stale.moderation];
+    const refs = [...stale.markers, ...stale.reports, ...stale.moderation, ...stale.contacts];
     const results = await Promise.allSettled(refs.map(ref => deleteDoc(ref)));
     const failed = results.filter(r => r.status === 'rejected').length;
     setMessage(failed ? t("{0} removed, {1} failed", refs.length - failed, failed) : t("{0} removed", refs.length));
@@ -61,6 +65,7 @@ export default function DataCleanup() {
       <Eraser className="w-4 h-4 text-white/40 shrink-0" />
       <p className="flex-1 text-xs text-white/60">
         {message || t("Older than 12 months: {0} activity markers, {1} reports, {2} closed moderation records.", stale.markers.length, stale.reports.length, stale.moderation.length)}
+        {!message && stale.contacts.length > 0 && <> {t("Older than 24 months: {0} requests from schools.", stale.contacts.length)}</>}
       </p>
       {total > 0 && (
         <button

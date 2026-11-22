@@ -97,119 +97,146 @@ export function useSchoolPanel(schoolId: string) {
     reload();
   }, [reload]);
 
-  return useMemo(() => {
-    const year = schoolYearStart();
-    const yearStart = new Date(year, 8, 1);
-    const thisWeek = weekIndex();
-
-    const sourceMaterials = own ? liveMaterials : fetched?.materials ?? [];
-    const sourceCollections = own ? liveCollections : fetched?.collections ?? [];
-    const schoolCollections = sourceCollections.filter(c => c.schoolId === schoolId && !c.isDeleted);
-    const retired = retiredMaterialIds(schoolCollections, sourceMaterials);
-    // Works in the archive (trashed, retired and hidden ones left out).
-    const schoolMaterials = sourceMaterials.filter(m => m.schoolId === schoolId && !m.isDeleted && !retired.has(m.id) && !isModHidden(m));
-    const thisYear = (d: Date) => schoolYearStart(d) === year;
-    const yearMaterials = schoolMaterials.filter(m => thisYear(m.createdAt));
-    const yearLots = schoolCollections.filter(c => isLot(c) && thisYear(c.createdAt));
-    const labelOf = (x: { classYear?: number; classSection?: string }) => formatClassName(x.classYear, x.classSection);
-
-    // Best works passed on to the next classes (all years).
-    const worksIn = (id: string) => schoolMaterials.filter(m => m.collectionId === id);
-    const inherited: InheritedWork[] = schoolCollections
-      .flatMap(c => {
-        const works = isLot(c)
-          ? (isClosed(c) ? keptWorks(c, worksIn(c.id)) : [])
-          : schoolMaterials.filter(m => m.id === c.winnerMaterialId);
-        return works.map(work => ({ work, collection: c }));
-      })
-      .sort((a, b) => b.collection.createdAt.getTime() - a.collection.createdAt.getTime());
-
-    // Students with an account this school year, by class.
-    const students = directory.filter(e => e.accountType !== 'teacher' && (!e.schoolYear || e.schoolYear === year));
-    const enrolledBy = new Map<string, number>();
-    for (const e of students) {
-      const label = labelOf(e);
-      if (label) enrolledBy.set(label, (enrolledBy.get(label) || 0) + 1);
-    }
-
-    // Weeks of this school year (the weeks the school used SchoolHub).
-    const firstWeek = weekIndex(yearStart);
-    const yearWeeks = weeks.filter(w => w.week >= firstWeek && w.week <= thisWeek).sort((a, b) => a.week - b.week);
-    const current = weeks.find(w => w.week === thisWeek);
-
-    const classSet = new Set<string>(activation?.extraClasses ?? []);
-    enrolledBy.forEach((_, label) => classSet.add(label));
-    for (const tch of teachers) (tch.teacherClasses || []).forEach(l => classSet.add(l));
-    Object.keys(timetable?.grid ?? {}).forEach(l => classSet.add(l));
-    for (const x of [...yearMaterials, ...yearLots]) { const l = labelOf(x); if (l) classSet.add(l); }
-    const classes: ClassRow[] = [...classSet]
-      .filter(l => parseClassLabel(l))
-      .sort((a, b) => a.localeCompare(b, 'it', { numeric: true }))
-      .map(label => ({
-        label,
-        enrolled: enrolledBy.get(label) || 0,
-        activeThisWeek: current?.counts[label] || 0,
-        averageActive: yearWeeks.length
-          ? Math.round(yearWeeks.reduce((sum, w) => sum + (w.counts[label] || 0), 0) / yearWeeks.length)
-          : 0,
-        works: yearMaterials.filter(m => labelOf(m) === label).length,
-        lots: yearLots.filter(c => labelOf(c) === label).length,
-        lastAula: visits.get(label) || null,
-      }));
-
-    // Subjects: the ones taught here (teachers' subjects) and the ones with works this year.
-    const subjectCount = new Map<string, number>();
-    for (const tch of teachers) (tch.teacherSubjects || []).forEach(s => subjectCount.set(s, 0));
-    for (const m of yearMaterials) if (m.subject) subjectCount.set(m.subject, (subjectCount.get(m.subject) || 0) + 1);
-    subjectCount.delete('Other');
-    const subjects = [...subjectCount.entries()]
-      .map(([subject, count]) => ({ subject, count }))
-      .sort((a, b) => a.count - b.count || a.subject.localeCompare(b.subject));
-
-    const studentsActiveNow = studentsActive(current);
-    const weekly = yearWeeks.map(w => ({ date: weekDate(w.week), students: studentsActive(w) }));
-    const last12 = Array.from({ length: 12 }, (_, i) => thisWeek - 11 + i);
-
-    return {
-      loading,
-      unavailable,
-      activation,
-      reload,
-      year,
-      // Before activation the name comes from the school's works.
-      schoolName: activation?.name || schoolMaterials.find(m => m.schoolName)?.schoolName || schoolId,
-      schoolCity: activation?.city || schoolMaterials.find(m => m.schoolCity)?.schoolCity || '',
-      enrolled: students.length,
-      studentsActiveNow,
-      teachersActiveNow: current?.counts.teachers || 0,
-      averageActive: weekly.length ? Math.round(weekly.reduce((s, w) => s + w.students, 0) / weekly.length) : 0,
-      peakActive: weekly.reduce((max, w) => Math.max(max, w.students), 0),
-      weekly,
-      last12: {
-        weeks: last12.map(weekDate),
-        values: last12.map(w => studentsActive(weeks.find(x => x.week === w))),
-      },
-      worksYear: yearMaterials.length,
-      worksTotal: schoolMaterials.length,
-      lotsYear: yearLots.length,
-      inherited,
-      inheritedYear: inherited.filter(x => thisYear(x.collection.createdAt)),
-      classes,
-      classesInUse: classes.filter(c => c.lastAula && Date.now() - c.lastAula.getTime() < 7 * DAY).length,
-      classesUsedThisYear: classes.filter(c => c.lastAula && c.lastAula >= yearStart).length,
-      subjects,
-      visits,
-      timetable,
-      pendingTeachers: teachers.filter(tch => tch.role === 'user'),
-      confirmedTeachers: teachers.filter(tch => tch.role === 'teacher' || tch.role === 'admin').length,
-      /** Confirmed teachers the school can remove (not the founder's admins). */
-      teacherList: teachers
-        .filter(tch => tch.role === 'teacher')
-        .sort((x, y) => (x.displayName || '').localeCompare(y.displayName || '', 'it')),
-      /** The school's list of teachers' e-mails (lower case). */
-      teacherEmails,
-    };
-  }, [own, liveMaterials, liveCollections, fetched, schoolId, directory, teachers, weeks, visits, timetable, teacherEmails, activation, loading, unavailable, reload]);
+  return useMemo(() => buildSchoolPanel({
+    schoolId,
+    materials: own ? liveMaterials : fetched?.materials ?? [],
+    collections: own ? liveCollections : fetched?.collections ?? [],
+    directory, teachers, weeks, visits, timetable, teacherEmails, activation, loading, unavailable, reload,
+  }), [own, liveMaterials, liveCollections, fetched, schoolId, directory, teachers, weeks, visits, timetable, teacherEmails, activation, loading, unavailable, reload]);
 }
 
-export type SchoolPanelData = ReturnType<typeof useSchoolPanel>;
+/** What the panel is computed from: loaded by useSchoolPanel, or the demo school's example data. */
+export interface PanelSources {
+  schoolId: string;
+  materials: Material[];
+  collections: Collection[];
+  /** directory entries of the school (accountType, classYear, classSection, schoolYear). */
+  directory: any[];
+  teachers: User[];
+  weeks: SchoolWeek[];
+  visits: Map<string, Date>;
+  timetable: Timetable | null;
+  teacherEmails: string[];
+  activation: SchoolActivation | null;
+  loading: boolean;
+  unavailable: boolean;
+  reload: () => Promise<void>;
+}
+
+/** The panel's numbers, from its sources. Pure: also used by the demo panel. */
+export function buildSchoolPanel(sources: PanelSources) {
+  const year = schoolYearStart();
+  const yearStart = new Date(year, 8, 1);
+  const thisWeek = weekIndex();
+
+  const { schoolId, directory, teachers, weeks, visits, timetable, teacherEmails, activation, loading, unavailable, reload } = sources;
+  const sourceMaterials = sources.materials;
+  const sourceCollections = sources.collections;
+  const schoolCollections = sourceCollections.filter(c => c.schoolId === schoolId && !c.isDeleted);
+  const retired = retiredMaterialIds(schoolCollections, sourceMaterials);
+  // Works in the archive (trashed, retired and hidden ones left out).
+  const schoolMaterials = sourceMaterials.filter(m => m.schoolId === schoolId && !m.isDeleted && !retired.has(m.id) && !isModHidden(m));
+  const thisYear = (d: Date) => schoolYearStart(d) === year;
+  const yearMaterials = schoolMaterials.filter(m => thisYear(m.createdAt));
+  const yearLots = schoolCollections.filter(c => isLot(c) && thisYear(c.createdAt));
+  const labelOf = (x: { classYear?: number; classSection?: string }) => formatClassName(x.classYear, x.classSection);
+
+  // Best works passed on to the next classes (all years).
+  const worksIn = (id: string) => schoolMaterials.filter(m => m.collectionId === id);
+  const inherited: InheritedWork[] = schoolCollections
+    .flatMap(c => {
+      const works = isLot(c)
+        ? (isClosed(c) ? keptWorks(c, worksIn(c.id)) : [])
+        : schoolMaterials.filter(m => m.id === c.winnerMaterialId);
+      return works.map(work => ({ work, collection: c }));
+    })
+    .sort((a, b) => b.collection.createdAt.getTime() - a.collection.createdAt.getTime());
+
+  // Students with an account this school year, by class.
+  const students = directory.filter(e => e.accountType !== 'teacher' && (!e.schoolYear || e.schoolYear === year));
+  const enrolledBy = new Map<string, number>();
+  for (const e of students) {
+    const label = labelOf(e);
+    if (label) enrolledBy.set(label, (enrolledBy.get(label) || 0) + 1);
+  }
+
+  // Weeks of this school year (the weeks the school used SchoolHub).
+  const firstWeek = weekIndex(yearStart);
+  const yearWeeks = weeks.filter(w => w.week >= firstWeek && w.week <= thisWeek).sort((a, b) => a.week - b.week);
+  const current = weeks.find(w => w.week === thisWeek);
+
+  const classSet = new Set<string>(activation?.extraClasses ?? []);
+  enrolledBy.forEach((_, label) => classSet.add(label));
+  for (const tch of teachers) (tch.teacherClasses || []).forEach(l => classSet.add(l));
+  Object.keys(timetable?.grid ?? {}).forEach(l => classSet.add(l));
+  for (const x of [...yearMaterials, ...yearLots]) { const l = labelOf(x); if (l) classSet.add(l); }
+  const classes: ClassRow[] = [...classSet]
+    .filter(l => parseClassLabel(l))
+    .sort((a, b) => a.localeCompare(b, 'it', { numeric: true }))
+    .map(label => ({
+      label,
+      enrolled: enrolledBy.get(label) || 0,
+      activeThisWeek: current?.counts[label] || 0,
+      averageActive: yearWeeks.length
+        ? Math.round(yearWeeks.reduce((sum, w) => sum + (w.counts[label] || 0), 0) / yearWeeks.length)
+        : 0,
+      works: yearMaterials.filter(m => labelOf(m) === label).length,
+      lots: yearLots.filter(c => labelOf(c) === label).length,
+      lastAula: visits.get(label) || null,
+    }));
+
+  // Subjects: the ones taught here (teachers' subjects) and the ones with works this year.
+  const subjectCount = new Map<string, number>();
+  for (const tch of teachers) (tch.teacherSubjects || []).forEach(s => subjectCount.set(s, 0));
+  for (const m of yearMaterials) if (m.subject) subjectCount.set(m.subject, (subjectCount.get(m.subject) || 0) + 1);
+  subjectCount.delete('Other');
+  const subjects = [...subjectCount.entries()]
+    .map(([subject, count]) => ({ subject, count }))
+    .sort((a, b) => a.count - b.count || a.subject.localeCompare(b.subject));
+
+  const studentsActiveNow = studentsActive(current);
+  const weekly = yearWeeks.map(w => ({ date: weekDate(w.week), students: studentsActive(w) }));
+  const last12 = Array.from({ length: 12 }, (_, i) => thisWeek - 11 + i);
+
+  return {
+    loading,
+    unavailable,
+    activation,
+    reload,
+    year,
+    // Before activation the name comes from the school's works.
+    schoolName: activation?.name || schoolMaterials.find(m => m.schoolName)?.schoolName || schoolId,
+    schoolCity: activation?.city || schoolMaterials.find(m => m.schoolCity)?.schoolCity || '',
+    enrolled: students.length,
+    studentsActiveNow,
+    teachersActiveNow: current?.counts.teachers || 0,
+    averageActive: weekly.length ? Math.round(weekly.reduce((s, w) => s + w.students, 0) / weekly.length) : 0,
+    peakActive: weekly.reduce((max, w) => Math.max(max, w.students), 0),
+    weekly,
+    last12: {
+      weeks: last12.map(weekDate),
+      values: last12.map(w => studentsActive(weeks.find(x => x.week === w))),
+    },
+    worksYear: yearMaterials.length,
+    worksTotal: schoolMaterials.length,
+    lotsYear: yearLots.length,
+    inherited,
+    inheritedYear: inherited.filter(x => thisYear(x.collection.createdAt)),
+    classes,
+    classesInUse: classes.filter(c => c.lastAula && Date.now() - c.lastAula.getTime() < 7 * DAY).length,
+    classesUsedThisYear: classes.filter(c => c.lastAula && c.lastAula >= yearStart).length,
+    subjects,
+    visits,
+    timetable,
+    pendingTeachers: teachers.filter(tch => tch.role === 'user'),
+    confirmedTeachers: teachers.filter(tch => tch.role === 'teacher' || tch.role === 'admin').length,
+    /** Confirmed teachers the school can remove (not the founder's admins). */
+    teacherList: teachers
+      .filter(tch => tch.role === 'teacher')
+      .sort((x, y) => (x.displayName || '').localeCompare(y.displayName || '', 'it')),
+    /** The school's list of teachers' e-mails (lower case). */
+    teacherEmails,
+  };
+}
+
+export type SchoolPanelData = ReturnType<typeof buildSchoolPanel>;

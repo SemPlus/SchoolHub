@@ -16,6 +16,7 @@ import { subjectStyle, withAlpha } from '../lib/subjects';
 import { format, t } from '../lib/i18n';
 import { cn, toDate } from '../lib/utils';
 import { currentSlot, mapTimetableDoc, type Timetable } from '../lib/timetable';
+import { DEMO_PANEL_PATH, DEMO_SCHOOL, demoData, isDemoSchool } from '../lib/demo';
 
 type Status = 'loading' | 'active' | 'inactive' | 'invalid';
 
@@ -36,6 +37,8 @@ export default function ClassroomMode() {
   const target = useMemo(() => parseAulaPath(window.location.pathname), []);
   // Local preview only: ?dev skips the activation check, which needs the deployed rules.
   const devBypass = import.meta.env.DEV && new URLSearchParams(window.location.search).has('dev');
+  // The demo school (/aula/LICEODEMO-4A): example data from the app, nothing read or written.
+  const demo = isDemoSchool(target?.schoolId);
 
   const [status, setStatus] = useState<Status>(target ? 'loading' : 'invalid');
   const [school, setSchool] = useState<SchoolOption | null>(null);
@@ -63,6 +66,7 @@ export default function ClassroomMode() {
   // School name and activation.
   useEffect(() => {
     if (!target) return;
+    if (demo) { setSchool(DEMO_SCHOOL); setStatus('active'); return; }
     findSchoolById(target.schoolId).then(setSchool).catch(() => setSchool(null));
     loadActivation(target.schoolId)
       .then(activation => setStatus(isActive(activation) || devBypass ? 'active' : 'inactive'))
@@ -75,6 +79,13 @@ export default function ClassroomMode() {
   // The school's materials and lots, live, once the school is active.
   useEffect(() => {
     if (!target || status !== 'active') return;
+    if (demo) {
+      const d = demoData();
+      setSchoolMaterials(d.materials);
+      setCollections(d.collections);
+      setTimetable(d.timetable);
+      return;
+    }
     recordAulaVisit(target);
     const unsubMaterials = onSnapshot(query(collection(db, 'materials'), where('schoolId', '==', target.schoolId)), snapshot => {
       setSchoolMaterials(snapshot.docs.map(d => mapMaterialDoc(d.id, d.data())).filter(m => !m.isDeleted && !isModHidden(m)));
@@ -130,7 +141,7 @@ export default function ClassroomMode() {
     // Subjects in use, the most recently active first.
     const activity = new Map<string, number>();
     const touch = (s: string | null | undefined, at: Date) => {
-      if (s && at.getTime() > (activity.get(s) ?? 0)) activity.set(s, at.getTime());
+      if (s && (!activity.has(s) || at.getTime() > activity.get(s)!)) activity.set(s, at.getTime());
     };
     lots.forEach(l => touch(l.collection.subject, l.lastActivity));
     loose.forEach(m => touch(m.subject, m.createdAt));
@@ -160,7 +171,7 @@ export default function ClassroomMode() {
 
   const openLotId = lot?.collection.id ?? null;
   useEffect(() => {
-    if (!openLotId) { setLotWorks([]); return; }
+    if (!openLotId || demo) { setLotWorks([]); return; }
     return onSnapshot(query(collection(db, 'materials'), where('collectionId', '==', openLotId)), snapshot => {
       setLotWorks(snapshot.docs.map(d => mapMaterialDoc(d.id, d.data())).filter(m => !m.isDeleted && !isModHidden(m)));
     }, error => console.error('Classroom lot error:', error));
@@ -181,6 +192,13 @@ export default function ClassroomMode() {
 
   return (
     <div className="min-h-screen bg-luxury-black text-white/90 font-sans">
+      {demo && (
+        <div className="border-b border-luxury-gold/25 bg-luxury-gold/[0.06] px-5 sm:px-10 py-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] uppercase tracking-[0.2em] text-luxury-gold/90 text-center">
+          <span>{t("Demo school · example works")}</span>
+          <a href={DEMO_PANEL_PATH} className="underline underline-offset-4 hover:text-white">{t("School panel")}</a>
+          <a href="/scuole" className="underline underline-offset-4 hover:text-white">{t("For schools")}</a>
+        </div>
+      )}
       {/* Class header */}
       <header className="border-b border-white/10 bg-luxury-black/80 backdrop-blur-xl sticky top-0 z-20">
         <div className="max-w-[1600px] mx-auto px-5 sm:px-10 py-4 flex items-center gap-4">
@@ -263,7 +281,7 @@ export default function ClassroomMode() {
                     {lot.works.map(w => (
                       <WorkTile key={w.id} work={w} chosen={w.id === lot.collection.winnerMaterialId} />
                     ))}
-                    {!lot.collection.winnerMaterialId && !isClosed(lot.collection) && <AddFromPhone collectionId={lot.collection.id} />}
+                    {!demo && !lot.collection.winnerMaterialId && !isClosed(lot.collection) && <AddFromPhone collectionId={lot.collection.id} />}
                   </div>
                 </>
               ) : (

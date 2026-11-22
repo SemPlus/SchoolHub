@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Il moto parabolico · Liceo Demo</title>
+<link rel="stylesheet" href="/demo/deck.css">
+<style>:root { --accent: #1f6a5a; --bg: #f3f7f5; } svg { width: 100%; height: auto; }</style>
+</head>
+<body>
+<section class="slide title">
+  <h1>Il moto parabolico</h1>
+  <p>Appunti per la 4A: le due componenti del moto, la gittata, un esempio svolto</p>
+  <p class="by">Prof.ssa Laura Gatti · Fisica · Materiale verificato</p>
+</section>
+<section class="slide">
+  <h2>Due moti indipendenti</h2>
+  <div class="two">
+    <div>
+      <p><strong>Orizzontale</strong>: moto rettilineo uniforme</p>
+      <p class="formula">x = v₀ cos α · t</p>
+      <p style="margin-top: 1em"><strong>Verticale</strong>: uniformemente accelerato (g verso il basso)</p>
+      <p class="formula">y = v₀ sin α · t − ½ g t²</p>
+    </div>
+    <svg viewBox="0 0 300 180" role="img" aria-label="Traiettoria parabolica">
+      <line x1="10" y1="160" x2="290" y2="160" stroke="#999" stroke-width="2"/>
+      <path d="M 20 160 Q 150 -20 280 160" fill="none" stroke="#1f6a5a" stroke-width="4"/>
+      <line x1="20" y1="160" x2="70" y2="110" stroke="#c0392b" stroke-width="3"/>
+      <text x="74" y="108" font-size="14" fill="#c0392b">v₀</text>
+      <text x="40" y="152" font-size="14" fill="#333">α</text>
+      <text x="140" y="178" font-size="14" fill="#333">gittata R</text>
+    </svg>
+  </div>
+</section>
+<section class="slide">
+  <h2>La traiettoria è una parabola</h2>
+  <p>Ricavo t dalla prima equazione e lo sostituisco nella seconda:</p>
+  <p class="formula">y = tan α · x − g x² / (2 v₀² cos² α)</p>
+  <p>È l'equazione di una parabola con la concavità verso il basso.</p>
+</section>
+<section class="slide">
+  <h2>Gittata, tempo di volo, altezza massima</h2>
+  <p>Lancio e arrivo alla stessa quota:</p>
+  <p class="formula">R = v₀² sin 2α / g</p>
+  <p class="formula">T = 2 v₀ sin α / g</p>
+  <p class="formula">H = v₀² sin² α / (2g)</p>
+  <p>A parità di v₀, la gittata è massima per <strong>α = 45°</strong>.</p>
+</section>
+<section class="slide">
+  <h2>Esempio svolto</h2>
+  <p>Una palla parte con v₀ = 20 m/s e α = 30°. Prendo g = 9,8 m/s².</p>
+  <ul>
+    <li>R = 20² · sin 60° / 9,8 = 400 · 0,866 / 9,8 ≈ <strong>35 m</strong></li>
+    <li>T = 2 · 20 · 0,5 / 9,8 ≈ <strong>2,0 s</strong></li>
+    <li>H = 20² · 0,25 / (2 · 9,8) ≈ <strong>5,1 m</strong></li>
+  </ul>
+  <p class="small">Esercizio: con quale altro angolo si ottiene la stessa gittata? (Suggerimento: sin 2α.)</p>
+</section>
+<script src="/demo/deck.js"></script>
+</body>
+</html>

@@ -47,6 +47,7 @@ Si accede solo con un account Google.
 | **Amministratori della scuola** (preside, vicepreside, referente digitale): email e scuola | La scuola, tramite SchoolHub | SchoolHub e l'interessato |
 | **Modalità aula:** classe e ora dell'ultimo utilizzo del link dell'aula. Nessun dato personale | Il PC o la LIM dell'aula | La scuola |
 | **Orario delle classi:** classe, giorno, ora, materia. Niente nomi dei docenti né aule | La scuola | Tutti (serve al link dell'aula, che funziona senza accesso) |
+| **Richieste dalla pagina per le scuole** (/scuole): nome, ruolo, scuola, email, messaggio | Chi compila il modulo | Solo SchoolHub |
 
 **Non trattiamo** categorie particolari di dati (salute, religione, opinioni ecc.), voti scolastici, assenze o note disciplinari. Ti chiediamo di non pubblicarne, neanche dentro i tuoi lavori (vedi le Regole sui contenuti).
 
@@ -58,6 +59,7 @@ Si accede solo con un account Google.
 | Funzioni della scuola attivata (pannello, aula, orario, moderazione della scuola, conferma dei docenti) | Per conto della scuola, sulla sua base giuridica: per le statali l'interesse pubblico dell'istruzione (art. 6.1.e), per le private il contratto con le famiglie o il legittimo interesse (art. 6.1.b/f) |
 | Sicurezza, prevenzione degli abusi, moderazione dei contenuti, gestione delle segnalazioni | Legittimo interesse a un servizio sicuro (art. 6.1.f) e obblighi del Regolamento UE 2022/2065 sui servizi digitali (art. 6.1.c) |
 | Risposta alle richieste delle autorità; tutela dei diritti in giudizio | Obbligo di legge (art. 6.1.c) e legittimo interesse (art. 6.1.f) |
+| Rispondere a chi chiede informazioni o un incontro dalla pagina per le scuole | Misure precontrattuali su richiesta dell'interessato (art. 6.1.b) |
 | Statistiche anonime sull'uso del servizio | Legittimo interesse a migliorarlo (art. 6.1.f), su dati aggregati |
 
 Gamification (ranghi, riconoscimenti, "lavoro migliore") e ordine dei risultati di ricerca si basano solo su ciò che fai in SchoolHub. Non prendiamo decisioni con effetti giuridici in modo automatico (art. 22 GDPR).
@@ -90,6 +92,7 @@ Quando apri l'anteprima di un lavoro, il contenuto viene caricato direttamente d
 | Segnalazioni e decisioni di moderazione | 12 mesi dalla decisione |
 | Marcatore settimanale di attività | 12 mesi (restano solo i totali anonimi per classe) |
 | Dati della scuola (pannello, orario, elenco dei docenti) | Per la durata dell'attivazione della scuola, poi 30 giorni per restituirli o cancellarli |
+| Richieste dalla pagina per le scuole | 24 mesi dall'ultimo contatto, salvo che diventino un contratto |
 | Dati richiesti da autorità o per una controversia | Per il tempo necessario |
 
 ## 9. I tuoi diritti

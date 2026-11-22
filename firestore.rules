@@ -1008,6 +1008,24 @@ service cloud.firestore {
       }
     }
 
+    // ===================================================== contact requests
+
+    // The form on the page for schools (/scuole): anyone may send one, without
+    // signing in; only the founder reads and deletes them.
+    match /contactRequests/{requestId} {
+      allow create: if
+        request.resource.data.keys().hasOnly(['name', 'role', 'school', 'email', 'message', 'createdAt']) &&
+        request.resource.data.keys().hasAll(['name', 'role', 'school', 'email', 'message', 'createdAt']) &&
+        request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 100 &&
+        request.resource.data.role in ['principal', 'teacher', 'other'] &&
+        request.resource.data.school is string && request.resource.data.school.size() >= 2 && request.resource.data.school.size() <= 200 &&
+        request.resource.data.email is string && request.resource.data.email.size() <= 200 &&
+        request.resource.data.email.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$') &&
+        request.resource.data.message is string && request.resource.data.message.size() <= 2000 &&
+        request.resource.data.createdAt == request.time;
+      allow read, delete: if isAdmin();
+    }
+
     // =================================================== reports & moderation
 
     // One report per person per content: reports/{targetKey}_{uid}. Only the

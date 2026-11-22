@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { doc, serverTimestamp } from 'firebase/firestore';
-import { Check, FileText } from 'lucide-react';
+import { Check, FileText, Flag } from 'lucide-react';
 import { db } from '../../firebase';
 import { updateDoc } from '../../lib/firestoreWrites';
 import { isActive } from '../../lib/aula';
@@ -17,7 +17,8 @@ import SchoolReport from './SchoolReport';
 import ModerationQueue from './ModerationQueue';
 import TeacherVerification from './TeacherVerification';
 import { onStaffDomain, removeTeacher } from '../../lib/teacherVerification';
-import { useSchoolPanel } from './useSchoolPanel';
+import { useSchoolPanel, type SchoolPanelData } from './useSchoolPanel';
+import { HIDE_AFTER } from '../../lib/moderation';
 
 const panel = 'glass-panel rounded-[1.5rem] p-4 sm:p-5 border-white/5 space-y-4 min-w-0';
 const heading = 'text-[10px] uppercase tracking-widest text-white/50';
@@ -29,12 +30,26 @@ const heading = 'text-[10px] uppercase tracking-widest text-white/50';
  */
 export default function SchoolPanel({ schoolId }: { schoolId: string }) {
   const data = useSchoolPanel(schoolId);
+  return <SchoolPanelView schoolId={schoolId} data={data} />;
+}
+
+/**
+ * The panel itself. With demo (the /scuole/demo page) it shows the example data
+ * of the demo school: links and the report work, changes are not saved.
+ */
+export function SchoolPanelView({ schoolId, data, demo = false }: { schoolId: string; data: SchoolPanelData; demo?: boolean }) {
+  const [demoNote, setDemoNote] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const a = data.activation;
 
   const run = async (key: string, action: () => Promise<unknown>, fallback: string) => {
+    if (demo) {
+      setDemoNote(true);
+      window.setTimeout(() => setDemoNote(false), 3000);
+      return;
+    }
     setBusy(key);
     setError(null);
     try {
@@ -119,7 +134,16 @@ export default function SchoolPanel({ schoolId }: { schoolId: string }) {
         </div>
       </div>
 
-      <ModerationQueue schoolId={schoolId} />
+      {demo ? (
+        <div className={panel}>
+          <p className={cn(heading, 'flex items-center gap-2')}><Flag className="w-3.5 h-3.5" /> {t("Reports")}</p>
+          <p className="text-xs text-white/40">
+            {t("Nothing to look at.")} {t("With {0} reports (or 1 from a teacher for copyright) the content hides itself until you decide.", HIDE_AFTER)}
+          </p>
+        </div>
+      ) : (
+        <ModerationQueue schoolId={schoolId} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.8fr)] gap-4 sm:gap-6 items-start">
         <WeeklyBars title={t("Active students")} weeks={data.last12.weeks} values={data.last12.values} />
@@ -249,12 +273,17 @@ export default function SchoolPanel({ schoolId }: { schoolId: string }) {
         </div>
       </div>
 
-      <TeacherVerification schoolId={schoolId} activation={a} emails={data.teacherEmails} onChanged={data.reload} />
+      {/* In the demo, visible but not editable */}
+      <fieldset disabled={demo} className="contents">
+        <TeacherVerification schoolId={schoolId} activation={a} emails={data.teacherEmails} onChanged={data.reload} />
+      </fieldset>
 
       {/* Timetable */}
       <div className={panel}>
         <p className={heading}>{t("Class timetable")}</p>
-        <TimetableSection schoolId={schoolId} classes={data.classes.map(c => c.label)} timetable={data.timetable} onSaved={data.reload} />
+        <fieldset disabled={demo} className="contents">
+          <TimetableSection schoolId={schoolId} classes={data.classes.map(c => c.label)} timetable={data.timetable} onSaved={data.reload} />
+        </fieldset>
       </div>
 
       {/* Classrooms */}
@@ -274,6 +303,11 @@ export default function SchoolPanel({ schoolId }: { schoolId: string }) {
       </div>
 
       {reportOpen && <SchoolReport data={data} onClose={() => setReportOpen(false)} />}
+      {demoNote && (
+        <p role="status" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full border border-luxury-gold/40 bg-luxury-black text-xs text-luxury-gold whitespace-nowrap">
+          {t("This is a demo: changes are not saved.")}
+        </p>
+      )}
     </div>
   );
 }

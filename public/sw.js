@@ -21,6 +21,8 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   // Only this site's own files; Firebase, Google and link previews go straight to the network.
   if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+  // The demo school's example presentations are plain pages, not the app.
+  if (url.pathname.startsWith('/demo/')) return;
 
   // Pages: network first, so a new version shows up straight away.
   if (request.mode === 'navigate') {

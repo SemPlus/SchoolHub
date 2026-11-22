@@ -20,3 +20,9 @@ import '@fontsource/cormorant-garamond/600.css';
 import '@fontsource/cormorant-garamond/600-italic.css';
 import '@fontsource/cormorant-garamond/700.css';
 import '@fontsource/cormorant-garamond/700-italic.css';
+// High-readability font, used only when someone turns it on (profile → Readability).
+// Browsers download it only when it is actually used.
+import '@fontsource/atkinson-hyperlegible/400.css';
+import '@fontsource/atkinson-hyperlegible/400-italic.css';
+import '@fontsource/atkinson-hyperlegible/700.css';
+import '@fontsource/atkinson-hyperlegible/700-italic.css';

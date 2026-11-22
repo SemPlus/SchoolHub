@@ -25,6 +25,7 @@ import SubjectBadge from './SubjectBadge';
 import ReportButton from './ReportButton';
 import { isModHidden, REASON_SHORT } from '../lib/moderation';
 import UserAvatar from './UserAvatar';
+import ListenButton from './ListenButton';
 
 import { t } from '../lib/i18n';
 interface MaterialDetailModalProps {
@@ -365,6 +366,8 @@ export default function MaterialDetailModal({
             )}
           </div>
         )}
+
+        <ListenButton text={[material.title, material.description].filter(Boolean).join('. ')} />
 
         {material.description && (
           <div>

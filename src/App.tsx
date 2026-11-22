@@ -280,6 +280,7 @@ export default function App() {
         <footer className="relative z-10 mt-20 pt-8 border-t border-white/5 text-center text-[10px] uppercase tracking-[0.3em] text-white/30">
           SchoolHub · {t("By Samuel K.")}
           <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 normal-case tracking-widest">
+            <a href="/scuole" className="hover:text-luxury-gold">{t("For schools")}</a>
             {LEGAL_PAGES.map(p => (
               <a key={p.slug} href={`/legal/${p.slug}`} target="_blank" rel="noopener noreferrer" className="hover:text-luxury-gold">{t(p.title)}</a>
             ))}
